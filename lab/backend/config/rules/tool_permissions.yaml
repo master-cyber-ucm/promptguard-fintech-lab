@@ -1,0 +1,82 @@
+# Permisos de tools bancarias por rol.
+# El Tool Gatekeeper valida estas reglas de forma determinista
+# (nunca delega la decisión al LLM).
+
+tools:
+  consulta_saldo:
+    description: "Consulta saldo y últimos movimientos"
+    risk_level: "medium"
+    allowed_roles:
+      - customer
+      - agent
+      - admin
+    # Solo puede consultar cuentas propias
+    require_own_account: true
+    max_amount_visible: null
+    requires_approval: false
+
+  transferencia_nacional:
+    description: "Inicia una transferencia SEPA nacional"
+    risk_level: "critical"
+    allowed_roles:
+      - customer
+      - admin
+    require_own_account: true
+    # Límites por rol
+    limits:
+      customer:
+        max_amount: 5000.00
+        daily_limit: 10000.00
+        requires_approval_above: 1000.00
+      admin:
+        max_amount: 50000.00
+        daily_limit: 100000.00
+        requires_approval_above: 10000.00
+    requires_approval: true
+    # Parámetros obligatorios
+    required_params:
+      - from_account
+      - to_account
+      - amount
+      - concept
+    # Parámetros prohibidos (no puede enviarlos el LLM)
+    forbidden_params:
+      - override_limit
+      - bypass_approval
+      - admin_mode
+
+  bloquear_tarjeta:
+    description: "Bloqueo de tarjeta de débito/crédito"
+    risk_level: "high"
+    allowed_roles:
+      - customer
+      - agent
+      - admin
+    require_own_account: true
+    requires_approval: false
+    required_params:
+      - card_id
+      - reason
+
+  consulta_producto:
+    description: "Información sobre productos del banco"
+    risk_level: "low"
+    allowed_roles:
+      - customer
+      - agent
+      - admin
+    require_own_account: false
+    requires_approval: false
+
+  abrir_reclamacion:
+    description: "Registra una reclamación formal"
+    risk_level: "medium"
+    allowed_roles:
+      - customer
+      - agent
+      - admin
+    require_own_account: true
+    requires_approval: false
+    required_params:
+      - subject
+      - description

@@ -1,0 +1,105 @@
+# Firmas de prompt injection conocidas.
+# Cada regla tiene: pattern (regex), action, severity, description.
+# El Input Sanitizer las aplica como Capa 1 (determinista).
+
+rules:
+  # --- Instrucciones de override directo ---
+  - name: "ignore_instructions"
+    pattern: '(?i)(ignora|ignore|forget|descarta)\s+(todas?\s+)?(las?\s+)?(instrucciones|instructions|previous|anteriores|rules|reglas)'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Instrucción de ignorar instrucciones previas"
+
+  - name: "system_override"
+    pattern: '(?i)(system\s+)?(override|bypass|desactiva|disable)\s+(all\s+)?(restrictions|restricciones|filters|filtros|safety)'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Intento de override del sistema"
+
+  - name: "you_are_now"
+    pattern: '(?i)(you\s+are\s+now|eres\s+ahora|actua\s+como|actúa\s+como|from\s+now\s+on\s+you)\s+\w+'
+    action: "BLOCK"
+    severity: "HIGH"
+    description: "Intento de redefinir el rol del asistente"
+
+  - name: "new_persona"
+    pattern: '(?i)(DAN|do\s+anything\s+now|sin\s+restricciones|unrestricted|jailbreak|jail\s+break)'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Patrones de jailbreak conocidos (DAN, etc.)"
+
+  - name: "repeat_system_prompt"
+    pattern: '(?i)(repeat|repite|show|muestra|print|imprime|output|devuelve)\s+(the\s+)?(above|anterior|previous|system|sistema)\s+(text|texto|prompt|instructions|instrucciones)\s*(verbatim|word|palabra)?'
+    action: "BLOCK"
+    severity: "HIGH"
+    description: "Intento de extraer el system prompt"
+
+  - name: "system_prompt_direct"
+    pattern: '(?i)(what|cuáles?|dime|show|muéstrame)\s+(are\s+|es\s+)?(your|tus?)\s+(system|sistema)\s+(prompt|instrucciones|instructions)'
+    action: "BLOCK"
+    severity: "HIGH"
+    description: "Pregunta directa por el system prompt"
+
+  # --- Manipulación de tools bancarias ---
+  - name: "tool_injection"
+    pattern: '(?i)(ejecuta|execute|run|corre|llama|call|invoca)\s+(la\s+)?(tool|función|function|api)\s+'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Intento de invocar tools directamente"
+
+  - name: "account_manipulation"
+    pattern: '(?i)(consulta|check|muestra|show|dime|tell)\s+(el\s+)?(saldo|balance|cuenta|account)\s+(de|of|del)\s+'
+    action: "SUSPICIOUS"
+    severity: "HIGH"
+    description: "Posible consulta de cuenta de terceros"
+
+  - name: "transfer_manipulation"
+    pattern: '(?i)(transfiere|transfer|envía|send|mueve|move)\s+(\d+[\.,]?\d*)\s*(euros?|€|EUR|dollar|\$)\s+(a|to)\s+'
+    action: "SUSPICIOUS"
+    severity: "CRITICAL"
+    description: "Posible transferencia no autorizada"
+
+  # --- Técnicas de evasión ---
+  - name: "base64_payload"
+    pattern: '(?i)(base64|decode|decodifica|from_base64|atob)\s*[\(:=]'
+    action: "BLOCK"
+    severity: "HIGH"
+    description: "Posible payload codificado en Base64"
+
+  - name: "obfuscation_markers"
+    pattern: '(?i)(rot13|leet|1|0|l33t|camelCase|Pig\s+Latin)'
+    action: "SUSPICIOUS"
+    severity: "MEDIUM"
+    description: "Técnicas de ofuscación del payload"
+
+  - name: "prefix_injection"
+    pattern: '(?i)(start\s+(your|the)\s+(response|answer)|comienza\s+(tu|la)\s+(respuesta|answer)\s+(with|con|saying|diciendo))\s+"?sure'
+    action: "BLOCK"
+    severity: "HIGH"
+    description: "Prefix injection para forzar respuesta afirmativa"
+
+  - name: "refusal_suppression"
+    pattern: '(?i)(no\s+(digas|say)\s*["\']?(lo\s+siento|i\'?m?\s*sorry|no\s+puedo|i\s+cannot|cannot\s+help))'
+    action: "BLOCK"
+    severity: "HIGH"
+    description: "Supresión de mensajes de rechazo"
+
+  # --- Extracción de información ---
+  - name: "data_exfiltration"
+    pattern: '(?i)(envía|send|post|fetch|request|curl|wget)\s+(a\s+|to\s+)?https?://'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Posible exfiltración de datos vía URL"
+
+  - name: "markdown_image_exfil"
+    pattern: '!\[.*?\]\(https?://[^\)]+\)'
+    action: "SUSPICIOUS"
+    severity: "HIGH"
+    description: "Posible exfiltración vía imagen Markdown"
+
+  # --- Patrones de contexto cruzado ---
+  - name: "context_manipulation"
+    pattern: '(?i)(el\s+usuario\s+(?:anterior|previo)|the\s+(?:previous|other)\s+user\s+said|en\s+la\s+sesión\s+anterior)'
+    action: "SUSPICIOUS"
+    severity: "HIGH"
+    description: "Manipulación de contexto entre sesiones"

@@ -1,0 +1,48 @@
+# ============================================================
+# PromptGuard FinTech Lab - entorno de laboratorio
+#
+# Arquitectura por defecto:
+#   Frontend -> Backend (FastAPI/Clara) -> Ollama | OpenRouter | proxy custom
+#
+# El backend habla con un endpoint OpenAI-compatible y el proveedor
+# se selecciona por entorno:
+#   - LLM_PROVIDER=ollama
+#   - LLM_PROVIDER=openrouter
+#   - LLM_PROVIDER=custom
+#
+# Para OpenRouter o un proxy custom, solo cambia las variables del .env.
+# ============================================================
+
+services:
+  backend:
+    build: ./backend
+    container_name: promptguard-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      APP_MODE: ${APP_MODE:-vulnerable}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/config:/app/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: promptguard-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Proveedor custom opcional:
+  # Si el equipo quiere usar LiteLLM o cualquier otro proxy OpenAI-compatible,
+  # basta con arrancarlo aparte y poner LLM_PROVIDER=custom + LLM_BASE_URL.

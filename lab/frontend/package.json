@@ -1,0 +1,13 @@
+{
+  "name": "promptguard-lab-frontend",
+  "version": "0.1.0",
+  "description": "PromptGuard FinTech Lab — Chat UI vulnerable",
+  "type": "module",
+  "scripts": {
+    "dev": "npx http-server src -p 3000 -c-1 --cors",
+    "start": "npx http-server src -p 3000 -c-1 --cors"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
