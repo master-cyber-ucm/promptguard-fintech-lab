@@ -30,6 +30,8 @@ make run BACKEND_PORT=9000 FRONTEND_PORT=4000
 
 ## Comandos disponibles
 
+### Con Make
+
 | Comando | Descripción |
 |---------|-------------|
 | `make run` | Cold start completo: genera `.env`, levanta Ollama, descarga modelo, arranca stack |
@@ -42,6 +44,43 @@ make run BACKEND_PORT=9000 FRONTEND_PORT=4000
 | `make suite` | Corre la suite completa de fixtures |
 | `make suite ARGS="--kind attack-prompts"` | Suite con filtros |
 | `make smoke` | Smoke test del stack |
+
+### Sin Make (equivalentes directos)
+
+**Cold start completo** (equivalente a `make run`):
+
+```bash
+# 1. Generar .env
+printf 'APP_MODE=vulnerable\nLOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=qwen2.5:3b\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=8000\nFRONTEND_PORT=3000\n' > .env
+
+# 2. Levantar Ollama y descargar el modelo
+docker compose --profile ollama up -d ollama
+docker compose exec ollama ollama pull qwen2.5:3b
+
+# 3. Levantar backend y frontend
+docker compose up -d --build backend frontend
+```
+
+**Resto de operaciones:**
+
+```bash
+docker compose up -d --build                          # make up
+docker compose down                                   # make down
+docker compose restart backend frontend               # make restart
+docker compose logs -f                                # make logs
+docker compose logs -f backend                        # make logs-backend
+docker compose exec backend python scripts/smoke_test.py   # make smoke
+
+# make suite
+docker compose exec \
+  -e FIXTURES_DIR=/app/tests/fixtures \
+  backend python scripts/run_attack_suite.py
+
+# make suite ARGS="--kind attack-prompts"
+docker compose exec \
+  -e FIXTURES_DIR=/app/tests/fixtures \
+  backend python scripts/run_attack_suite.py --kind attack-prompts
+```
 
 ## Proveedores LLM
 
