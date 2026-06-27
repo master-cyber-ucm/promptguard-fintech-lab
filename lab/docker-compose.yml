@@ -27,6 +27,7 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/config:/app/config
+      - ./backend/tests:/app/tests
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
