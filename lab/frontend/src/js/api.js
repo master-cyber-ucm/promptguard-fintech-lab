@@ -43,6 +43,10 @@ window.VB.API = {};
         return fetch(API_BASE + '/api/v1/health').then(function(r) { return r.json(); });
     };
 
+    window.VB.API.getFixtures = function() {
+        return fetch(API_BASE + '/api/v1/fixtures').then(function(r) { return r.json(); });
+    };
+
     window.VB.API.getTransactions = function(userId) {
         return fetch(API_BASE + '/api/v1/transactions/' + userId)
             .then(function(r) { return r.json(); });

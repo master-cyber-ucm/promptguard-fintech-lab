@@ -304,6 +304,126 @@ select {
     outline: none;
 }
 
+/* Fixture Browser */
+.fb-loading {
+    padding: 8px 0;
+}
+
+.fixture-group {
+    margin-bottom: 4px;
+}
+
+.fixture-group-header {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--warning);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 6px 2px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.fixture-group-header::before {
+    content: '▾ ';
+}
+
+.fixture-group-header[aria-expanded="false"]::before {
+    content: '▸ ';
+}
+
+.fixture-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 6px;
+}
+
+.fixture-list--collapsed {
+    display: none;
+}
+
+.fixture-item {
+    display: flex;
+}
+
+.btn-fixture {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: #1a1a1a;
+    color: var(--text);
+    border: 1px solid #2a2a2a;
+    padding: 6px 8px;
+    font-size: 0.78rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.3;
+    transition: background 0.1s;
+}
+
+.btn-fixture:hover {
+    background: #222;
+    border-color: #444;
+}
+
+.btn-fixture--critical {
+    border-left: 2px solid var(--danger);
+}
+
+.btn-fixture--high {
+    border-left: 2px solid var(--warning);
+}
+
+.btn-fixture--active {
+    background: #1e293b;
+    border-color: var(--primary);
+}
+
+.fb-icon {
+    flex-shrink: 0;
+    font-size: 0.85em;
+}
+
+.fb-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fb-name small {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.fb-sev {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.03em;
+}
+
+.fb-sev--critical {
+    background: rgba(220, 38, 38, 0.2);
+    color: #f87171;
+}
+
+.fb-sev--high {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

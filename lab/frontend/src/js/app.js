@@ -3,8 +3,7 @@
  * Chat con Clara (estado VULNERABLE, sin defensas).
  */
 
-import { sendMessage } from './api.js';
-import { ATTACKS } from './attacks.js';
+import { initFixtureBrowser, advancePendingStep } from './fixture-browser.js';
 
 
 // --- State ---
@@ -12,10 +11,10 @@ let isSending = false;
 
 // --- DOM ---
 const chatMessages = document.getElementById('chat-messages');
-const chatInput = document.getElementById('chat-input');
-const btnSend = document.getElementById('btn-send');
-const btnClear = document.getElementById('btn-clear');
-const userSelect = document.getElementById('user-select');
+const chatInput    = document.getElementById('chat-input');
+const btnSend      = document.getElementById('btn-send');
+const btnClear     = document.getElementById('btn-clear');
+const userSelect   = document.getElementById('user-select');
 
 
 // --- Init ---
@@ -29,18 +28,13 @@ function init() {
         }
     });
 
-    // Attack buttons
-    document.querySelectorAll('.btn-attack').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const attackKey = btn.dataset.attack;
-            const attack = ATTACKS[attackKey];
-            if (attack) {
-                chatInput.value = attack.payload;
-                chatInput.focus();
-                // Auto-scroll textarea
-                chatInput.scrollTop = chatInput.scrollHeight;
-            }
-        });
+    initFixtureBrowser({
+        container: document.getElementById('fixture-list'),
+        onLoadStep: (content) => {
+            chatInput.value = content;
+            chatInput.focus();
+            chatInput.scrollTop = chatInput.scrollHeight;
+        },
     });
 }
 
@@ -52,26 +46,21 @@ async function handleSend() {
     const message = chatInput.value.trim();
     if (!message) return;
 
-    const userId = userSelect.value;
+    const userId   = userSelect.value;
     const userName = userSelect.options[userSelect.selectedIndex].text;
 
-    // Show user message
     addMessage('user', message, { userName });
-
-    // Clear input
     chatInput.value = '';
     chatInput.style.height = 'auto';
 
-    // Show loading
     const loadingEl = addLoading();
 
     try {
         isSending = true;
         btnSend.disabled = true;
 
-        const response = await sendMessage(userId, message);
+        const response = await window.VB.API.sendMessage(userId, message);
 
-        // Remove loading
         loadingEl.remove();
 
         if (response.error) {
@@ -79,10 +68,16 @@ async function handleSend() {
         } else {
             addMessage('clara', response.response, {
                 latency: response.latency_ms,
-                model: response.model,
-                tools: response.tools_used,
+                model:   response.model,
+                tools:   response.tools_used,
             });
         }
+
+        // If a multi-step fixture is active, auto-load the next step
+        advancePendingStep((content) => {
+            chatInput.value = content;
+            chatInput.focus();
+        });
     } catch (err) {
         loadingEl.remove();
         addMessage('error', `Error de conexión: ${err.message}`);
@@ -97,32 +92,27 @@ async function handleSend() {
 // --- UI helpers ---
 
 function addMessage(type, content, meta = {}) {
-    const templateId = type === 'user' ? 'msg-user'
+    const templateId = type === 'user'  ? 'msg-user'
                      : type === 'error' ? 'msg-error'
                      : 'msg-clara';
 
     const template = document.getElementById(templateId);
     const msg = template.content.cloneNode(true);
 
-    // Body
-    const body = msg.querySelector('.msg-body');
-    body.textContent = content;
+    msg.querySelector('.msg-body').textContent = content;
 
-    // Header (user name)
     if (type === 'user' && meta.userName) {
         const nameEl = msg.querySelector('.user-name');
         if (nameEl) nameEl.textContent = meta.userName;
     }
 
-    // Meta
     const metaEl = msg.querySelector('.msg-meta');
     if (metaEl) {
         const parts = [];
         if (meta.latency) parts.push(`⏱ ${meta.latency.toFixed(0)}ms`);
-        if (meta.model) parts.push(`🤖 ${meta.model.split('/').pop()}`);
+        if (meta.model)   parts.push(`🤖 ${meta.model.split('/').pop()}`);
         if (meta.tools && meta.tools.length > 0) {
-            const toolNames = meta.tools.map(t => t.tool || t).join(', ');
-            parts.push(`🔧 ${toolNames}`);
+            parts.push(`🔧 ${meta.tools.map(t => t.tool || t).join(', ')}`);
         }
         metaEl.textContent = parts.join(' · ');
     }
