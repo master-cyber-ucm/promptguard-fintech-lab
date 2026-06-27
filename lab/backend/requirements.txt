@@ -6,8 +6,9 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 
 # AI framework
-# PydanticAI >= 0.40 garantiza el patrón OpenAIModel + OpenAIProvider(base_url, api_key)
-pydantic-ai>=0.40.0
+# Pinado: PydanticAI 2.x elimina OpenAIModel de pydantic_ai.models.openai.
+# 1.107.0 garantiza el patrón OpenAIModel + OpenAIProvider(base_url, api_key).
+pydantic-ai==1.107.0
 
 # OpenAI SDK (lo usa internamente OpenAIProvider para cualquier endpoint compatible)
 openai>=1.50.0
