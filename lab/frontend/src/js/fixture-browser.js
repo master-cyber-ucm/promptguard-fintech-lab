@@ -20,8 +20,15 @@ const CAT_LABELS = {
 
 const CAT_ORDER = ['LLM01', 'LLM02', 'LLM06', 'LLM07', '_extensiones'];
 
-// Pending multi-step state: null | { steps, nextIndex }
+// Pending multi-step state: null | { steps, nextIndex, fixture }
 let _pending = null;
+// Active fixture metadata for the current turn
+let _activeFixture = null;
+
+/** Devuelve los metadatos del fixture activo para incluir en el ChatRequest. */
+export function getActiveFixtureMeta() {
+    return _activeFixture;
+}
 
 /**
  * @param {Object} opts
@@ -38,10 +45,11 @@ export function initFixtureBrowser({ container, onLoadStep }) {
  * @param {Function} onLoadStep
  */
 export function advancePendingStep(onLoadStep) {
-    if (!_pending) return;
+    if (!_pending) { _activeFixture = null; return; }
     const step = _pending.steps[_pending.nextIndex];
-    if (!step) { _pending = null; return; }
+    if (!step) { _pending = null; _activeFixture = null; return; }
 
+    _activeFixture = _pending.fixture;
     _pending.nextIndex++;
     if (_pending.nextIndex >= _pending.steps.length) _pending = null;
 
@@ -123,9 +131,15 @@ function _makeItem(fixture, onLoadStep) {
         const steps = fixture.rendered_steps || [];
         if (steps.length === 0) return;
 
+        _activeFixture = {
+            fixture_id: fixture.id,
+            fixture_kind: fixture.kind,
+            fixture_expected_result: fixture.expected_result,
+        };
+
         _pending = null;
         if (isMulti) {
-            _pending = { steps, nextIndex: 1 };
+            _pending = { steps, nextIndex: 1, fixture: _activeFixture };
         }
 
         onLoadStep(steps[0].content);

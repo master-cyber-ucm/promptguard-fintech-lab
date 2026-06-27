@@ -17,11 +17,17 @@ window.VB.API = {};
         API_BASE = 'http://backend:8000';
     }
 
-    window.VB.API.sendMessage = function(userId, message) {
+    window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata) {
+        var body = { user_id: userId, session_id: sessionId, message: message };
+        if (fixtureMetadata) {
+            body.fixture_id = fixtureMetadata.fixture_id || null;
+            body.fixture_kind = fixtureMetadata.fixture_kind || null;
+            body.fixture_expected_result = fixtureMetadata.fixture_expected_result || null;
+        }
         return fetch(API_BASE + '/api/v1/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, message: message }),
+            body: JSON.stringify(body),
         })
         .then(function(resp) {
             if (!resp.ok) {

@@ -44,6 +44,24 @@ _Avoid_: risk level, priority
 El resultado previsto al ejecutar el fixture contra el sistema: `BLOCK` (el sistema debe bloquearlo), `ALLOW` (debe procesarlo), `REFUSE` (debe rechazarlo como naïve). Sirve de referencia para evaluar la respuesta de Clara.
 _Avoid_: expected behavior, outcome
 
+### Auditoría de interacciones
+
+**Turn**:
+Una unidad atómica de interacción dentro de una sesión: prompt de entrada → razonamiento (opcional) → tools invocadas → respuesta de Clara. Se persiste de forma inmediata al completarse.
+_Avoid_: step (reservado para los pasos de un fixture), message, exchange
+
+**Session File**:
+Fichero `.md` que recoge todos los turns de una sesión de chat. Un fichero por `session_id`, nombrado `{timestamp}_{session_id}.md`. Se crea al primer turn y se extiende por append en cada turn sucesivo.
+_Avoid_: log, transcript, audit log
+
+**Audit Repository**:
+Componente del backend responsable de escribir y leer Session Files en `lab/audit/sessions/`. Abstrae el sistema de ficheros del resto del código.
+_Avoid_: logger, audit service, file writer
+
+**Thinking trace**:
+El contenido de `ThinkingPart` emitido por el modelo durante un turn. Presente solo en modelos con razonamiento explícito (Claude extended thinking, o1). Cuando el modelo no lo emite, el turn lo registra explícitamente como ausente.
+_Avoid_: reasoning, chain of thought, internal monologue
+
 ### Entidades del sistema
 
 **Playground**:

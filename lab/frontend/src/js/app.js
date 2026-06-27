@@ -3,11 +3,12 @@
  * Chat con Clara (estado VULNERABLE, sin defensas).
  */
 
-import { initFixtureBrowser, advancePendingStep } from './fixture-browser.js';
+import { initFixtureBrowser, advancePendingStep, getActiveFixtureMeta } from './fixture-browser.js';
 
 
 // --- State ---
 let isSending = false;
+const SESSION_ID = `ses_${Date.now()}`;
 
 // --- DOM ---
 const chatMessages = document.getElementById('chat-messages');
@@ -59,7 +60,7 @@ async function handleSend() {
         isSending = true;
         btnSend.disabled = true;
 
-        const response = await window.VB.API.sendMessage(userId, message);
+        const response = await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta());
 
         loadingEl.remove();
 

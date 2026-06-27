@@ -12,9 +12,11 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from pydantic_ai.messages import ThinkingPart
 
 from src.agents.clara import get_clara_agent, reset_clara_agent
 from src.models.banking import MOCK_USERS
+from src.utils.audit_repository import append_turn
 
 router = APIRouter(tags=["chat"])
 
@@ -22,22 +24,50 @@ router = APIRouter(tags=["chat"])
 # --- Request / Response ---
 
 class ChatRequest(BaseModel):
-    """Request del chat. Simple: user_id + message."""
+    """Request del chat."""
     user_id: str = Field(default="usr_001", description="ID del usuario")
     message: str = Field(..., description="Mensaje para Clara")
     session_id: Optional[str] = Field(default=None, description="ID de sesión (opcional)")
+    # Metadatos opcionales del fixture que originó este turno
+    fixture_id: Optional[str] = Field(default=None)
+    fixture_kind: Optional[str] = Field(default=None)
+    fixture_expected_result: Optional[str] = Field(default=None)
 
 
 class ChatResponse(BaseModel):
     """Response del chat. Incluye metadata para análisis de ataques."""
     user_id: str
-    message: str          # Mensaje enviado
-    response: str         # Respuesta de Clara
-    model: str            # Modelo usado por el proveedor LLM
-    latency_ms: float     # Latencia total
-    session_id: str       # ID de sesión
-    tools_used: list      # Tools invocadas (si las hay)
-    error: Optional[str]  # Error si lo hubo
+    message: str
+    response: str
+    model: str
+    latency_ms: float
+    session_id: str
+    tools_used: list
+    audit_file: Optional[str] = None
+    error: Optional[str] = None
+
+
+# --- Helpers ---
+
+def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
+    """Extrae tools invocadas y thinking trace de all_model_responses."""
+    tools: list[dict] = []
+    thinking: str | None = None
+
+    if not hasattr(result, "all_messages"):
+        return tools, thinking
+
+    for msg in result.all_messages():
+        for part in getattr(msg, "parts", []):
+            if isinstance(part, ThinkingPart):
+                thinking = part.content
+            elif hasattr(part, "tool_name"):
+                tools.append({
+                    "tool": part.tool_name,
+                    "args": str(getattr(part, "args", "")),
+                })
+
+    return tools, thinking
 
 
 # --- Endpoint ---
@@ -53,50 +83,55 @@ async def chat_with_clara(request: ChatRequest):
     """
     start_time = time.time()
 
-    # Buscar usuario mock
     user = MOCK_USERS.get(request.user_id)
     if not user:
         raise HTTPException(status_code=404, detail=f"Usuario {request.user_id} no encontrado")
 
-    # Contexto del usuario (disponible para el agente)
-    user_context = f"[Contexto del usuario autenticado: user_id={user['user_id']}, nombre={user['name']}, cuenta={user['account_id']}]"
-
-    # Mensaje completo que se envía a Clara
+    user_context = (
+        f"[Contexto del usuario autenticado: user_id={user['user_id']}, "
+        f"nombre={user['name']}, cuenta={user['account_id']}]"
+    )
     full_message = f"{user_context}\n\nMensaje del cliente: {request.message}"
+    session_id = request.session_id or f"ses_{int(time.time())}"
 
     try:
         agent = get_clara_agent()
         result = await agent.run(full_message)
-
         latency_ms = (time.time() - start_time) * 1000
 
-        # Extraer info de tools usadas si está disponible
-        tools_used = []
-        if hasattr(result, 'all_model_responses'):
-            for resp in result.all_model_responses:
-                if hasattr(resp, 'tool_calls') and resp.tool_calls:
-                    for tc in resp.tool_calls:
-                        tools_used.append({
-                            "tool": tc.tool_name if hasattr(tc, 'tool_name') else str(tc),
-                            "args": str(tc.args) if hasattr(tc, 'args') else "",
-                        })
+        tools_used, thinking = _extract_tools_and_thinking(result)
+        response_text = str(result.output)
+        model_name = str(agent.model)
+
+        audit_path = append_turn(
+            session_id=session_id,
+            user_id=request.user_id,
+            model=model_name,
+            prompt=request.message,
+            thinking=thinking,
+            tools=tools_used,
+            response=response_text,
+            latency_ms=latency_ms,
+            fixture_id=request.fixture_id,
+            fixture_kind=request.fixture_kind,
+            fixture_expected_result=request.fixture_expected_result,
+        )
 
         return ChatResponse(
             user_id=request.user_id,
             message=request.message,
-            response=str(result.output),
-            model=str(agent.model),
+            response=response_text,
+            model=model_name,
             latency_ms=round(latency_ms, 1),
-            session_id=request.session_id or f"ses_{int(time.time())}",
+            session_id=session_id,
             tools_used=tools_used,
-            error=None,
+            audit_file=audit_path.name,
         )
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
         err_str = str(e)
 
-        # Diagnóstico específico para los fallos más comunes del lab.
         hint = None
         low = err_str.lower()
         if "connection" in low or "refused" in low or "connect" in low:
@@ -104,8 +139,6 @@ async def chat_with_clara(request: ChatRequest):
                 "Backend no puede alcanzar el proveedor LLM. Revisa la URL y que "
                 "el servicio elegido este disponible."
             )
-            # Si el agente quedó en estado inconsistente, lo reiniciamos para
-            # que el siguiente intento construya de nuevo la conexión.
             reset_clara_agent()
         elif "ollama" in low or "model not found" in low:
             hint = (
@@ -114,9 +147,7 @@ async def chat_with_clara(request: ChatRequest):
             )
             reset_clara_agent()
         elif "401" in low or "api key" in low or "unauthorized" in low:
-            hint = (
-                "API key del proveedor invalida. Verifica OPENROUTER_API_KEY o LLM_API_KEY en lab/.env."
-            )
+            hint = "API key del proveedor invalida. Verifica OPENROUTER_API_KEY o LLM_API_KEY en lab/.env."
 
         return ChatResponse(
             user_id=request.user_id,
@@ -124,7 +155,7 @@ async def chat_with_clara(request: ChatRequest):
             response="",
             model="",
             latency_ms=round(latency_ms, 1),
-            session_id=request.session_id or f"ses_{int(time.time())}",
+            session_id=session_id,
             tools_used=[],
             error=f"{err_str}{' | HINT: ' + hint if hint else ''}",
         )
