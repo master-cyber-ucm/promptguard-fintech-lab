@@ -18,12 +18,9 @@ import argparse
 import asyncio
 import os
 import sys
-from pathlib import Path
 
 import httpx
-
-HERE = Path(__file__).resolve().parent
-FIXTURES = HERE.parent / "backend" / "tests" / "fixtures"
+from fixture_loader import first_user_message, load_prompts
 
 
 def banner(t: str) -> None:
@@ -90,20 +87,15 @@ async def check_legit_chat(client: httpx.AsyncClient, base: str, user: str):
 
 async def check_attack_chat(client: httpx.AsyncClient, base: str, user: str):
     # Payload de un ataque de muestra del fixture
-    attack_file = FIXTURES / "attack_prompts.jsonl"
-    if not attack_file.exists():
-        return {"ok": False, "msg": f"No encuentro {attack_file}"}
-    import json
-    attack = None
-    for line in attack_file.read_text().splitlines():
-        obj = json.loads(line)
-        if obj["id"] == "atk_001":  # ignore_instructions_es
-            attack = obj
-            break
+    attacks = load_prompts(kind="attack-prompts", prompt_id="atk_001")
+    attack = attacks[0] if attacks else None
+    if not attack:
+        attacks = load_prompts(kind="attack-prompts")
+        attack = attacks[0] if attacks else None
     if not attack:
         return {"ok": False, "msg": "atk_001 no encontrado en fixtures"}
 
-    payload = {"user_id": user, "message": attack["payload"]}
+    payload = {"user_id": user, "message": first_user_message(attack)}
     try:
         r = await client.post(f"{base}/api/v1/chat", json=payload, timeout=90.0)
         r.raise_for_status()
