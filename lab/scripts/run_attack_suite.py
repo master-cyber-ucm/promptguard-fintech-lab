@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -282,11 +283,12 @@ async def main():
     parser.add_argument("--id", dest="fixture_id", help="Ejecutar un fixture concreto")
     parser.add_argument("--user", default="usr_001")
     parser.add_argument("--concurrency", type=int, default=1)
-    parser.add_argument("--api", default=API_BASE, help="Base URL del backend")
+    parser.add_argument("--host", default=os.environ.get("SUITE_HOST", "localhost"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("SUITE_PORT", "8000")))
     parser.add_argument("--no-save", action="store_true", help="No guardar Run Report en disco")
     args = parser.parse_args()
 
-    api_base = args.api
+    api_base = f"http://{args.host}:{args.port}"
 
     kinds = [args.kind] if args.kind else ALL_KINDS
     fixtures: list[dict] = []
