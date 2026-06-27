@@ -18,7 +18,7 @@ services:
     build: ./backend
     container_name: promptguard-backend
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     env_file:
       - .env
     environment:
@@ -40,12 +40,28 @@ services:
     build: ./frontend
     container_name: promptguard-frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-8000}
     volumes:
       - ./frontend/src:/app/src
     depends_on:
       - backend
     restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    container_name: promptguard-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    profiles:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
 
   # Proveedor custom opcional:
   # Si el equipo quiere usar LiteLLM o cualquier otro proxy OpenAI-compatible,

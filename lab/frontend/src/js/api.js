@@ -8,16 +8,10 @@ window.VB.API = {};
 
 (function() {
 
-    var API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? 'http://localhost:8000'
-        : 'http://' + window.location.hostname + ':8000';
+    var _backendPort = window.VB_BACKEND_PORT || 8000;
+    var API_BASE = 'http://' + window.location.hostname + ':' + _backendPort;
 
-    // Override if running inside Docker (frontend talks to backend by name)
-    if (window.location.port === '3000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        API_BASE = 'http://backend:8000';
-    }
-
-    window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata) {
+window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata) {
         var body = { user_id: userId, session_id: sessionId, message: message };
         if (fixtureMetadata) {
             body.fixture_id = fixtureMetadata.fixture_id || null;
