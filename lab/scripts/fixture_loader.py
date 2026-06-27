@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Iterable
@@ -10,7 +11,9 @@ import yaml
 
 
 HERE = Path(__file__).resolve().parent
-FIXTURES_DIR = HERE.parent / "backend" / "tests" / "fixtures"
+FIXTURES_DIR = Path(
+    os.environ.get("FIXTURES_DIR", str(HERE.parent / "backend" / "tests" / "fixtures"))
+)
 
 ATTACK_TYPE_BY_ATTACK = {
     "LLM01-prompt-injection/directa": "DIRECT_INJECTION",
