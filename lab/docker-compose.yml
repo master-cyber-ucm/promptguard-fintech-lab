@@ -24,6 +24,7 @@ services:
     environment:
       APP_MODE: ${APP_MODE:-vulnerable}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      AUDIT_DIR: /app/audit/sessions
     volumes:
       - ./backend/src:/app/src
       - ./backend/config:/app/config
