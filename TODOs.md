@@ -2,10 +2,22 @@
 
 ## Próximos pasos
 
-1. **Evidencia reproducible (#1)** — Definir y generar los artefactos de evidencia por ataque: transcript turno a turno, respuesta JSON cruda, comando `curl` exacto con commit hash. El formato se fija aquí para que todo lo posterior lo respete.
-2. **Métricas y medición (#3)** — Definir las métricas que debe producir cada ejecución: tasa de éxito/bloqueo, latencia, severidad cuantificada. Se diseñan sobre la estructura de evidencia del paso anterior.
-3. **Automatización del suite (#8)** — Completar `run_attack_suite.py` para que al ejecutar los fixtures genere automáticamente toda la base de evidencias auditables definida en los pasos 1 y 2.
-4. **Selección de modelos y ranking de vulnerabilidad (#9)** — Definir la lista de modelos a probar (ej. Llama 3, Mistral, Gemma, Qwen…), ejecutar el suite completo contra cada uno y documentar un ranking de vulnerabilidad: qué modelo cae más, ante qué categoría de ataque, y con qué severidad.
+~~**Completados:**~~
+
+- ~~**Evidencia reproducible (#1)**~~ ✅ — Audit repository implementado: fichero `.md` por sesión con transcript turno a turno (prompt → razonamiento → tools → respuesta → latencia). Run Report JSON+MD por ejecución de suite en `lab/audit/`.
+- ~~**Métricas y medición (#3)**~~ ✅ — `run_attack_suite.py` produce métricas por ejecución: `attack_success_rate`, `legitimate_false_positive_rate`, `navi_self_block_rate`, latencia media. Desglose por kind y por categoría OWASP.
+- ~~**Automatización del suite (#8)**~~ ✅ — `run_attack_suite.py` completo: corre los 3 kinds, calcula Verdict desde indicadores del fixture, genera JSON+MD, `make suite` lo ejecuta dentro del contenedor backend.
+- ~~**Selección de modelos y ranking de vulnerabilidad (#9)**~~ ✅ (lista) — `docs/modelos-candidatos.md` creado: 10 modelos prioritarios en 3 proveedores (Ollama, OpenRouter, Groq). **Pendiente**: ejecutar la suite contra cada modelo y construir el ranking.
+
+**En curso:**
+
+1. **Calidad de la evidencia** `(§16)` — Deuda técnica de la evidencia: añadir Verdict (SUCCESS/BLOCKED/UNKNOWN) y system prompt de Clara en los ficheros de sesión. Sin esto la evidencia generada no es autocontenida ni interpretable de forma aislada.
+
+2. **Cold start reproducible** `(§16 · feedback profe)` — `.env.example`, servicio Ollama en docker-compose, README de quickstart. Bloquea la corrección: si el profe no levanta el lab desde cero, el resto no se evalúa.
+
+3. **Ejecutar suite multi-modelo y construir el ranking** `(§9)` — Con la evidencia sólida y el lab reproducible, correr la suite contra los modelos candidatos de `docs/modelos-candidatos.md` y producir el ranking de vulnerabilidad por modelo y categoría de ataque.
+
+4. **Revisar cobertura de fixtures** `(§7 · feedback profe)` — Los vectores de ataque ya están definidos y documentados (catálogo de ataques seleccionados). Este paso es un análisis crítico: ¿tenemos fixtures suficientes y variados por vector para que la evidencia experimental sea convincente, o necesitamos añadir más casos?
 
 ---
 
@@ -15,10 +27,10 @@ Complementos posibles agrupados por tipo. Marcar con `[x]` los que se incorporen
 
 ## 1. Evidencia reproducible
 
-- [ ] Transcripción completa del ataque (turno a turno: prompt → respuesta cruda del LLM)
-- [ ] Respuesta JSON cruda del endpoint `/chat` (`response`, `tools_used`, `latency_ms`, `error`)
+- [x] Transcripción completa del ataque (turno a turno: prompt → respuesta cruda del LLM) — `lab/audit/sessions/`
+- [x] Respuesta JSON cruda del endpoint `/chat` (`response`, `tools_used`, `latency_ms`, `error`) — Run Report JSON
 - [ ] Captura de pantalla del frontend durante el ataque (before/after defensa)
-- [ ] Logs del backend (`stdout` de `promptguard-backend`) durante la ejecución
+- [x] Logs del backend (`stdout` de `promptguard-backend`) durante la ejecución — logging estructurado añadido
 - [ ] Comando `curl`/script exacto para reproducirlo en una sola línea (con `user_id`, modelo y commit hash)
 - [ ] GIF o vídeo corto de la explotación para la memoria
 
@@ -32,10 +44,10 @@ Complementos posibles agrupados por tipo. Marcar con `[x]` los que se incorporen
 
 ## 3. Métricas y medición
 
-- [ ] Tasa de éxito del ataque (vulnerable) y tasa de bloqueo (con PromptGuard)
-- [ ] Por modelo: ¿cae Llama más que Claude ante el mismo payload?
+- [x] Tasa de éxito del ataque (vulnerable) y tasa de bloqueo — `attack_success_rate`, `legitimate_false_positive_rate`, `navi_self_block_rate` en Run Report
+- [ ] Por modelo: ¿cae Llama más que Claude ante el mismo payload? — requiere ejecutar suite multi-modelo
 - [ ] Número de turnos hasta éxito (ataques multi-turno como PII Harvesting)
-- [ ] Latencia y tokens consumidos por intento
+- [x] Latencia y tokens consumidos por intento — `latency_ms` capturado por fixture y promediado
 - [ ] Severidad cuantificada (impacto en € estimado, nº de clientes afectados)
 
 ## 4. Mapeo taxonómico
@@ -62,7 +74,8 @@ Complementos posibles agrupados por tipo. Marcar con `[x]` los que se incorporen
 
 ## 7. Análisis técnico profundo
 
-- [ ] Anatomía del payload: desglose comentado de por qué funciona
+- [ ] **Identificar y fijar los 6 vectores de ataque críticos para banca** _(feedback profe)_ — El profe los llama explícitamente "los seis vectores críticos acotados para el sector bancario". Necesitamos una lista canónica de cuáles son los 6 y asegurarnos de que cada uno tiene evidencia experimental completa (no solo fixture automatizado).
+- [ ] Anatomía del payload: desglose comentado de por qué funciona — uno por cada uno de los 6 vectores críticos
 - [ ] Diagrama de flujo (Mermaid): cómo viaja el payload por el sistema
 - [ ] Diagrama de la defensa: en qué punto exacto intercepta el proxy
 - [ ] Por qué cae el LLM: mecanismo de fallo (alignment failure, role confusion, context bleed)
@@ -71,12 +84,14 @@ Complementos posibles agrupados por tipo. Marcar con `[x]` los que se incorporen
 
 - [ ] Caso pytest automatizado por ataque (input → assert esperado)
 - [ ] Test de regresión que verifique que la defensa sigue bloqueándolo
-- [ ] Integración de cada ataque con `run_attack_suite.py` (filtros por `--id`, `--type`)
+- [x] Integración de cada ataque con `run_attack_suite.py` (filtros por `--id`, `--type`, `--kind`) — `make suite ARGS="..."`
 - [ ] CI: la suite corre en cada PR y bloquea el merge si una defensa retrocede
+- [ ] **Scope de Garak** _(feedback profe)_ — Definir qué automatiza Garak (generación de variantes, fuzzing de payloads) y qué queda como validación experimental manual/profunda. La automatización no debe sustituir el análisis en profundidad de los 6 vectores críticos.
 
 ## 9. Análisis comparativo
 
-- [ ] Comparativa entre modelos ante el mismo payload
+- [x] Lista de modelos candidatos definida — `docs/modelos-candidatos.md` (10 modelos prioritarios, 3 proveedores)
+- [ ] Ejecutar suite completa contra cada modelo candidato y generar ranking de vulnerabilidad
 - [ ] Comparativa de configuraciones (¿ayuda reforzar el system prompt? ¿bajar temperature?)
 - [ ] A/B de defensas (regex vs ML vs LLM guard) — qué capa caza cada ataque
 - [ ] Matriz de cobertura: ataque × modelo × defensa
@@ -91,6 +106,7 @@ Complementos posibles agrupados por tipo. Marcar con `[x]` los que se incorporen
 
 ## 11. Defensa en profundidad
 
+- [ ] **Diseño detallado del Tool Gatekeeper** _(feedback profe)_ — El profe pide que documentemos explícitamente cómo gestiona permisos en tiempo real para evitar confused deputy. Concretar: ¿qué comprueba antes de ejecutar cada tool? ¿cómo decide si el contexto del mensaje justifica el permiso? ¿qué herramientas quedan fuera de alcance por rol/sesión?
 - [ ] Defensa primaria (PromptGuard) + secundarias alternativas
 - [ ] Configuración recomendada (umbrales, parámetros del `tool_permissions.yaml`, regex)
 - [ ] Limitaciones de la defensa (¿cuándo falla?)
@@ -123,6 +139,37 @@ Complementos posibles agrupados por tipo. Marcar con `[x]` los que se incorporen
 - [ ] Tablas comparativas y matrices
 - [ ] Gráficos de resultados (barras de éxito/fracaso por modelo)
 - [ ] Mapa mental del ataque
+
+## 17. Niveles de configuración del lab
+
+Hoy el lab tiene dos modos: **chat vulnerable** y **chat protegido**. La evaluación experimental requiere una progresión más granular que aísle cada variable de defensa por separado.
+
+Estado actual:
+- [x] Chat vulnerable — sin ninguna protección, system prompt complejo con contexto inyectado en el mensaje
+
+Pendiente — progresión propuesta (de menos a más defensa):
+
+- [ ] **Chat con system prompt simple** — system prompt mínimo, sin reglas de seguridad, sin información interna. Mide el comportamiento base del modelo sin instrucciones.
+- [ ] **Chat con system prompt complejo** — system prompt completo de Clara (reglas de seguridad, límites, info interna). Sin contexto de usuario inyectado. Mide el efecto de las instrucciones solas.
+- [ ] **Chat con system prompt complejo + contexto** — system prompt complejo más el bloque `[Contexto del usuario autenticado]` inyectado en el mensaje. **Estado actual del lab vulnerable.**
+- [ ] **Chat detrás del proxy** — system prompt complejo + contexto + capa PromptGuard activa. Sin contexto adicional en el proxy.
+- [ ] **Chat detrás del proxy con contexto** — proxy activo con contexto de usuario propagado al proxy para que pueda tomar decisiones informadas.
+- [ ] **Chat detrás del proxy con contexto y system prompt complejo** — configuración completa: proxy + contexto + system prompt complejo en Clara. Nivel de protección máximo del lab.
+
+> Cada nivel es un experimento independiente. Los mismos fixtures corren contra todos los niveles y el Run Report compara los Verdicts — así se mide el efecto aislado de cada capa de defensa.
+
+---
+
+## 16. Deuda técnica del lab
+
+Mejoras detectadas durante la implementación. Resolver antes de la fase de evaluación multi-modelo.
+
+- [ ] **Verdict en sesiones de auditoría** — El fichero `.md` de sesión no indica si el agente bloqueó o procesó el ataque. Añadir el `expected_result` del fixture y el Verdict calculado (SUCCESS/BLOCKED/UNKNOWN) en la cabecera de cada turno.
+- [ ] **System prompt en sesiones de auditoría** — El agente tiene más contexto del esperado. Capturar el system prompt de Clara en la cabecera del fichero de sesión para que la evidencia sea autocontenida y reproducible.
+- [ ] **Multi-modelo en el suite runner** — `run_attack_suite.py` solo prueba el modelo configurado en `.env`. Añadir `--model` y `--provider` como argumentos para ejecutar la misma suite contra distintos modelos en una sola pasada y comparar resultados directamente en el Run Report.
+- [ ] **Ollama en docker-compose** — Añadir un servicio `ollama` al `docker-compose.yml` como alternativa de infra local (imagen `ollama/ollama`). El backend ya lo soporta con `LLM_PROVIDER=ollama`; falta el servicio y la configuración de red para que el backend lo alcance sin `host.docker.internal`.
+- [ ] **Groq como proveedor online alternativo** — El backend soporta `LLM_PROVIDER=custom`; documentar la configuración de Groq (`LLM_BASE_URL=https://api.groq.com/openai/v1`) y añadir `LLM_PROVIDER=groq` como alias explícito para mayor claridad. Ver `docs/modelos-candidatos.md` para los modelos candidatos.
+- [ ] **Validación de cold start** _(feedback profe)_ — El profe insiste en que la corrección se hará desplegando desde cero. Verificar que `docker compose up` en una máquina limpia (sin modelos descargados, sin `.env` previo) levanta todo en <5 min con instrucciones claras. Necesita: `.env.example`, script de descarga del modelo Ollama si se usa local, y `README` de quickstart.
 
 ---
 
