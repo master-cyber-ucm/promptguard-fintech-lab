@@ -62,6 +62,24 @@ _Avoid_: logger, audit service, file writer
 El contenido de `ThinkingPart` emitido por el modelo durante un turn. Presente solo en modelos con razonamiento explícito (Claude extended thinking, o1). Cuando el modelo no lo emite, el turn lo registra explícitamente como ausente.
 _Avoid_: reasoning, chain of thought, internal monologue
 
+### Ejecución automática y métricas
+
+**Suite Run**:
+Una ejecución completa de `run_attack_suite.py` contra el backend. Corre los tres kinds de fixtures en una sola pasada y produce un Run Report.
+_Avoid_: test run, batch, campaign
+
+**Verdict**:
+El resultado de evaluar la respuesta de Clara para un fixture concreto: `SUCCESS` (el ataque funcionó o la petición legítima fue procesada), `BLOCKED` (el ataque fue rechazado o la petición legítima fue bloqueada erróneamente), `UNKNOWN` (la respuesta no contiene ningún indicador reconocible).
+_Avoid_: result, outcome, status, pass/fail
+
+**Fixture indicator**:
+Una de las listas `success` o `blocked` definidas en el YAML de un fixture. El Suite Run las usa para calcular el Verdict de cada fixture sin lógica hardcodeada en el script.
+_Avoid_: keyword, detector, rule
+
+**Run Report**:
+El par de artefactos generados por un Suite Run: un `.json` con los datos estructurados y un `.md` con el resumen legible. Ambos se guardan en `lab/audit/runs/{timestamp}_run.{json|md}`.
+_Avoid_: report, output, results file
+
 ### Entidades del sistema
 
 **Playground**:

@@ -35,3 +35,5 @@ htmlcov/
 
 # Audit session files (generated, not committed)
 lab/audit/sessions/*.md
+lab/audit/runs/*.json
+lab/audit/runs/*.md
