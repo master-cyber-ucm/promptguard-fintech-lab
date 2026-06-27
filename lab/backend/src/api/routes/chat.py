@@ -7,6 +7,7 @@ validación de permisos en tools.
 Este es el endpoint que ATACAREMOS en el lab.
 """
 
+import logging
 import time
 from typing import Optional
 
@@ -19,6 +20,7 @@ from src.models.banking import MOCK_USERS
 from src.utils.audit_repository import append_turn
 
 router = APIRouter(tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 # --- Request / Response ---
@@ -94,6 +96,9 @@ async def chat_with_clara(request: ChatRequest):
     full_message = f"{user_context}\n\nMensaje del cliente: {request.message}"
     session_id = request.session_id or f"ses_{int(time.time())}"
 
+    fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
+    logger.info("[%s]%s → procesando mensaje (usuario=%s)", session_id, fixture_tag, request.user_id)
+
     try:
         agent = get_clara_agent()
         result = await agent.run(full_message)
@@ -115,6 +120,13 @@ async def chat_with_clara(request: ChatRequest):
             fixture_id=request.fixture_id,
             fixture_kind=request.fixture_kind,
             fixture_expected_result=request.fixture_expected_result,
+        )
+
+        tool_names = [t["tool"] for t in tools_used] if tools_used else []
+        thinking_tag = " [thinking]" if thinking else ""
+        logger.info(
+            "[%s]%s ✓ %dms tools=%s%s audit=%s",
+            session_id, fixture_tag, round(latency_ms), tool_names, thinking_tag, audit_path.name,
         )
 
         return ChatResponse(
@@ -148,6 +160,8 @@ async def chat_with_clara(request: ChatRequest):
             reset_clara_agent()
         elif "401" in low or "api key" in low or "unauthorized" in low:
             hint = "API key del proveedor invalida. Verifica OPENROUTER_API_KEY o LLM_API_KEY en lab/.env."
+
+        logger.error("[%s]%s ✗ %dms error=%s", session_id, fixture_tag, round(latency_ms), err_str)
 
         return ChatResponse(
             user_id=request.user_id,

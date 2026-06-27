@@ -21,6 +21,9 @@ Endpoints:
 
 from __future__ import annotations
 
+import logging
+import logging.config
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -30,18 +33,42 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import chat, fixtures, info
 from src.agents.clara import resolve_llm_config
 
+_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+logging.config.dictConfig({
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+            "datefmt": "%H:%M:%S",
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default",
+        }
+    },
+    "root": {"handlers": ["console"], "level": _LOG_LEVEL},
+    "loggers": {
+        "uvicorn": {"propagate": True},
+        "uvicorn.access": {"propagate": True},
+    },
+})
+
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: diagnostico y carga perezosa del agente."""
     llm_config = resolve_llm_config()
-    print("🏦 PromptGuard Lab - MODO VULNERABLE (sin defensas)")
-    print(f"   Proveedor LLM:       {llm_config.provider}")
-    print(f"   Modelo:              {llm_config.model_name}")
-    print(f"   Endpoint:            {llm_config.base_url}")
-    print("   Clara agent: lazy init (se creara en la primera peticion)")
+    logger.info("PromptGuard Lab arrancado — MODO VULNERABLE (sin defensas)")
+    logger.info("  Proveedor: %s  Modelo: %s  Endpoint: %s",
+                llm_config.provider, llm_config.model_name, llm_config.base_url)
+    logger.info("  AUDIT_DIR: %s", os.environ.get("AUDIT_DIR", "(default)"))
     yield
-    print("🛑 PromptGuard Lab detenido")
+    logger.info("PromptGuard Lab detenido")
 
 
 app = FastAPI(
