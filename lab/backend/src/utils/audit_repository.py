@@ -27,17 +27,32 @@ def _find_session_file(session_id: str) -> Path | None:
     return matches[0] if matches else None
 
 
-def _session_header(session_id: str, user_id: str, model: str, timestamp: datetime) -> str:
+def _session_header(
+    session_id: str,
+    user_id: str,
+    model: str,
+    timestamp: datetime,
+    system_prompt: str | None = None,
+) -> str:
     ts = timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
-    return (
-        f"# Sesión `{session_id}`\n\n"
-        f"| Campo | Valor |\n"
-        f"|-------|-------|\n"
-        f"| Iniciada | {ts} |\n"
-        f"| Usuario | `{user_id}` |\n"
-        f"| Modelo | `{model}` |\n\n"
-        f"---\n\n"
-    )
+    lines = [
+        f"# Sesión `{session_id}`\n",
+        f"| Campo | Valor |",
+        f"|-------|-------|",
+        f"| Iniciada | {ts} |",
+        f"| Usuario | `{user_id}` |",
+        f"| Modelo | `{model}` |\n",
+        f"---\n",
+    ]
+    if system_prompt:
+        lines += [
+            f"### System Prompt\n",
+            f"```",
+            system_prompt.strip(),
+            f"```\n",
+            f"---\n",
+        ]
+    return "\n".join(lines) + "\n"
 
 
 def _format_turn(
@@ -106,6 +121,7 @@ def append_turn(
     tools: list[dict],
     response: str,
     latency_ms: float,
+    system_prompt: str | None = None,
     fixture_id: str | None = None,
     fixture_kind: str | None = None,
     fixture_expected_result: str | None = None,
@@ -117,7 +133,10 @@ def append_turn(
     existing = _find_session_file(session_id)
     if existing is None:
         path = _session_path(session_id, now)
-        path.write_text(_session_header(session_id, user_id, model, now), encoding="utf-8")
+        path.write_text(
+            _session_header(session_id, user_id, model, now, system_prompt),
+            encoding="utf-8",
+        )
         turn_number = 1
     else:
         path = existing
