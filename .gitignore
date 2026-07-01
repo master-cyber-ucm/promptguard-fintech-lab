@@ -34,3 +34,4 @@ coverage/
 htmlcov/
 
 # Audit session files (generated, not committed)
+lab/audit/
