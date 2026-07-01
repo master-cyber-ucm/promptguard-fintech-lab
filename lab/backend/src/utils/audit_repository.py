@@ -13,17 +13,17 @@ from pathlib import Path
 _AUDIT_DIR = Path(os.environ.get("AUDIT_DIR", Path(__file__).resolve().parents[3] / "audit" / "sessions"))
 
 
-def _session_path(session_id: str, timestamp: datetime) -> Path:
+def _session_path(session_id: str, timestamp: datetime, directory: Path) -> Path:
     ts = timestamp.strftime("%Y%m%d_%H%M%S")
     safe_id = session_id.replace("/", "-").replace("\\", "-")
-    return _AUDIT_DIR / f"{ts}_{safe_id}.md"
+    return directory / f"{ts}_{safe_id}.md"
 
 
-def _find_session_file(session_id: str) -> Path | None:
-    """Busca un fichero de sesión existente por session_id (cualquier timestamp)."""
-    _AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+def _find_session_file(session_id: str, directory: Path) -> Path | None:
+    """Busca un fichero de sesión existente por session_id dentro de directory."""
+    directory.mkdir(parents=True, exist_ok=True)
     safe_id = session_id.replace("/", "-").replace("\\", "-")
-    matches = sorted(_AUDIT_DIR.glob(f"*_{safe_id}.md"))
+    matches = sorted(directory.glob(f"*_{safe_id}.md"))
     return matches[0] if matches else None
 
 
@@ -125,14 +125,20 @@ def append_turn(
     fixture_id: str | None = None,
     fixture_kind: str | None = None,
     fixture_expected_result: str | None = None,
+    audit_subdir: str | None = None,
 ) -> Path:
-    """Añade un turn al fichero de sesión. Crea el fichero si no existe."""
-    _AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    """Añade un turn al fichero de sesión. Crea el fichero si no existe.
+
+    Si audit_subdir se provee (ruta absoluta), los ficheros se escriben ahí.
+    Si no, se usa AUDIT_DIR (comportamiento anterior para sesiones manuales).
+    """
+    target_dir = Path(audit_subdir) if audit_subdir else _AUDIT_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc)
 
-    existing = _find_session_file(session_id)
+    existing = _find_session_file(session_id, target_dir)
     if existing is None:
-        path = _session_path(session_id, now)
+        path = _session_path(session_id, now, target_dir)
         path.write_text(
             _session_header(session_id, user_id, model, now, system_prompt),
             encoding="utf-8",
