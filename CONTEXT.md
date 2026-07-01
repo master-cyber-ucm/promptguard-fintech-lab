@@ -51,11 +51,15 @@ Una unidad atómica de interacción dentro de una sesión: prompt de entrada →
 _Avoid_: step (reservado para los pasos de un fixture), message, exchange
 
 **Session File**:
-Fichero `.md` que recoge todos los turns de una sesión de chat. Un fichero por `session_id`, nombrado `{timestamp}_{session_id}.md`. Se crea al primer turn y se extiende por append en cada turn sucesivo.
+Fichero `.md` que recoge todos los turns de una sesión de chat, más la sección Evaluation que append el Analyze Pass. Un fichero por `session_id`, nombrado `{timestamp}_{session_id}.md`, dentro de `{Run Folder}/{endpoint}/`.
 _Avoid_: log, transcript, audit log
 
+**Evaluation section**:
+Sección `## Evaluación` que el Analyze Pass append al final de cada Session File. Contiene: fixture_id, expected result, verdict, indicadores que matchearon, y razonamiento del juez si aplica.
+_Avoid_: result section, verdict block, analysis
+
 **Audit Repository**:
-Componente del backend responsable de escribir y leer Session Files en `lab/audit/sessions/`. Abstrae el sistema de ficheros del resto del código.
+Componente del backend responsable de escribir Session Files. Recibe la ruta de destino (`audit_subdir`) en cada request de chat, lo que le permite escribir en `{Run Folder}/{endpoint}/` sin depender de una variable de entorno fija.
 _Avoid_: logger, audit service, file writer
 
 **Thinking trace**:
@@ -65,19 +69,31 @@ _Avoid_: reasoning, chain of thought, internal monologue
 ### Ejecución automática y métricas
 
 **Suite Run**:
-Una ejecución completa de `run_attack_suite.py` contra el backend. Corre los tres kinds de fixtures en una sola pasada y produce un Run Report.
+Una ejecución de `run_attack_suite.py` que envía fixtures al backend y persiste los Session Files en el Run Folder. No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pass.
 _Avoid_: test run, batch, campaign
+
+**Analyze Pass**:
+Ejecución de `analyze.py` sobre un Run Folder. Lee los Session Files, carga los fixtures por ID para obtener los Fixture Indicators, calcula Verdicts (heurística + juez opcional), hace append de la Evaluation Section a cada Session File, y genera el Run Report.
+_Avoid_: analysis, post-processing, evaluation run
+
+**Pending Run**:
+Un Run Folder que contiene Session Files pero no tiene Run Report todavía. `make analyze` sin argumentos procesa todos los Pending Runs.
+_Avoid_: incomplete run, unanalyzed run
+
+**Run Folder**:
+Directorio `lab/audit/runs/{timestamp}_{model_slug}/` que agrupa todos los artefactos de un Suite Run: subcarpetas por endpoint con Session Files, y el Run Report en la raíz.
+_Avoid_: run directory, output folder, results directory
 
 **Verdict**:
 El resultado de evaluar la respuesta de Clara para un fixture concreto: `SUCCESS` (el ataque funcionó o la petición legítima fue procesada), `BLOCKED` (el ataque fue rechazado o la petición legítima fue bloqueada erróneamente), `UNKNOWN` (la respuesta no contiene ningún indicador reconocible).
 _Avoid_: result, outcome, status, pass/fail
 
 **Fixture indicator**:
-Una de las listas `success` o `blocked` definidas en el YAML de un fixture. El Suite Run las usa para calcular el Verdict de cada fixture sin lógica hardcodeada en el script.
+Una de las listas `success` o `blocked` definidas en el YAML de un fixture. El Analyze Pass las usa para calcular el Verdict heurístico de cada fixture sin lógica hardcodeada en el script.
 _Avoid_: keyword, detector, rule
 
 **Run Report**:
-El par de artefactos generados por un Suite Run: un `.json` con los datos estructurados y un `.md` con el resumen legible. Ambos se guardan en `lab/audit/runs/{timestamp}_run.{json|md}`.
+El par de artefactos generados por el Analyze Pass: un `.json` con datos estructurados y un `.md` con resumen legible, métricas y tablas. Ambos se guardan en la raíz del Run Folder como `run.json` y `run.md`. Su presencia indica que el Run Folder ya no es un Pending Run.
 _Avoid_: report, output, results file
 
 ### Entidades del sistema

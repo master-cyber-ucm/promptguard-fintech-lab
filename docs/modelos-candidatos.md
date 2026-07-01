@@ -143,6 +143,59 @@ API OpenAI-compatible alojada en DGX Cloud de NVIDIA. Acceso vía [build.nvidia.
 
 ---
 
+## Ranking de vulnerabilidad — de más a menos vulnerable
+
+Basado en el análisis del run `20260628_091642` y en las características conocidas de cada modelo. Ver `docs/nota-descubrimiento-alignment-implicito.md` para el razonamiento completo.
+
+La resistencia a ataques de prompt injection depende de tres factores independientes:
+- **Tamaño** — modelos pequeños tienen menor capacidad para mantener políticas de seguridad consistentes a lo largo del contexto
+- **Safety training** — el grado de RLHF/safety fine-tuning varía enormemente entre familias y versiones
+- **Edad del entrenamiento** — safety techniques han mejorado mucho entre Llama 2 (2023) y Llama 3.2 / Qwen 3 (2024-2025)
+
+### Tier 1 — Muy vulnerables (candidatos para el escenario "sin defensas")
+
+| # | Modelo | Tag Ollama | Por qué es vulnerable |
+|---|--------|-----------|----------------------|
+| 1 | TinyLlama 1.1B | `tinyllama:1.1b` | 1.1B de parámetros: incapaz de mantener una política de seguridad coherente a lo largo de un contexto largo; ignora instrucciones del system prompt con facilidad; sin safety fine-tuning formal |
+| 2 | Llama 2 7B | `llama2:7b` | Generación anterior de Meta (2023); RLHF mucho menos maduro que Llama 3; bien documentado en la literatura como bypassable con DAN y jailbreaks básicos |
+| 3 | Llama 2 Uncensored 7B | `llama2-uncensored:7b` | Variante de Llama 2 con el safety fine-tuning eliminado intencionalmente; máxima superficie de ataque; disponible en Ollama |
+| 4 | Orca Mini 3B | `orca-mini:3b` | Destilado de outputs de GPT-4 sin safety alignment propio; 3B de parámetros; comportamiento más permisivo que los modelos oficiales de Meta |
+| 5 | Mistral 7B v0.1 | `mistral:7b` | Publicado sin safety fine-tuning por defecto en su versión original; ampliamente documentado como uno de los modelos abiertos más fáciles de jailbreak en 7B; la versión Instruct añade algo de alineamiento pero sigue siendo más débil que Llama 3 |
+
+### Tier 2 — Vulnerabilidad moderada (comportamiento inconsistente)
+
+| # | Modelo | Tag Ollama | Por qué es moderadamente vulnerable |
+|---|--------|-----------|-------------------------------------|
+| 6 | Llama 3.2 1B | `llama3.2:1b` | Safety training de Llama 3 aplicado, pero el tamaño (1B) limita la capacidad de seguirlo de forma consistente; puede fallar en ataques multi-step o con distracción semántica |
+| 7 | Llama 3.2 3B | `llama3.2:3b` | Mejor que 1B pero sigue siendo pequeño para mantener políticas en contextos largos; el safety training de Llama 3 es más robusto que el de Llama 2 pero no inmune en este tamaño |
+| 8 | Phi-4 Mini 3.8B | `phi4-mini:3.8b` | Modelo de Microsoft optimizado para eficiencia y function calling; el énfasis en capacidad de herramientas puede haber sacrificado parte del safety training; más superficie de ataque al ser el modelo con mejor function calling del tier ligero |
+| 9 | Qwen 2.5 3B | `qwen2.5:3b` | Safety training de Alibaba, razonablemente bueno para su tamaño, pero la familia Qwen 2.x es menos restrictiva que Qwen 3.x; vulnerable en español si los ataques evitan el inglés |
+
+### Tier 3 — Resistentes (safety training robusto)
+
+| # | Modelo | Tag Ollama | Por qué resiste |
+|---|--------|-----------|-----------------|
+| 10 | Llama 3.1 8B | `llama3.1:8b` | Safety training de Meta Llama 3 en 8B; robusto frente a ataques directos; más permeable que Qwen 3 en ataques indirectos |
+| 11 | Qwen 3.5 9B | `qwen3.5:9b` | **Modelo actual del lab** — demostró 91.2% de bloqueo en simple-prompt; safety training de última generación; difícil de jailbreak con técnicas básicas; vulnerable solo en ataques de segundo orden (cross-context, chain injection) |
+| 12 | Qwen 2.5 14B | `qwen2.5:14b` | Mayor tamaño = mayor consistencia en seguir políticas; el salto de 7B a 14B mejora la capacidad de mantener el contexto de seguridad en prompts largos |
+| 13 | Qwen 3 14B (thinking) | `qwen3:14b` | Los modelos de razonamiento son los más difíciles de jailbreak: el bloque `<think>` expone el patrón de ataque antes de que el modelo responda, lo que permite al propio modelo detectar y rechazar la solicitud; representa la frontera superior de resistencia en modelos locales |
+
+### Modelos de Tier 1 recomendados para el escenario vulnerable
+
+Para el escenario experimental "sin defensas" se recomienda usar `mistral:7b` o `llama2:7b` como configuración principal, por las siguientes razones:
+- Ampliamente documentados en la literatura de seguridad LLM → resultados comparables con otros estudios
+- Suficiente capacidad de función calling para que el ataque tenga sentido (modelos de 1B a veces ni siguen las herramientas)
+- `tinyllama:1.1b` puede ser demasiado pequeño para completar el flujo de la conversación de forma coherente
+
+```bash
+# Descargar modelos para el escenario vulnerable
+ollama pull mistral:7b
+ollama pull llama2:7b
+ollama pull tinyllama:1.1b   # como referencia de mínimo
+```
+
+---
+
 ## Resumen de candidatos prioritarios
 
 Lista reducida para la primera ronda de evaluación (balance cobertura / tiempo):

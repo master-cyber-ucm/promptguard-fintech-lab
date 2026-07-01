@@ -149,9 +149,9 @@ Estado actual:
 
 Pendiente — progresión propuesta (de menos a más defensa):
 
-- [ ] **Chat con system prompt simple** — system prompt mínimo, sin reglas de seguridad, sin información interna. Mide el comportamiento base del modelo sin instrucciones.
-- [ ] **Chat con system prompt complejo** — system prompt completo de Clara (reglas de seguridad, límites, info interna). Sin contexto de usuario inyectado. Mide el efecto de las instrucciones solas.
-- [ ] **Chat con system prompt complejo + contexto** — system prompt complejo más el bloque `[Contexto del usuario autenticado]` inyectado en el mensaje. **Estado actual del lab vulnerable.**
+- [x] **Chat con system prompt simple** — `POST /api/v1/chat/simple-prompt`. System prompt mínimo (rol + capacidades + formato). Sin reglas de seguridad ni contexto de usuario.
+- [x] **Chat con system prompt complejo** — `POST /api/v1/chat/complex-prompt`. System prompt completo de Clara. Sin contexto de usuario inyectado.
+- [x] **Chat con system prompt complejo + contexto** — `POST /api/v1/chat/complex-with-context`. System prompt complejo + bloque `[Contexto del usuario autenticado]` en el mensaje.
 - [ ] **Chat detrás del proxy** — system prompt complejo + contexto + capa PromptGuard activa. Sin contexto adicional en el proxy.
 - [ ] **Chat detrás del proxy con contexto** — proxy activo con contexto de usuario propagado al proxy para que pueda tomar decisiones informadas.
 - [ ] **Chat detrás del proxy con contexto y system prompt complejo** — configuración completa: proxy + contexto + system prompt complejo en Clara. Nivel de protección máximo del lab.
