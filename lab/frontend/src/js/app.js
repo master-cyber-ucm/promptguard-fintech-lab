@@ -60,7 +60,9 @@ async function handleSend() {
         isSending = true;
         btnSend.disabled = true;
 
-        const response = await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta());
+        const modeSelect = document.getElementById('mode-select');
+        const endpoint = modeSelect ? modeSelect.value : null;
+        const response = await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta(), endpoint);
 
         loadingEl.remove();
 

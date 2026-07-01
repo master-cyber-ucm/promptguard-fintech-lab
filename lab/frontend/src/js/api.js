@@ -11,14 +11,15 @@ window.VB.API = {};
     var _backendPort = window.VB_BACKEND_PORT || 8000;
     var API_BASE = 'http://' + window.location.hostname + ':' + _backendPort;
 
-window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata) {
+window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata, endpoint) {
+        var chatEndpoint = endpoint || window.VB_CHAT_ENDPOINT || 'complex-with-context';
         var body = { user_id: userId, session_id: sessionId, message: message };
         if (fixtureMetadata) {
             body.fixture_id = fixtureMetadata.fixture_id || null;
             body.fixture_kind = fixtureMetadata.fixture_kind || null;
             body.fixture_expected_result = fixtureMetadata.fixture_expected_result || null;
         }
-        return fetch(API_BASE + '/api/v1/chat', {
+        return fetch(API_BASE + '/api/v1/chat/' + chatEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
