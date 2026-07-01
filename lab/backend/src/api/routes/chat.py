@@ -1,21 +1,31 @@
-"""Endpoint de chat — VULNERABLE.
+"""Endpoints de chat — tres configuraciones pre-proxy.
 
-Pasa el mensaje del usuario directamente a Clara sin ningún filtro.
-No hay sanitización de input, no hay redacción de PII, no hay
-validación de permisos en tools.
+Progresión de menor a mayor defensa:
 
-Este es el endpoint que ATACAREMOS en el lab.
+  POST /api/v1/chat/simple-prompt
+      System prompt mínimo (rol + capacidades + formato).
+      Sin reglas de seguridad ni información interna.
+      Sin contexto de usuario en el mensaje.
+
+  POST /api/v1/chat/complex-prompt
+      System prompt completo de Clara (reglas + info interna).
+      Sin contexto de usuario en el mensaje.
+
+  POST /api/v1/chat/complex-with-context
+      System prompt completo + bloque [Contexto del usuario autenticado]
+      inyectado en cada mensaje. Configuración actual del lab vulnerable.
 """
 
 import logging
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from pydantic_ai.messages import ThinkingPart
 
-from src.agents.clara import get_clara_agent, reset_clara_agent
+from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
+from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
 from src.models.banking import MOCK_USERS
 from src.utils.audit_repository import append_turn
 
@@ -26,18 +36,16 @@ logger = logging.getLogger(__name__)
 # --- Request / Response ---
 
 class ChatRequest(BaseModel):
-    """Request del chat."""
     user_id: str = Field(default="usr_001", description="ID del usuario")
     message: str = Field(..., description="Mensaje para Clara")
     session_id: Optional[str] = Field(default=None, description="ID de sesión (opcional)")
-    # Metadatos opcionales del fixture que originó este turno
     fixture_id: Optional[str] = Field(default=None)
     fixture_kind: Optional[str] = Field(default=None)
     fixture_expected_result: Optional[str] = Field(default=None)
+    audit_subdir: Optional[str] = Field(default=None, description="Ruta absoluta del directorio destino para el Session File")
 
 
 class ChatResponse(BaseModel):
-    """Response del chat. Incluye metadata para análisis de ataques."""
     user_id: str
     message: str
     response: str
@@ -45,6 +53,7 @@ class ChatResponse(BaseModel):
     latency_ms: float
     session_id: str
     tools_used: list
+    endpoint: str
     audit_file: Optional[str] = None
     error: Optional[str] = None
 
@@ -52,61 +61,52 @@ class ChatResponse(BaseModel):
 # --- Helpers ---
 
 def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
-    """Extrae tools invocadas y thinking trace de all_model_responses."""
     tools: list[dict] = []
     thinking: str | None = None
-
     if not hasattr(result, "all_messages"):
         return tools, thinking
-
     for msg in result.all_messages():
         for part in getattr(msg, "parts", []):
             if isinstance(part, ThinkingPart):
                 thinking = part.content
             elif hasattr(part, "tool_name"):
-                tools.append({
-                    "tool": part.tool_name,
-                    "args": str(getattr(part, "args", "")),
-                })
-
+                tools.append({"tool": part.tool_name, "args": str(getattr(part, "args", ""))})
     return tools, thinking
 
 
-# --- Endpoint ---
-
-@router.post("/chat", response_model=ChatResponse)
-async def chat_with_clara(request: ChatRequest):
-    """Envía un mensaje a Clara SIN NINGUNA PROTECCIÓN.
-
-    El mensaje del usuario va directamente al LLM con acceso completo
-    a todas las tools bancarias. No hay filtros de entrada ni salida.
-
-    ⚠️  ESTE ES EL ENDPOINT VULNERABLE DEL LAB.
-    """
+async def _process_chat(
+    request: ChatRequest,
+    endpoint_name: str,
+    agent,
+    reset_fn: Callable,
+    inject_context: bool,
+) -> ChatResponse:
     start_time = time.time()
 
     user = MOCK_USERS.get(request.user_id)
     if not user:
         raise HTTPException(status_code=404, detail=f"Usuario {request.user_id} no encontrado")
 
-    user_context = (
-        f"[Contexto del usuario autenticado: user_id={user['user_id']}, "
-        f"nombre={user['name']}, cuenta={user['account_id']}]"
-    )
-    full_message = f"{user_context}\n\nMensaje del cliente: {request.message}"
-    session_id = request.session_id or f"ses_{int(time.time())}"
+    if inject_context:
+        user_context = (
+            f"[Contexto del usuario autenticado: user_id={user['user_id']}, "
+            f"nombre={user['name']}, cuenta={user['account_id']}]"
+        )
+        full_message = f"{user_context}\n\nMensaje del cliente: {request.message}"
+    else:
+        full_message = request.message
 
+    session_id = request.session_id or f"ses_{int(time.time())}"
     fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
-    logger.info("[%s]%s → procesando mensaje (usuario=%s)", session_id, fixture_tag, request.user_id)
+    logger.info("[%s]%s → %s (usuario=%s)", session_id, fixture_tag, endpoint_name, request.user_id)
 
     try:
-        agent = get_clara_agent()
         result = await agent.run(full_message)
         latency_ms = (time.time() - start_time) * 1000
 
         tools_used, thinking = _extract_tools_and_thinking(result)
         response_text = str(result.output)
-        model_name = str(agent.model)
+        model_name = getattr(agent.model, "model_name", str(agent.model))
 
         audit_path = append_turn(
             session_id=session_id,
@@ -121,6 +121,7 @@ async def chat_with_clara(request: ChatRequest):
             fixture_id=request.fixture_id,
             fixture_kind=request.fixture_kind,
             fixture_expected_result=request.fixture_expected_result,
+            audit_subdir=request.audit_subdir,
         )
 
         tool_names = [t["tool"] for t in tools_used] if tools_used else []
@@ -138,6 +139,7 @@ async def chat_with_clara(request: ChatRequest):
             latency_ms=round(latency_ms, 1),
             session_id=session_id,
             tools_used=tools_used,
+            endpoint=endpoint_name,
             audit_file=audit_path.name,
         )
 
@@ -152,13 +154,13 @@ async def chat_with_clara(request: ChatRequest):
                 "Backend no puede alcanzar el proveedor LLM. Revisa la URL y que "
                 "el servicio elegido este disponible."
             )
-            reset_clara_agent()
+            reset_fn()
         elif "ollama" in low or "model not found" in low:
             hint = (
                 "Ollama no tiene el modelo. Descárgalo con "
                 "`ollama pull qwen3.5:9b` o cambia LLM_PROVIDER=openrouter en .env."
             )
-            reset_clara_agent()
+            reset_fn()
         elif "401" in low or "api key" in low or "unauthorized" in low:
             hint = "API key del proveedor invalida. Verifica OPENROUTER_API_KEY o LLM_API_KEY en lab/.env."
 
@@ -172,5 +174,38 @@ async def chat_with_clara(request: ChatRequest):
             latency_ms=round(latency_ms, 1),
             session_id=session_id,
             tools_used=[],
+            endpoint=endpoint_name,
             error=f"{err_str}{' | HINT: ' + hint if hint else ''}",
         )
+
+
+# --- Endpoints ---
+
+@router.post("/chat/simple-prompt", response_model=ChatResponse)
+async def chat_simple_prompt(request: ChatRequest):
+    """System prompt mínimo (rol + capacidades). Sin reglas de seguridad ni contexto de usuario."""
+    return await _process_chat(
+        request, "simple-prompt",
+        get_clara_agent_simple(), reset_clara_agent_simple,
+        inject_context=False,
+    )
+
+
+@router.post("/chat/complex-prompt", response_model=ChatResponse)
+async def chat_complex_prompt(request: ChatRequest):
+    """System prompt completo de Clara. Sin contexto de usuario inyectado en el mensaje."""
+    return await _process_chat(
+        request, "complex-prompt",
+        get_clara_agent_complex(), reset_clara_agent_complex,
+        inject_context=False,
+    )
+
+
+@router.post("/chat/complex-with-context", response_model=ChatResponse)
+async def chat_complex_with_context(request: ChatRequest):
+    """System prompt completo + contexto de usuario inyectado. Configuración actual del lab vulnerable."""
+    return await _process_chat(
+        request, "complex-with-context",
+        get_clara_agent_complex(), reset_clara_agent_complex,
+        inject_context=True,
+    )

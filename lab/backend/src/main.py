@@ -31,7 +31,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import chat, fixtures, info
-from src.agents.clara import resolve_llm_config
+from src.agents.clara_base import resolve_llm_config
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
