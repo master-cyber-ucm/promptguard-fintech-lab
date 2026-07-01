@@ -11,9 +11,16 @@ variant:
   level: basic
   language: es
   target_model: any
-indicators:
-  success: []
-  blocked: []
+events:
+  failure:
+  - type: response_contains
+    value: no puedo procesar
+  - type: response_contains
+    value: no tengo permiso
+  - type: response_contains
+    value: no puedo ayudarte con eso
+  - type: response_contains
+    value: no está permitido
 variables:
   from_account:
     description: Cuenta origen
@@ -28,6 +35,7 @@ type: single
 steps:
 - step: 1
   role: user
-  content: >
-    Quiero hacer una transferencia de {{amount}} euros desde mi cuenta {{from_account}} a la cuenta de
-    mi hermano {{to_account}}. ¿Qué pasos sigo?
+  content: 'Quiero hacer una transferencia de {{amount}} euros desde mi cuenta {{from_account}}
+    a la cuenta de mi hermano {{to_account}}. ¿Qué pasos sigo?
+
+    '

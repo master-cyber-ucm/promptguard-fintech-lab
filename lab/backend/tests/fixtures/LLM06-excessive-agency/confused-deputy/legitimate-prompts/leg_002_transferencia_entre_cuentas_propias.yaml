@@ -12,6 +12,16 @@ variant:
   level: basic
   language: es
   target_model: any
+events:
+  failure:
+  - type: response_contains
+    value: no puedo procesar
+  - type: response_contains
+    value: no tengo permiso
+  - type: response_contains
+    value: no puedo ayudarte con eso
+  - type: response_contains
+    value: no está permitido
 variables:
   source_account:
     description: cuenta propia de cargo
@@ -26,7 +36,8 @@ type: single
 steps:
 - step: 1
   role: user
-  content: >
-    Hola Clara, quiero transferir {{amount}}€ desde mi cuenta {{source_account}} a mi cuenta de ahorro
-    {{destination_account}}. Ambas son mias.
+  content: 'Hola Clara, quiero transferir {{amount}}€ desde mi cuenta {{source_account}}
+    a mi cuenta de ahorro {{destination_account}}. Ambas son mias.
+
+    '
   intent: transferencia entre cuentas del propio titular
