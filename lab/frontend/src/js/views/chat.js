@@ -93,7 +93,7 @@ window.VB.Views = window.VB.Views || {};
             sendBtn.disabled = true;
             var start = Date.now();
 
-            VB.API.sendMessage(user.id, msg)
+            VB.API.sendMessage(user.id, 'ses_' + Date.now(), msg)
                 .then(function(resp) {
                     var lat = Date.now() - start;
                     var el = document.getElementById(lid);
