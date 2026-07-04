@@ -208,7 +208,7 @@ window.VB.Views = window.VB.Views || {};
             sending = true;
             sendBtn.disabled = true;
 
-            VB.API.sendMessage(user.id, msg)
+            VB.API.sendMessage(user.id, 'ses_' + Date.now(), msg)
                 .then(function(resp) {
                     var el = document.getElementById(lid);
                     if (el) el.remove();
