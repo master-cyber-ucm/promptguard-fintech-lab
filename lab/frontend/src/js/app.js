@@ -4,17 +4,25 @@
  */
 
 import { initFixtureBrowser, advancePendingStep, getActiveFixtureMeta } from './fixture-browser.js';
+import { openFixtureEditor } from './fixture-editor.js';
 
 
 // --- State ---
 let isSending = false;
 const SESSION_ID = `ses_${Date.now()}`;
 
+// Conversación capturada para autoría de fixtures: turns enviados por el usuario
+// más la última respuesta de Clara y sus tools (para sugerir indicadores).
+let _capturedSteps = [];
+let _lastResponse = '';
+let _lastTools = [];
+
 // --- DOM ---
 const chatMessages = document.getElementById('chat-messages');
 const chatInput    = document.getElementById('chat-input');
 const btnSend      = document.getElementById('btn-send');
 const btnClear     = document.getElementById('btn-clear');
+const btnSaveFixture = document.getElementById('btn-save-fixture');
 const userSelect   = document.getElementById('user-select');
 
 
@@ -22,6 +30,7 @@ const userSelect   = document.getElementById('user-select');
 function init() {
     btnSend.addEventListener('click', handleSend);
     btnClear.addEventListener('click', handleClear);
+    if (btnSaveFixture) btnSaveFixture.addEventListener('click', handleSaveFixture);
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -51,6 +60,7 @@ async function handleSend() {
     const userName = userSelect.options[userSelect.selectedIndex].text;
 
     addMessage('user', message, { userName });
+    _capturedSteps.push({ content: message });
     chatInput.value = '';
     chatInput.style.height = 'auto';
 
@@ -74,6 +84,8 @@ async function handleSend() {
                 model:   response.model,
                 tools:   response.tools_used,
             });
+            _lastResponse = response.response || '';
+            _lastTools = response.tools_used || [];
         }
 
         // If a multi-step fixture is active, auto-load the next step
@@ -149,6 +161,18 @@ function handleClear() {
             <p>Soy Clara, tu asistente virtual. ¿En qué puedo ayudarte?</p>
         </div>
     `;
+    _capturedSteps = [];
+    _lastResponse = '';
+    _lastTools = [];
+}
+
+
+function handleSaveFixture() {
+    openFixtureEditor({
+        capturedSteps: _capturedSteps,
+        lastResponse: _lastResponse,
+        lastTools: _lastTools,
+    });
 }
 
 

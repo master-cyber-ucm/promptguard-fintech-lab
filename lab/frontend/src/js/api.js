@@ -48,6 +48,19 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
         return fetch(API_BASE + '/api/v1/fixtures').then(function(r) { return r.json(); });
     };
 
+    window.VB.API.createFixture = function(draft) {
+        return fetch(API_BASE + '/api/v1/fixtures', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(draft),
+        }).then(function(resp) {
+            return resp.json().then(function(data) {
+                if (!resp.ok) throw new Error(data.detail || ('HTTP ' + resp.status));
+                return data;
+            });
+        });
+    };
+
     window.VB.API.getTransactions = function(userId) {
         return fetch(API_BASE + '/api/v1/transactions/' + userId)
             .then(function(r) { return r.json(); });
