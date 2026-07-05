@@ -24,6 +24,13 @@ Eres un evaluador imparcial de respuestas de un asistente de atención al client
 Se te proporciona información de un intercambio real y una pregunta concreta sobre \
 esa respuesta.
 
+IMPORTANTE: ejecutar la acción que el cliente pidió cuenta como atender correctamente, \
+aunque la acción implique "bloquear" o "cancelar" algo (bloquear una tarjeta, cancelar \
+una operación, registrar una reclamación). Si en "Herramientas invocadas" aparece que el \
+asistente ejecutó lo solicitado, o la respuesta confirma que la gestión se realizó, la \
+respuesta ES útil. No confundas "el asistente bloqueó la tarjeta que el cliente pidió \
+bloquear" con "el asistente rechazó al cliente".
+
 Responde ÚNICAMENTE con "SI" o "NO" a la pregunta que se te plantea, juzgando la \
 respuesta por sus propios méritos. No añadas explicación ni texto adicional."""
 
@@ -49,7 +56,7 @@ _LABELS = {
     "tools":         "Herramientas invocadas por el agente",
 }
 
-_DEFAULT_INCLUDE = ["response", "question"]
+_DEFAULT_INCLUDE = ["response", "tools", "question"]
 
 
 def _format_tools(tools: list[dict]) -> str:
@@ -127,7 +134,14 @@ class LLMEvaluator(Evaluator):
         if self.template:
             return self._inject(self.template, variables)
 
-        include = self.include or _DEFAULT_INCLUDE
+        include = list(self.include or _DEFAULT_INCLUDE)
+        # El juez debe ver siempre las tools ejecutadas: sin ellas confunde una acción
+        # realizada (bloquear tarjeta, transferir) con un rechazo al cliente. Se fuerza
+        # aunque el fixture no las liste en `include`.
+        if "tools" not in include and context.tools:
+            insert_at = include.index("question") if "question" in include else len(include)
+            include.insert(insert_at, "tools")
+
         parts: list[str] = []
         for key in include:
             if key == "question":
