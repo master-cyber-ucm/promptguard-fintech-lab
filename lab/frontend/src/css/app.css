@@ -102,6 +102,20 @@ body {
     border-top: 1px solid var(--border);
 }
 
+.document-attach {
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.document-attach input[type="file"] {
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
 .chat-input textarea {
     flex: 1;
     background: var(--bg-input);

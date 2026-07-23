@@ -20,6 +20,7 @@
                     <option value="simple-prompt">simple-prompt</option>
                     <option value="complex-prompt">complex-prompt</option>
                     <option value="complex-with-context" selected>complex-with-context</option>
+                    <option value="complex-with-document">complex-with-document (adjuntar archivo)</option>
                 </select>
                 <label for="user-select">Usuario:</label>
                 <select id="user-select">
@@ -44,6 +45,13 @@
                             ⚠️ Este es un entorno de laboratorio VULNERABLE. Sin protecciones de seguridad.
                         </p>
                     </div>
+                </div>
+
+                <!-- Adjuntar documento (solo visible en modo complex-with-document) -->
+                <div id="document-attach" class="document-attach" style="display:none">
+                    <label for="document-input">📎 Documento a adjuntar (PDF / DOCX / XLSX):</label>
+                    <input type="file" id="document-input" accept=".pdf,.docx,.xlsx">
+                    <span id="document-filename" class="text-muted" style="font-size:0.85em"></span>
                 </div>
 
                 <!-- Input -->

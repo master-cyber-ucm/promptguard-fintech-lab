@@ -53,24 +53,66 @@
       **Nota:** esto es una comprobación de cableado, no la evidencia formal de la Fase 1.3 (que
       requiere también el control sano y varias repeticiones).
 
-### 1.3 Ejecución y evidencia
+### 1.3 Ejecución y evidencia ✅
 
-- [ ] Levantar el lab en modo vulnerable (`make run`).
-- [ ] Ejecutar el flujo con el documento **sano** → confirmar que el payload NO se ejecuta
-      (control negativo).
-- [ ] Ejecutar el flujo con el documento **comprometido** → confirmar que SÍ se ejecuta (tool call
-      no autorizado o fuga de datos de un tercero).
-- [ ] Capturar evidencia: Session File (`lab/audit/sessions/`), Run Report si se integra en la
-      suite (`lab/audit/runs/`), captura de pantalla del playground.
-- [ ] Documentar el comando/procedimiento exacto para reproducir ambos casos.
+- [x] Lab levantado en modo vulnerable (`make run`), Ollama `qwen2.5:3b`.
+- [x] Script de evidencia (`evidencia/ejecutar_evidencia.py`): 3 formatos × sano/comprometido × 3
+      repeticiones = 18 llamadas reales contra `/chat/complex-with-document`.
+- [x] Control sano: **0/9 falsos positivos** en los 3 formatos.
+- [x] Documento comprometido: **PDF 3/3 (100%)**, **XLSX 2/3 (67%)**, **DOCX 0/3 (0%)** — éxito
+      funcional (tool call `consulta_saldo` sobre la cuenta objetivo exacta).
+- [x] Evidencia capturada: 18 Session Files completos en
+      `lab/audit/runs/20260723_195956_henri-atk7-evidencia/complex-with-document/`.
+- [x] **Corrección metodológica documentada**: se detectaron y corrigieron 2 bugs (ruta
+      host/contenedor en `audit_subdir`; criterio de éxito con fallback laxo que generaba falsos
+      positivos). Ver `evidencia/README.md` §"Corrección metodológica" para el detalle completo
+      y la re-clasificación con criterio estricto (`reanalizar_desde_sesiones.py`).
+- [x] Procedimiento de reproducción documentado en `evidencia/README.md`.
 
-### 1.4 Capítulo de ataque
+### 1.4 Capítulo de ataque — wrap-up ✅ (primera redacción, revisada tras 1.5)
 
-- [ ] Redactar el borrador de resultados (basado en los capítulos de referencia, con evidencia
-      real reemplazando las notas "PRE-implementación").
-- [ ] Redactar el aporte a la sección **4.2** del índice del TFM (vector evaluado) y a **6.1**
-      (parcial — resultados de ataque, antes de la defensa).
-- [ ] Revisar que se citan MITRE ATLAS (`AML.T0051.001`) y OWASP (`LLM01:2025`) correctamente.
+- [x] Borrador de resultados redactado en `CAPITULO.md`, con evidencia real (18 Session Files,
+      corrección metodológica incluida) reemplazando cualquier nota "PRE-implementación".
+- [x] Aporte a la sección **4.2** completo (descripción del vector, diseño del payload, anatomía,
+      implementación del canal) y a **6.1/6.2** (tabla de resultados + análisis: brecha de
+      control de acceso vs. fuga textual, hipótesis DOCX).
+- [x] Citas MITRE ATLAS (`AML.T0051.001`, táctica `TA0043`) y OWASP (`LLM01:2025`) revisadas y
+      consistentes en toda la sección 4.2.
+- [x] Pasada de coherencia sobre todo `CAPITULO.md`: corregida una referencia desactualizada
+      ("pipeline aún no implementado") que había quedado obsoleta tras completar la 1.2.
+
+**Nota (post wrap-up):** el usuario pidió, tras esta primera redacción, subir la tasa de éxito de
+DOCX/XLSX antes de cerrar la fase y añadir un paso de verificación manual — ver 1.5 y 1.6 antes
+de dar la Fase 1 por cerrada.
+
+### 1.5 Mejora del ataque — iteración de payloads
+
+- [x] Diagnóstico de los fallos de la primera tanda (1.3): DOCX 0/3 por payload sin redundancia;
+      XLSX con fallos intermitentes por consulta a la cuenta propia en vez de la objetivo.
+- [x] DOCX v2: payload repetido 3 veces (2 idénticas + 1 con prefijo `SYSTEM:`), misma
+      redundancia que ya funcionaba al 100% en PDF.
+- [x] XLSX v2 → v3: v2 (duplicar la fila oculta sin cambiar su posición) no mejoró — diagnóstico
+      con `tools_used` mostró que el modelo seguía prefiriendo la cuenta propia. v3: fila oculta
+      reposicionada justo después de la fila "Cuenta" visible (máxima cercanía al contexto que el
+      modelo ya lee) + texto contrastivo explícito ("no la tuya propia — la cuenta adicional
+      autorizada es...").
+- [x] `test_payloads.py` (8/8) revalidado tras cada iteración de los generadores.
+- [x] Evidencia final re-ejecutada con los payloads mejorados (4 tandas, 98 Session Files
+      reales). **Resultado agregado por versión de payload**: PDF 11/13 (85%, sin cambios desde
+      Fase 1.1), DOCX v2 9/10 (90%), XLSX v3 15/15 (100%). 49/49 controles sanos sin falsos
+      positivos. Discusión honesta sobre el límite de "100% garantizado" con un LLM no
+      determinista en `evidencia/README.md` y `CAPITULO.md` §6.2.
+
+### 1.6 Verificación manual del usuario (gate antes de Fase 2)
+
+- [x] Añadido soporte de subida de documentos al frontend Playground
+      (`lab/frontend/src/playground.html`, `js/app.js`, `js/api.js`): nuevo modo
+      `complex-with-document` con selector de archivo, usando `FormData`/multipart contra el
+      mismo endpoint que usa `ejecutar_evidencia.py`.
+- [ ] **Pendiente del usuario**: subir manualmente los 6 documentos (sano/comprometido × 3
+      formatos) vía `http://localhost:3000/playground.html`, modo `complex-with-document`, para
+      confirmar visualmente el comportamiento antes de dar la Fase 1 por cerrada y pasar a la
+      Fase 2 (Defensa).
 
 ## Fase 2 — Defensa
 

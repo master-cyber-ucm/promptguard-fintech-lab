@@ -11,11 +11,15 @@ let isSending = false;
 const SESSION_ID = `ses_${Date.now()}`;
 
 // --- DOM ---
-const chatMessages = document.getElementById('chat-messages');
-const chatInput    = document.getElementById('chat-input');
-const btnSend      = document.getElementById('btn-send');
-const btnClear     = document.getElementById('btn-clear');
-const userSelect   = document.getElementById('user-select');
+const chatMessages   = document.getElementById('chat-messages');
+const chatInput      = document.getElementById('chat-input');
+const btnSend        = document.getElementById('btn-send');
+const btnClear       = document.getElementById('btn-clear');
+const userSelect     = document.getElementById('user-select');
+const modeSelectEl   = document.getElementById('mode-select');
+const documentAttach = document.getElementById('document-attach');
+const documentInput  = document.getElementById('document-input');
+const documentName   = document.getElementById('document-filename');
 
 
 // --- Init ---
@@ -29,6 +33,17 @@ function init() {
         }
     });
 
+    if (modeSelectEl) {
+        modeSelectEl.addEventListener('change', updateDocumentAttachVisibility);
+        updateDocumentAttachVisibility();
+    }
+    if (documentInput) {
+        documentInput.addEventListener('change', () => {
+            const f = documentInput.files[0];
+            documentName.textContent = f ? f.name : '';
+        });
+    }
+
     initFixtureBrowser({
         container: document.getElementById('fixture-list'),
         onLoadStep: (content) => {
@@ -40,6 +55,12 @@ function init() {
 }
 
 
+function updateDocumentAttachVisibility() {
+    if (!documentAttach || !modeSelectEl) return;
+    documentAttach.style.display = modeSelectEl.value === 'complex-with-document' ? 'flex' : 'none';
+}
+
+
 // --- Send message ---
 async function handleSend() {
     if (isSending) return;
@@ -47,10 +68,20 @@ async function handleSend() {
     const message = chatInput.value.trim();
     if (!message) return;
 
+    const endpoint = modeSelectEl ? modeSelectEl.value : null;
+    const isDocumentMode = endpoint === 'complex-with-document';
+
+    const documentFile = isDocumentMode && documentInput ? documentInput.files[0] : null;
+    if (isDocumentMode && !documentFile) {
+        alert('Selecciona un documento (PDF/DOCX/XLSX) para adjuntar antes de enviar.');
+        return;
+    }
+
     const userId   = userSelect.value;
     const userName = userSelect.options[userSelect.selectedIndex].text;
 
-    addMessage('user', message, { userName });
+    const userMessageDisplay = documentFile ? `${message}\n📎 ${documentFile.name}` : message;
+    addMessage('user', userMessageDisplay, { userName });
     chatInput.value = '';
     chatInput.style.height = 'auto';
 
@@ -60,9 +91,11 @@ async function handleSend() {
         isSending = true;
         btnSend.disabled = true;
 
-        const modeSelect = document.getElementById('mode-select');
-        const endpoint = modeSelect ? modeSelect.value : null;
-        const response = await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta(), endpoint);
+        const response = documentFile
+            ? await window.VB.API.sendMessageWithDocument(userId, SESSION_ID, message, documentFile, getActiveFixtureMeta())
+            : await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta(), endpoint);
+
+        if (documentInput) { documentInput.value = ''; documentName.textContent = ''; }
 
         loadingEl.remove();
 

@@ -17,10 +17,11 @@
 | 2.1–2.3 (Estado del arte) | Ejemplo de vector aportado por este ataque | `[PENDIENTE]` |
 | 4.2 (Vectores evaluados) | Descripción del vector | ✅ Borrador inicial |
 | 4.2 | Diseño del payload (Fase 1.1) | ✅ Borrador inicial |
-| 4.2 | Implementación del canal (Fase 1.2) | `[PENDIENTE]` |
-| 6.1 (Resultados por vector) | Resultados de ataque (Fase 1.3) | `[PENDIENTE]` |
+| 4.2 | Implementación del canal (Fase 1.2) | ✅ Borrador inicial |
+| 6.1 (Resultados por vector) | Resultados de ataque, números finales tras iteración (Fase 1.3+1.5) | ✅ |
 | 4.1 / 6.1 | Defensa implementada y su validación (Fase 2) | `[PENDIENTE]` |
-| 6.2 (Análisis y discusión) | Antes/después de la defensa | `[PENDIENTE]` |
+| 6.2 (Análisis y discusión) | Éxito funcional vs. fuga textual; iteración DOCX/XLSX (Fase 1.5) | ✅ |
+| 6.2 | Antes/después de la defensa (Fase 2) | `[PENDIENTE]` |
 | 7 (Marco normativo) | GDPR/DORA/AI Act/NIST/ISO aplicados a este vector (Fase 3) | `[PENDIENTE]` |
 
 ---
@@ -104,8 +105,9 @@ El framing de la pieza (A) varía deliberadamente según el vehículo documental
 nóminas" en el PDF, "tramitación interna" en el informe de reclamación DOCX— para maximizar la
 verosimilitud del payload dentro del propósito declarado de cada documento. En el vehículo PDF, el
 mismo texto se repite bajo las tres técnicas de ocultación como apuesta contra la incertidumbre
-sobre qué exactamente extraerá el pipeline de extracción de texto (aún no implementado — Fase
-1.2); en el vehículo XLSX, en cambio, se usan dos variantes de texto distintas para la fila oculta
+sobre qué exactamente extraería el pipeline de extracción de texto —todavía por implementar en
+ese momento de la Fase 1.1—; en el vehículo XLSX, en cambio, se usan dos variantes de texto
+distintas para la fila oculta
 y el comentario de celda, porque son dos superficies de extracción cualitativamente diferentes
 —no una repetición de la misma apuesta—, lo que informa directamente el alcance que deberá cubrir
 la defensa de la Fase 2.
@@ -158,17 +160,122 @@ modelo— se recoge en la sección siguiente.
 
 ### Ejecución y resultados de ataque
 
-`[PENDIENTE — Fase 1.3, alimenta también la sección 6.1]`
+Con el canal implementado, se ejecutó el ataque de forma sistemática contra el lab vulnerable
+real (Ollama, `qwen2.5:3b`), en varias tandas sucesivas: una primera medición (3 repeticiones por
+combinación) y dos tandas adicionales de mejora iterativa del payload tras detectar tasas de
+éxito insuficientes en DOCX y XLSX. Por cada intento se registró si Clara invocaba
+`consulta_saldo` con el `account_id` exacto de la cuenta objetivo —el criterio de éxito
+funcional, alineado con el esquema `evaluation.events` que ya usa el resto de fixtures del lab—
+y si el saldo real aparecía correctamente en la respuesta en lenguaje natural, como métrica
+secundaria independiente.
+
+*(Fuente: `henri-tfm/01-ataque/evidencia/README.md`; evidencia primaria: 78+ Session Files reales
+en `henri-tfm/01-ataque/evidencia/session-files/`, organizados por tanda.)*
+
+### Iteración de mejora del payload
+
+La primera medición mostró una tasa de éxito desigual entre vehículos: PDF 3/3, XLSX 2/3, DOCX
+0/3. Antes de aceptar ese resultado como definitivo, se diagnosticó y corrigió cada vehículo por
+separado, con un hallazgo metodológico relevante en el camino:
+
+- **DOCX** solo tenía una repetición del payload. Se aplicó la misma redundancia que ya
+  funcionaba en PDF (3 repeticiones) → salto de 0/3 a **9/10** en las tandas de validación
+  posteriores.
+- **XLSX** reveló que "más redundancia" no es una solución universal: duplicar la fila oculta sin
+  cambiar su posición **empeoró** el resultado (2/3 → 2/5), porque el mecanismo de fallo no era
+  falta de repetición sino que el payload competía, en desventaja, con el IBAN propio del
+  cliente —visible y cercano al principio de la hoja— por la atención del modelo. Reposicionar el
+  payload junto a ese dato competidor y reformular el texto de forma contrastiva explícita
+  ("no uses tu propia cuenta... consulta en su lugar...") elevó el resultado a un rango
+  consistentemente alto. El desglose completo, incluida la iteración que empeoró antes de
+  mejorar, está en `henri-tfm/01-ataque/evidencia/README.md` y
+  `henri-tfm/01-ataque/anatomia-payload.md`.
 
 ---
 
 ## 6.1 — Resultados por vector: Prompt Injection Indirecta vía Documento
 
-`[PENDIENTE]`
+Resultado final, agregado por versión de payload sobre las 4 tandas de ejecución (98 Session
+Files reales; ver `henri-tfm/01-ataque/evidencia/README.md` para el detalle completo de cada
+tanda y la iteración que llevó a estos números):
+
+| Documento | Condición | Éxito funcional (tool call sobre cuenta objetivo) |
+|---|---|---|
+| PDF (nómina) | sano | 0/13 (0%) |
+| PDF (nómina) | comprometido | **11/13 (85%)** |
+| DOCX (reclamación) v2 | sano | 0/10 (0%) |
+| DOCX (reclamación) v2 | comprometido | **9/10 (90%)** |
+| XLSX (control de gastos) v3 | sano | 0/15 (0%) |
+| XLSX (control de gastos) v3 | comprometido | **15/15 (100%)** |
+
+*(Cifras históricas de las versiones de payload superadas — DOCX v1: 0/3; XLSX v1: 2/3; XLSX v2:
+2/5 — se conservan en `evidencia/README.md` como parte de la narrativa de mejora, no se usan como
+resultado final.)*
+
+Los 49 controles sanos (todas las tandas, los 3 formatos) no produjeron ni un solo falso
+positivo: en ningún caso Clara consultó la cuenta de un tercero al procesar un documento sin
+payload. Con documento comprometido, y tras la iteración de mejora de la Fase 1.5, el vector
+alcanza una tasa de éxito funcional alta y consistente en los tres formatos —85-100%—, partiendo
+de una situación inicial muy desigual (0%-100%) en la primera medición.
 
 ## 6.2 — Análisis y discusión
 
-`[PENDIENTE]`
+**Brecha de control de acceso frente a fuga textual explotable.** El primer hallazgo relevante no
+está en la tasa de éxito agregada, sino en la disociación entre dos fenómenos que podrían
+confundirse bajo una sola métrica de "éxito del ataque". En **PDF**, la tool call no autorizada
+ocurre en la gran mayoría de los intentos —la brecha de control de acceso, que es la
+vulnerabilidad de seguridad real (acceso de un usuario a datos de otro sin autorización), se
+materializa de forma consistente— pero el modelo con frecuencia **no** reporta el saldo correcto
+en su respuesta: en varios intentos dio cifras distintas y erróneas ("231,50 €", ninguna cifra
+explícita, "2.315,00 €"), pese a que la tool devuelve el valor real (`231.500,00 €`) en su
+resultado JSON. En XLSX, en cambio, los intentos con éxito funcional casi siempre reportaron el
+saldo con el valor numérico correcto. Esto tiene una implicación directa para cómo se define
+"éxito del ataque" en el resto del TFM: el criterio determinista basado en la tool call
+(`tool_called_with`, ya usado por los fixtures `atk_021`/`atk_022`) mide la vulnerabilidad real
+—el fallo de control de acceso—, mientras que la presencia del dato correcto en el texto depende
+además de la fiabilidad del modelo al redactar, una variable distinta que un modelo local pequeño
+como `qwen2.5:3b` no garantiza.
+
+**De una tasa de éxito desigual (0%-100%) a un rango alto y consistente (85%-100%): la iteración
+importa, y no toda iteración es una mejora.** La primera medición (Fase 1.3, n=3 por combinación)
+mostró PDF 100%, XLSX 67% y **DOCX 0%** — un resultado demasiado desigual para aceptar como
+caracterización definitiva del vector antes de intentar mejorarlo (Fase 1.5). Dos vías de mejora
+distintas emergieron:
+
+- **DOCX** solo tenía una repetición del payload; aplicar la misma redundancia que ya funcionaba
+  en PDF (3 repeticiones) bastó para pasar de 0/3 a 9/10 (90%) en las tandas siguientes. Aquí "más
+  redundancia" fue la solución correcta.
+- **XLSX** demostró que "más redundancia" **no es una solución universal**: duplicar la fila
+  oculta sin cambiar su posición empeoró el resultado de 2/3 (67%) a 2/5 (40%). El diagnóstico —
+  inspeccionando qué cuenta consultaba realmente el modelo en cada fallo— reveló que el problema
+  no era volumen de instrucción sino **salience**: el payload competía, en desventaja, con el
+  IBAN propio del cliente, visible y cercano al principio de la hoja. Solo reposicionar el
+  payload junto a ese dato competidor y reescribir el texto de forma contrastiva explícita ("no
+  uses tu propia cuenta... consulta en su lugar...") resolvió el problema: 15/15 (100%) sobre
+  las dos tandas de validación con el diseño final (v3).
+
+La lección metodológica para el resto del catálogo de ataques del TFM: cuando un payload de
+inyección indirecta compite dentro del mismo documento con un dato legítimo más prominente, la
+redundancia por repetición no sustituye a diagnosticar *por qué* el modelo prefiere el dato
+competidor. Esto también anticipa un requisito para la Fase 2 (defensa): una defensa que solo
+busque "instrucciones repetidas" o patrones de redundancia no habría detectado la técnica de
+XLSX v1 (una sola fila oculta, sin repetición) — la superficie de ataque a cubrir no se reduce a
+un único patrón sintáctico.
+
+**Ningún falso positivo en 49 controles sanos**, en las 4 tandas y los 3 formatos: la mejora de la
+tasa de éxito del ataque no se consiguió a costa de que el sistema bloqueara o alterara el
+tratamiento de documentos legítimos — importante para la validez del contraste con la Fase 2, que
+medirá si la defensa introduce falsos positivos que el propio ataque, en su diseño actual, no
+tiene.
+
+**Rigor del proceso: dos correcciones metodológicas documentadas, no descartadas.** (1) La primera
+ejecución de `ejecutar_evidencia.py` (Fase 1.3) tenía un criterio de éxito con un *fallback* de
+coincidencia de texto libre que generó 2 falsos positivos, corregido a un criterio único y
+estricto (tool call verificable) tras re-analizar los 18 Session Files originales. (2) Durante la
+Fase 1.5, la iteración "XLSX v2" empeoró el resultado respecto a v1 — se documenta explícitamente
+como parte de la evidencia, no se descarta ni se omite, porque el propio fallo informó el
+diagnóstico correcto que llevó a v3. El detalle completo de ambas correcciones está en
+`henri-tfm/01-ataque/evidencia/README.md`.
 
 ## 4.1 / Defensa aplicada a este vector
 

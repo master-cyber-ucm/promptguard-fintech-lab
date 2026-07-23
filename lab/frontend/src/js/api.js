@@ -32,6 +32,29 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
         });
     };
 
+    window.VB.API.sendMessageWithDocument = function(userId, sessionId, message, file, fixtureMetadata) {
+        var formData = new FormData();
+        formData.append('user_id', userId);
+        formData.append('session_id', sessionId);
+        formData.append('message', message);
+        formData.append('document', file, file.name);
+        if (fixtureMetadata) {
+            if (fixtureMetadata.fixture_id) formData.append('fixture_id', fixtureMetadata.fixture_id);
+            if (fixtureMetadata.fixture_kind) formData.append('fixture_kind', fixtureMetadata.fixture_kind);
+            if (fixtureMetadata.fixture_expected_result) formData.append('fixture_expected_result', fixtureMetadata.fixture_expected_result);
+        }
+        return fetch(API_BASE + '/api/v1/chat/complex-with-document', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(function(resp) {
+            if (!resp.ok) {
+                return resp.json().then(function(e) { throw new Error(e.detail || 'HTTP ' + resp.status); });
+            }
+            return resp.json();
+        });
+    };
+
     window.VB.API.getAccounts = function() {
         return fetch(API_BASE + '/api/v1/accounts').then(function(r) { return r.json(); });
     };
