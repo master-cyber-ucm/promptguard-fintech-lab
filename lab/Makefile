@@ -234,7 +234,9 @@ eval-all-local:
 # ──────────────────────────────────────────────────────────────────────────────
 
 smoke:
-	$(COMPOSE) exec backend python scripts/smoke_test.py
+	$(COMPOSE) exec \
+		-e FIXTURES_DIR=$(FIXTURES) \
+		backend python scripts/smoke_test.py
 
 help:
 	@echo ""

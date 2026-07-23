@@ -9,8 +9,8 @@
 - [x] Explorar el repo y entender el objetivo del TFM (PromptGuard FinTech).
 - [x] Leer los 7 capítulos de referencia en `docs/ataques/LLM01-prompt-injection/indirecta-documento/`.
 - [x] Crear el entorno de trabajo personal (`henri-tfm/` en la raíz del repo).
-- [ ] Verificar que el lab arranca en local: `cd lab && make run` (Ollama + backend + frontend).
-- [ ] Correr `make smoke` y confirmar health check del backend y del proveedor LLM.
+- [x] Verificar que el lab arranca en local: `cd lab && make run` (Ollama + backend + frontend).
+- [x] Correr `make smoke` y confirmar health check del backend y del proveedor LLM.
 
 ## Fase 1 — Ataque
 

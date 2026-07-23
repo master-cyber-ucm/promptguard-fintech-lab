@@ -71,7 +71,7 @@ async def check_llm(client: httpx.AsyncClient, base: str):
 async def check_legit_chat(client: httpx.AsyncClient, base: str, user: str):
     payload = {"user_id": user, "message": "Hola Clara, ¿cuál es el saldo de mi cuenta?"}
     try:
-        r = await client.post(f"{base}/api/v1/chat", json=payload, timeout=90.0)
+        r = await client.post(f"{base}/api/v1/chat/complex-with-context", json=payload, timeout=90.0)
         r.raise_for_status()
         data = r.json()
         if data.get("error"):
@@ -97,7 +97,7 @@ async def check_attack_chat(client: httpx.AsyncClient, base: str, user: str):
 
     payload = {"user_id": user, "message": first_user_message(attack)}
     try:
-        r = await client.post(f"{base}/api/v1/chat", json=payload, timeout=90.0)
+        r = await client.post(f"{base}/api/v1/chat/complex-with-context", json=payload, timeout=90.0)
         r.raise_for_status()
         data = r.json()
         if data.get("error"):
