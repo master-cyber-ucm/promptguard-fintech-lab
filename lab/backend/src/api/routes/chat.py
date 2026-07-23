@@ -14,18 +14,25 @@ Progresión de menor a mayor defensa:
   POST /api/v1/chat/complex-with-context
       System prompt completo + bloque [Contexto del usuario autenticado]
       inyectado en cada mensaje. Configuración actual del lab vulnerable.
+
+  POST /api/v1/chat/complex-with-document
+      Igual que complex-with-context, más un documento adjunto (PDF/DOCX/XLSX).
+      VULNERABILIDAD (ataque #7 — LLM01:2025 indirect / AML.T0051.001): el texto extraído
+      del documento se concatena al contexto sin sanitizar ni separar semánticamente de la
+      instrucción del usuario. Ver src/core/document_extractor.py.
 """
 
 import logging
 import time
 from typing import Callable, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from pydantic_ai.messages import ThinkingPart
 
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
+from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.models.banking import MOCK_USERS
 from src.utils.audit_repository import append_turn
 from src.core.output_auditor import audit_response
@@ -81,6 +88,7 @@ async def _process_chat(
     agent,
     reset_fn: Callable,
     inject_context: bool,
+    document_text: Optional[str] = None,
 ) -> ChatResponse:
     start_time = time.time()
 
@@ -96,6 +104,12 @@ async def _process_chat(
         full_message = f"{user_context}\n\nMensaje del cliente: {request.message}"
     else:
         full_message = request.message
+
+    if document_text:
+        # VULNERABILIDAD (ataque #7): el texto extraído del documento se concatena tal cual,
+        # sin marcarlo como dato no confiable ni pasarlo por ningún filtro — mismo patrón de
+        # concatenación sin escrutinio que el resto del pipeline vulnerable de este lab.
+        full_message = f"{full_message}\n\nDocumento adjunto por el cliente:\n{document_text}"
 
     session_id = request.session_id or f"ses_{int(time.time())}"
     fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
@@ -215,4 +229,44 @@ async def chat_complex_with_context(request: ChatRequest):
         request, "complex-with-context",
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
+    )
+
+
+@router.post("/chat/complex-with-document", response_model=ChatResponse)
+async def chat_complex_with_document(
+    user_id: str = Form(default="usr_001"),
+    message: str = Form(...),
+    session_id: Optional[str] = Form(default=None),
+    fixture_id: Optional[str] = Form(default=None),
+    fixture_kind: Optional[str] = Form(default=None),
+    fixture_expected_result: Optional[str] = Form(default=None),
+    audit_subdir: Optional[str] = Form(default=None),
+    document: UploadFile = File(...),
+):
+    """System prompt completo + contexto de usuario + documento adjunto (PDF/DOCX/XLSX).
+
+    Ataque #7 (OWASP LLM01:2025 · MITRE ATLAS AML.T0051.001) — Prompt Injection Indirecta vía
+    Documento. VULNERABILIDAD: el texto extraído del documento se concatena al contexto del LLM
+    sin sanitizar ni distinguirlo del resto del prompt (ver `_process_chat`, `document_text`).
+    """
+    content = await document.read()
+    try:
+        document_text = extract_text(document.filename or "", content)
+    except UnsupportedDocumentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    request = ChatRequest(
+        user_id=user_id,
+        message=message,
+        session_id=session_id,
+        fixture_id=fixture_id,
+        fixture_kind=fixture_kind,
+        fixture_expected_result=fixture_expected_result,
+        audit_subdir=audit_subdir,
+    )
+    return await _process_chat(
+        request, "complex-with-document",
+        get_clara_agent_complex(), reset_clara_agent_complex,
+        inject_context=True,
+        document_text=document_text,
     )

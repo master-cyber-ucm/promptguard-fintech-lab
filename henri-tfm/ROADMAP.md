@@ -34,15 +34,24 @@
 - [x] Anatomía del payload documentada (`01-ataque/anatomia-payload.md`) — texto exacto de cada
       payload y desglose comentado de por qué funciona (responde a `TODOs.md` §7).
 
-### 1.2 Canal de subida de documentos (falta implementarlo)
+### 1.2 Canal de subida de documentos ✅
 
-- [ ] Decidir el approach: ¿nuevo endpoint (`/chat/complex-with-document` siguiendo la progresión
-      ya existente en `chat.py`) o campo opcional de archivo en `ChatRequest`?
-- [ ] Implementar la extracción de texto del PDF (p. ej. `pypdf`/`pdfplumber`) y su concatenación
-      al contexto del LLM, **sin sanitizar** (modo vulnerable — así se demuestra el ataque).
-- [ ] (Opcional, según tiempo) soporte DOCX/XLSX si se decide ampliar el alcance.
-- [ ] Escribir un test/fixture que cubra el nuevo endpoint (aunque sea mínimo) antes de darlo por
-      cerrado.
+- [x] Approach decidido: endpoint nuevo `POST /chat/complex-with-document` (multipart), siguiendo
+      la progresión ya existente en `chat.py`. Reutiliza `_process_chat` con un parámetro nuevo
+      `document_text` que se concatena sin sanitizar.
+- [x] Extracción de texto implementada en `src/core/document_extractor.py` para **PDF + DOCX +
+      XLSX** (los 3 formatos de la Fase 1.1, no solo PDF) — extracción deliberadamente ingenua,
+      no filtra por visibilidad/color/oculto.
+- [x] Tests: 12 tests (`test_document_extractor.py` + `test_chat_document_endpoint.py`), 12/12
+      passed. Incluyen un test de integración con agente falso que verifica que el payload llega
+      sin sanitizar al mensaje que recibe el LLM.
+- [x] Verificación end-to-end contra el LLM real (Ollama qwen2.5:3b) con `nomina_comprometida.pdf`:
+      Clara invocó `consulta_saldo` sobre la cuenta de un tercero (`ES3421...334`), pese a que la
+      petición era del usuario `usr_001` y el system prompt incluye reglas explícitas "NUNCA
+      reveles datos de cuentas de otros clientes". Session File:
+      `lab/audit/sessions/20260723_193458_ses_1784835254.md`.
+      **Nota:** esto es una comprobación de cableado, no la evidencia formal de la Fase 1.3 (que
+      requiere también el control sano y varias repeticiones).
 
 ### 1.3 Ejecución y evidencia
 

@@ -127,7 +127,34 @@ que un atacante real no tendría.
 
 ### Implementación del canal de subida de documentos
 
-`[PENDIENTE — Fase 1.2]`
+Dado que el escenario base del lab no contempla un canal de subida de documentos —Clara solo
+acepta texto en el endpoint de chat—, fue necesario implementarlo antes de poder ejecutar el
+ataque contra un artefacto real. Se añadió el endpoint `POST /chat/complex-with-document`,
+siguiendo la misma progresión de niveles de defensa ya presente en el lab
+(`simple-prompt` → `complex-prompt` → `complex-with-context`), de forma que el nuevo canal hereda
+la configuración vulnerable —system prompt completo más contexto de usuario inyectado— sin
+introducir una superficie de comparación distinta a la del resto de ataques del proyecto.
+
+El componente central es un extractor de texto (`src/core/document_extractor.py`) para los tres
+formatos evaluados, deliberadamente ingenuo: no distingue contenido visible de oculto en ninguno
+de los tres casos. El texto resultante se concatena al mensaje del usuario sin ninguna marca de
+procedencia ni separación semántica —`f"{mensaje}\n\nDocumento adjunto por el cliente:\n{texto}"`—
+replicando exactamente el patrón de concatenación sin escrutinio que ya exhibía el endpoint
+vulnerable para el contexto de usuario. La corrección de esta implementación se validó con una
+suite de 12 tests: 10 unitarios sobre el extractor y 2 de integración sobre el endpoint completo
+(estos últimos con un agente simulado, para verificar de forma determinista y sin dependencia de
+un LLM real que el payload llega intacto al mensaje que procesaría el modelo).
+
+Una comprobación puntual contra el proveedor LLM real (Ollama, `qwen2.5:3b`) con el documento
+`nomina_comprometida.pdf` de la Fase 1.1 confirmó que la cadena funciona de extremo a extremo:
+Clara invocó `consulta_saldo` sobre la cuenta de un tercero pese a que el system prompt activo
+incluye una regla explícita de no revelar datos de otros clientes. Este resultado preliminar se
+presenta aquí únicamente como confirmación de que la implementación es funcional; la evidencia
+formal —con su control negativo y repeticiones suficientes para descontar la variabilidad del
+modelo— se recoge en la sección siguiente.
+
+*(Fuente: `henri-tfm/01-ataque/README.md` §"Canal de subida de documentos", código en
+`lab/backend/src/core/document_extractor.py` y `lab/backend/src/api/routes/chat.py`.)*
 
 ### Ejecución y resultados de ataque
 
