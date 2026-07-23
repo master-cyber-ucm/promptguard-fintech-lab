@@ -14,20 +14,25 @@
 
 ## Fase 1 — Ataque
 
-### 1.1 Diseño del payload
+### 1.1 Diseño del payload ✅
 
-- [ ] Decidir formatos de documento a atacar: **PDF obligatorio** (hay base en
-      `lab/gen_adversarial_pdf.py`); valorar si se amplía a DOCX/XLSX o se deja como trabajo
-      futuro.
-- [ ] Diseñar el payload bancario específico (adaptar el ejemplo de RRHH de
-      `gen_adversarial_pdf.py` a un objetivo bancario: filtrar saldo/IBAN de un tercero, o forzar
-      `transferencia_nacional` / `bloquear_tarjeta`), coherente con lo ya definido en los fixtures
-      `atk_021`/`atk_022`.
-- [ ] Generar el documento **sano** (nómina/extracto legítimo, sin payload) como control negativo.
-- [ ] Generar el documento **comprometido** con al menos dos técnicas de ocultación (texto blanco
-      sobre blanco, fuente 1pt, texto fuera de viewport, o metadatos).
-- [ ] Especificar por escrito (en `01-ataque/README.md`) qué hace cada técnica y por qué se espera
-      que funcione — esto es la "especificación" que exige la regla de trabajo.
+- [x] Formatos decididos: **PDF + DOCX + XLSX** (uno no basta para una buena cobertura analítica;
+      ver justificación en `01-ataque/README.md`).
+- [x] Payload bancario diseñado: fuga de saldo de tercero vía `consulta_saldo` sobre
+      `ES3421000418450200051334` (Ana Fernández Ruiz, usr_003) — mismo objetivo que
+      `atk_021`/`atk_022` para evidencia comparable. Variante `transferencia_nacional` documentada
+      como extensión futura.
+- [x] Documentos **sanos** generados: `nomina_sana.pdf`, `reclamacion_sana.docx`,
+      `gastos_sano.xlsx`.
+- [x] Documentos **comprometidos** generados con técnica(s) idiomática(s) por formato: PDF (blanco
+      sobre blanco + 1pt + fuera de viewport), DOCX (`w:vanish` + blanco sobre blanco), XLSX (fila
+      oculta + comentario de celda).
+- [x] Especificación completa por escrito en `01-ataque/README.md`, incluida validación de que el
+      payload es recuperable por extracción ingenua en los 3 formatos (`pypdf`/`python-docx`/`openpyxl`).
+- [x] Verificación formalizada como tests de regresión (`payloads/test_payloads.py`, 8/8 passed):
+      sano sin payload / comprometido con payload, por formato.
+- [x] Anatomía del payload documentada (`01-ataque/anatomia-payload.md`) — texto exacto de cada
+      payload y desglose comentado de por qué funciona (responde a `TODOs.md` §7).
 
 ### 1.2 Canal de subida de documentos (falta implementarlo)
 

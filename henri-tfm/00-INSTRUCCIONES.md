@@ -124,6 +124,14 @@ contenido que se escriba debe pensarse en términos de a qué sección de este �
 1. **Documentar y especificar siempre.** Cada paso —diseño de payload, cambio de código, medida
    de defensa— se documenta por escrito antes o al momento de ejecutarlo, no después de memoria.
    Si aplica, se acompaña de un test (fixture automatizado o test pytest).
+1.b. **Redacción del capítulo del TFM — en paralelo, con wrap-up al cierre de cada fase.** El
+   archivo `CAPITULO.md` acumula prosa de calidad TFM (no notas de trabajo) a medida que se
+   completa cada sub-paso relevante, organizada por la sección del índice oficial a la que
+   alimenta (ver §2). Al cerrar cada fase (1.4, 2.4, Fase 3), se hace una pasada de wrap-up sobre
+   lo acumulado: coherencia, transiciones entre sub-secciones, y verificación de que toda
+   afirmación tiene su evidencia y cita correspondiente. Las notas de trabajo (specs técnicas en
+   `01-ataque/README.md`, etc.) siguen existiendo aparte — son la materia prima, no sustituyen la
+   prosa de `CAPITULO.md`.
 2. **Reproducibilidad estricta.** Toda evidencia (ataque exitoso, ataque bloqueado, métrica) debe
    venir acompañada del procedimiento exacto para reproducirla: comando, fixture ID, commit,
    modelo/proveedor usado, y ruta del Session File / Run Report generado.
@@ -148,8 +156,9 @@ contenido que se escriba debe pensarse en términos de a qué sección de este �
 promptguard-fintech-lab/henri-tfm/
 ├── 00-INSTRUCCIONES.md   ← este archivo
 ├── ROADMAP.md            ← checklist paso a paso
+├── CAPITULO.md           ← borrador acumulativo del capítulo del TFM (prosa, no notas)
 ├── bitacora/BITACORA.md  ← diario de trabajo cronológico
-├── 01-ataque/            ← Fase 1: payloads, evidencia, notas
+├── 01-ataque/            ← Fase 1: payloads, evidencia, notas técnicas (materia prima)
 ├── 02-defensa/           ← Fase 2: brainstorm, implementación, evidencia
 ├── 03-normativa/         ← Fase 3: investigación normativa
 └── referencias/          ← papers, capturas de fuentes oficiales citadas
