@@ -124,29 +124,41 @@ Fase 2 (Defensa).
 
 ## Fase 2 — Defensa
 
-### 2.1 Brainstorm de medidas candidatas
+### 2.1 Brainstorm de medidas candidatas ✅
 
-- [ ] Lluvia de ideas — como mínimo evaluar: sanitización del texto extraído (mismo pipeline que
-      el Input Sanitizer del escenario base), detección de patrones ocultos estilo antivirus
-      (heurísticas tipo "texto del mismo color que el fondo", "fuente <2pt", firmas conocidas),
-      separación semántica explícita dato/instrucción en el prompt, límites/normalización de
-      metadatos del PDF, conversión forzada a texto plano (elimina capas/color/tamaño antes de
-      llegar al LLM).
-- [ ] Documentar cada candidato en `02-defensa/README.md`: qué hace, por qué podría funcionar,
-      coste de implementación, falsos positivos esperados.
+- [x] 5 candidatos evaluados en `02-defensa/README.md` con coste y falsos positivos esperados.
+- [x] **Análisis de viabilidad de (A)** (pedido explícitamente por el usuario): detección
+      estructural de técnicas de ocultación no es viable como defensa autosuficiente — es un
+      enfoque de firmas (como un antivirus), y el catálogo de técnicas de esteganografía de texto
+      (Unicode invisible, homoglifos, capas OCG de PDF, etc.) es amplio y sigue creciendo.
+- [x] **Decisión final (revisada): (B) Sanitización de contenido = capa base**, (C) Separación
+      semántica = fundamental, (A) = filtro complementario de bajo coste (no la base). (D)/(E)
+      absorbidas o no aplicables.
 
-### 2.2 Selección e implementación
+### 2.2 Selección e implementación ✅
 
-- [ ] Elegir la(s) medida(s) a implementar, con justificación escrita.
-- [ ] Implementar en el backend (extensión del Input Sanitizer u otro módulo nuevo).
-- [ ] Escribir test(s) de regresión para la defensa.
+- [x] `lab/backend/src/core/document_sanitizer.py`: reutiliza
+      `config/rules/injection_signatures.yaml` (Capa 1 regex del equipo, nunca antes conectada a
+      código) + 3 reglas nuevas específicas de este vector. Devuelve la acción **más estricta**
+      entre todas las reglas que matcheen (no la primera por orden del YAML).
+- [x] **3 bugs preexistentes encontrados y corregidos** en el camino: (1) YAML roto por una
+      comilla sin escapar; (2) regla `obfuscation_markers` con `1`/`0` como alternativas sueltas
+      (falso positivo garantizado en cualquier documento con dígitos); (3) regla nueva con `^` no
+      multilínea, bug enmascarado por otra regla que sí bloqueaba por otro motivo.
+- [x] Separación semántica (C) implementada en `_process_chat` (`chat.py`): el texto del
+      documento se envuelve en delimitadores explícitos + instrucción de "dato, no instrucción".
+- [x] Wiring: si `sanitize_document_text` devuelve `BLOCK`, la petición se registra y responde
+      con `BLOCKED_BY_SANITIZER` **sin invocar al LLM**.
+- [x] Tests: 22/22 (`test_document_sanitizer.py` nuevo + `test_chat_document_endpoint.py`
+      actualizado a comportamiento defendido), incluida regresión del bug de severidad.
 
-### 2.3 Validación
+### 2.3 Validación ✅
 
-- [ ] Repetir el ataque con el documento **comprometido** y la defensa activa → evidencia de
-      bloqueo.
-- [ ] Repetir con el documento **sano** y la defensa activa → confirmar que NO hay falso positivo.
-- [ ] Capturar evidencia (mismo formato que en 1.3).
+- [x] Re-ejecutado `ejecutar_evidencia.py` (mismo script/documentos de la Fase 1.5) contra el
+      endpoint ya defendido. **Resultado: 9/9 comprometidos bloqueados (0% en PDF/DOCX/XLSX,
+      antes 85-100%), 0/9 falsos positivos en sanos** (latencia normal de LLM, sin bloqueo).
+      Evidencia: `evidencia/session-files/run5-defensa-activa_20260726_223411/` (10 Session
+      Files, 18 turnos).
 
 ### 2.4 Capítulo de defensa
 

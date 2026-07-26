@@ -19,9 +19,9 @@
 | 4.2 | Diseño del payload (Fase 1.1) | ✅ Borrador inicial |
 | 4.2 | Implementación del canal (Fase 1.2) | ✅ Borrador inicial |
 | 6.1 (Resultados por vector) | Resultados de ataque, números finales tras iteración (Fase 1.3+1.5) | ✅ |
-| 4.1 / 6.1 | Defensa implementada y su validación (Fase 2) | `[PENDIENTE]` |
+| 4.1 / 6.1 | Defensa implementada y su validación (Fase 2) | ✅ |
 | 6.2 (Análisis y discusión) | Éxito funcional vs. fuga textual; iteración DOCX/XLSX (Fase 1.5) | ✅ |
-| 6.2 | Antes/después de la defensa (Fase 2) | `[PENDIENTE]` |
+| 6.2 | Antes/después de la defensa (Fase 2) | ✅ |
 | 7 (Marco normativo) | GDPR/DORA/AI Act/NIST/ISO aplicados a este vector (Fase 3) | `[PENDIENTE]` |
 
 ---
@@ -218,6 +218,20 @@ payload. Con documento comprometido, y tras la iteración de mejora de la Fase 1
 alcanza una tasa de éxito funcional alta y consistente en los tres formatos —85-100%—, partiendo
 de una situación inicial muy desigual (0%-100%) en la primera medición.
 
+### Resultado con la defensa activa (Fase 2)
+
+| Documento | Condición (defensa activa) | Resultado |
+|---|---|---|
+| PDF | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_authority_framing` |
+| DOCX | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_authority_framing` |
+| XLSX | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_cross_account_request` |
+| PDF / DOCX / XLSX | sano | **0/9 falsos positivos** — procesados con normalidad, latencia de LLM sin cambios |
+
+La tasa de éxito funcional del ataque cae de 85-100% (sin defensa) a 0% en los tres formatos, sin
+introducir ningún falso positivo sobre los documentos sanos. El bloqueo ocurre antes de invocar
+al LLM (latencia 0 ms), por lo que ninguna de las dos capas de defensa depende de que el modelo
+"decida" no seguir la instrucción — la mitigación es determinista, no conductual.
+
 ## 6.2 — Análisis y discusión
 
 **Brecha de control de acceso frente a fuga textual explotable.** El primer hallazgo relevante no
@@ -289,9 +303,61 @@ como parte de la evidencia, no se descarta ni se omite, porque el propio fallo i
 diagnóstico correcto que llevó a v3. El detalle completo de ambas correcciones está en
 `henri-tfm/01-ataque/evidencia/README.md`.
 
-## 4.1 / Defensa aplicada a este vector
+**La mitigación deja obsoleta la disociación acceso/texto observada sin defensa.** Con la Capa 1
+activa (Fase 2), el análisis anterior sobre fiabilidad textual del modelo deja de ser relevante
+para la seguridad del sistema: la petición se bloquea antes de que el LLM llegue a decidir nada,
+así que ya no importa si habría reportado el saldo correcto o uno alucinado. Esto ilustra un
+principio general de diseño de defensas frente a prompt injection: **una mitigación determinista
+aplicada antes del LLM es preferible a confiar en el comportamiento del modelo**, precisamente
+porque ese comportamiento —como demuestran los propios resultados de este capítulo— es
+inconsistente incluso cuando el ataque tiene éxito a nivel de acceso.
 
-`[PENDIENTE — Fase 2]`
+## 4.1 — Defensa aplicada a este vector
+
+### Por qué la detección de técnicas de ocultación no es la base de la defensa
+
+La primera propuesta de defensa contemplaba bloquear documentos que contuvieran las técnicas de
+ocultación exactas caracterizadas en la Fase 1 (color de texto igual al fondo, fuente <2pt, texto
+fuera del área de página, atributo `hidden`/`w:vanish` de Word, filas y comentarios ocultos de
+hoja de cálculo). Antes de implementarla se analizó su viabilidad como defensa autosuficiente, y
+la conclusión fue negativa: el catálogo de técnicas para ocultar texto en un documento —más allá
+de las cinco caracterizadas en este trabajo— incluye al menos caracteres Unicode invisibles
+(zero-width space/joiner, el bloque Unicode Tags), homoglifos y remapeo de glifos de fuente,
+capas de contenido opcional nativas de PDF, y objetos incrustados o anotaciones no visibles en el
+cuerpo principal. Es, por construcción, un enfoque de firmas conocidas: cubre perfectamente lo ya
+catalogado, pero cualquier técnica no contemplada lo evade por diseño, no por un fallo de
+implementación corregible. Se mantiene como un filtro complementario de bajo coste, pero **no**
+como la capa base de la defensa.
+
+### Arquitectura de dos capas
+
+La defensa implementada se apoya, en cambio, en una capa que analiza el **contenido textual ya
+extraído**, con independencia de la técnica usada para ocultarlo dentro del documento:
+
+1. **Capa 1 — Sanitización del contenido extraído (`src/core/document_sanitizer.py`), bloqueante.**
+   Reutiliza `config/rules/injection_signatures.yaml`, un conjunto de reglas regex ya redactado
+   por el equipo del proyecto para el Input Sanitizer del escenario base, pero que ningún código
+   había cargado hasta este trabajo. Se añadieron tres reglas específicas de este vector —las
+   existentes se habían diseñado para inyección directa en el chat y no capturaban el *framing*
+   típico de un payload embebido en un documento (marcos de autoridad falsos, instrucciones de
+   auto-ocultación, solicitudes de saldo en formas verbales distintas)—. Si el texto extraído
+   coincide con alguna regla de bloqueo, la petición se rechaza **antes de invocar al LLM**.
+2. **Capa 2 — Separación semántica dato/instrucción, defensa en profundidad.** El texto que supera
+   la Capa 1 se concatena al contexto del LLM delimitado explícitamente y marcado como dato del
+   cliente, nunca como instrucción a seguir — reduce el riesgo residual si una variante futura del
+   payload no coincide con ninguna regla de la Capa 1.
+
+### Deuda técnica descubierta al reutilizar el trabajo del equipo
+
+Conectar por primera vez `injection_signatures.yaml` a código reveló tres defectos que habían
+pasado inadvertidos precisamente porque nunca se había ejecutado: una comilla sin escapar que
+invalidaba la sintaxis YAML del fichero completo; una regla (`obfuscation_markers`) cuyo patrón
+incluía los dígitos `1` y `0` como alternativas sueltas, lo que la habría hecho saltar sobre
+prácticamente cualquier documento financiero real (IBANs, fechas, importes); y —descubierto ya
+durante la validación de este vector— un ancla de inicio de línea sin el modificador multilínea,
+que hacía que una regla no se activara por la vía esperada en documentos de varias líneas. Los
+tres se corrigieron como parte de este trabajo, documentados como hallazgos, no simplemente
+silenciados.
 
 ## 7 — Marco normativo aplicado a este vector
 

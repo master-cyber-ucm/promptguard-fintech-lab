@@ -421,3 +421,69 @@ cd henri-tfm/01-ataque/payloads
 
 **Próximos pasos:**
 - Fase 1.2: implementar el canal de subida de documentos en el backend.
+
+---
+
+## 2026-07-26 — Fase 2 completa: defensa diseñada, implementada y validada
+
+**Contexto:** con la Fase 1 cerrada, tocaba empezar la Fase 2 (Defensa). Propuse una arquitectura
+inicial de 2 capas ((A) detección estructural + (C) separación semántica), pero el usuario pidió
+explícitamente: (1) tratar la **sanitización (B)** como la capa base, no como descartada; (2)
+analizar si (A) es viable dado que requeriría cubrir "todo el conjunto de las técnicas de
+esteganografía aplicada a IA"; (3) confirmó que (C) le parece fundamental. Pidió empezar por ahí
+y que le fuera dando resúmenes según avanzara.
+
+**Qué se hizo:**
+
+1. **Análisis de viabilidad de (A)** (respuesta a la petición explícita del usuario): revisé el
+   panorama de técnicas de ocultación de texto más allá de las 5 usadas en la Fase 1 (Unicode
+   invisible, homoglifos, capas OCG de PDF, objetos incrustados, esteganografía en imágenes).
+   Conclusión: (A) es estructuralmente un enfoque de firmas conocidas (como un antivirus) — cubre
+   lo catalogado, pero cualquier técnica nueva la evade por diseño. No es viable como defensa
+   autosuficiente. Documentado en `02-defensa/README.md`.
+2. **Decisión revisada**: (B) Sanitización = capa base (agnóstica a la técnica de ocultación,
+   analiza el contenido ya extraído); (C) Separación semántica = fundamental; (A) = filtro
+   complementario de bajo coste, no la base.
+3. **Implementé (B)** — `document_sanitizer.py`, reutilizando `config/rules/injection_signatures.yaml`
+   (reglas ya escritas por el equipo para el Input Sanitizer compartido, nunca conectadas a
+   ningún código hasta ahora). Al intentar cargarlas aparecieron **2 bugs preexistentes**:
+   - Una comilla simple sin escapar en la regla `refusal_suppression` rompía el parseo YAML del
+     fichero entero.
+   - La regla `obfuscation_markers` tenía `1` y `0` como alternativas sueltas — matcheaba
+     cualquier texto con esos dígitos (que es prácticamente cualquier documento financiero real).
+   Ambos corregidos. Añadidas 3 reglas nuevas específicas de este vector
+   (`indirect_doc_authority_framing`, `indirect_doc_concealment`,
+   `indirect_doc_cross_account_request`), validadas contra los 5 payloads reales y los 3
+   documentos sanos (0 falsos positivos) antes de escribir el módulo definitivo.
+4. **Escribí `test_document_sanitizer.py`** (9 tests) usando el texto exacto de los payloads
+   reales. Un test reveló un **tercer bug**: el sanitizador devolvía la primera regla que
+   matcheaba por orden del YAML, no la más estricta — una regla laxa preexistente
+   (`account_manipulation`, SUSPICIOUS) se colaba antes que mis reglas nuevas (BLOCK). Corregido
+   para evaluar todas las reglas y quedarme con la acción más severa. Añadida una regresión
+   explícita de este bug.
+5. **Implementé (C)** — separación semántica en `_process_chat` (`chat.py`): el texto del
+   documento se envuelve en delimitadores explícitos con instrucción de "dato, no instrucción".
+6. **Conecté (B) al endpoint** `chat_complex_with_document`: si `sanitize_document_text` devuelve
+   `BLOCK`, se registra el turno y se responde `BLOCKED_BY_SANITIZER` sin invocar al LLM.
+7. **Actualicé `test_chat_document_endpoint.py`** (el test de la Fase 1.2 verificaba
+   explícitamente la vulnerabilidad — ya no aplica; reescrito para verificar el bloqueo y la
+   separación semántica). Suite completa: 22/22.
+8. **Validación 2.3**: reejecuté `ejecutar_evidencia.py` (mismo script, mismos 6 documentos de la
+   Fase 1.5) contra el endpoint ya defendido. Apareció un **cuarto hallazgo** (no bug de
+   corrección, pero sí de cobertura): en XLSX, `indirect_doc_authority_framing` no bloqueó por
+   la vía esperada porque su `^` anclaba solo al inicio del string completo, no de cada línea —
+   el bloqueo ocurrió igual por otra regla, lo que enmascaró el problema hasta que inspeccioné
+   qué regla exacta había matcheado en cada caso. Corregido con `(?m)`.
+   - **Resultado final**: 9/9 comprometidos bloqueados (0% en PDF/DOCX/XLSX, antes 85-100% en la
+     Fase 1.5) · 0/9 falsos positivos en sanos (latencia normal de LLM, sin bloqueo).
+
+**Reproducir:**
+```bash
+cd lab && docker compose exec backend python -m pytest tests/ -v   # 22/22
+cd henri-tfm/01-ataque/evidencia
+../payloads/.venv/bin/python ejecutar_evidencia.py --repeticiones 3   # contra el endpoint defendido
+```
+
+**Próximos pasos:**
+- Fase 2.4: redactar el capítulo de defensa (4.1 arquitectura, 6.1/6.2 resultados antes/después)
+  en `CAPITULO.md`.
