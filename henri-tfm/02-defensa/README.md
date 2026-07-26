@@ -10,8 +10,10 @@
       fundamental, (A) Detección estructural = capa complementaria de bajo coste (no la base;
       ver análisis de por qué (A) sola no es viable como defensa completa)
 - [x] 2.2 (B) + (C) implementadas — ver `02-defensa/README.md` §"Implementación"
+- [x] **2.2b (A) implementada como capa complementaria parcial**, a petición del usuario tras el
+      análisis de viabilidad — ver §"(A) implementada — catálogo parcial de firmas"
 - [x] 2.3 Validación: **9/9 comprometidos bloqueados, 0/9 falsos positivos** — ver
-      §"Validación (2.3)"
+      §"Validación (2.3)". Rendimiento medido (no asumido): ver §"Impacto en rendimiento"
 - [ ] 2.4 Borrador del capítulo de defensa (secciones 4.1 y 6.1/6.2 del índice del TFM)
 
 ## Brainstorm de medidas candidatas
@@ -160,6 +162,52 @@ los tres formatos, 0 falsos positivos.** Evidencia: `evidencia/session-files/run
 (10 Session Files, 18 turnos — varios intentos bloqueados cayeron en el mismo `session_id` por
 colisión de resolución de 1 segundo en la generación del ID cuando la respuesta es instantánea;
 no se perdió ningún turno, solo quedaron agrupados).
+
+## (A) implementada — catálogo parcial de firmas
+
+El usuario, tras leer el análisis de viabilidad, pidió implementar (A) igual como capa
+**complementaria** (no como base), dejando explícito que es un catálogo que debe evolucionar —
+la misma filosofía que una base de firmas de antivirus. Implementado en
+`lab/backend/src/core/document_structural_detector.py`:
+
+| Formato | Técnica detectada | Cómo |
+|---|---|---|
+| PDF | Texto blanco puro (RGB 1,1,1) | `pypdf` `visitor_operand_before` (rastrea el operador de color `rg`/`g`/`sc`/`scn` antes de cada fragmento de texto) |
+| PDF | Fuente < 2pt | `pypdf` `visitor_text` (parámetro `font_size`) |
+| PDF | Texto fuera del área de página | `pypdf` `visitor_text` (componente Y de la matriz de texto `tm`, comparada con `page.mediabox.height`) |
+| DOCX | `run.font.hidden` (`w:vanish`) | `python-docx`, iteración de runs |
+| XLSX | Fila/columna oculta, comentario de celda | `openpyxl`, iteración de `row_dimensions`/`column_dimensions`/comentarios |
+
+**El módulo incluye, como parte deliberada de su diseño, un aviso y un changelog versionado**
+(igual que una base de firmas real) dejando explícito que cubre únicamente estas 5 técnicas a
+fecha de hoy, y el procedimiento a seguir cuando se descubra una técnica nueva (test de
+regresión → detección → entrada en el changelog). No detecta caracteres Unicode invisibles,
+homoglifos, capas de contenido opcional de PDF, ni ninguna de las técnicas adicionales
+identificadas en el análisis de viabilidad — eso sigue siendo responsabilidad de (B), que no
+depende de la técnica de ocultación.
+
+Se combina con (B) en el endpoint: si (B) no bloquea pero (A) encuentra alguna técnica conocida,
+se bloquea igualmente. Tests: `test_document_structural_detector.py` (10 tests, 0 falsos
+positivos sobre los 3 documentos sanos, detección confirmada de las 5 técnicas).
+
+## Impacto en rendimiento (medido, no asumido)
+
+El usuario preguntó explícitamente si (A) afectaría al rendimiento de la aplicación. Se midió con
+`benchmark_structural_detector.py` (200 iteraciones por documento, dentro del contenedor
+backend):
+
+| Documento | `sanitize_document_text` (Capa 1) | `detect_hiding_techniques` (Capa complementaria) |
+|---|---|---|
+| PDF comprometido | 0.18ms media / 0.14ms p95 | 1.02ms media / 1.15ms p95 |
+| DOCX comprometido | 0.14ms media / 0.16ms p95 | 7.00ms media / 17.2ms p95 |
+| XLSX comprometido | 0.17ms media / 0.19ms p95 | 2.23ms media / 2.90ms p95 |
+
+**Conclusión: el impacto es despreciable.** El peor caso medido (DOCX, ambas capas + extracción)
+suma ~14.5ms — muy por debajo del presupuesto de latencia añadida por el proxy de seguridad
+completo que fija la propuesta formal del TFM (<200ms p95 para el escenario base, <500ms p95 como
+mínimo garantizado), y varios órdenes de magnitud menor que la latencia real de una llamada al
+LLM local medida en la Fase 1 (5.000-40.000ms). El coste de estas dos capas de defensa es
+irrelevante frente al resto del pipeline.
 
 ## Estructura de carpetas de esta fase
 

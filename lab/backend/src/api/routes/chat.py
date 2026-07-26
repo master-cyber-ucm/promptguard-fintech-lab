@@ -17,12 +17,18 @@ Progresión de menor a mayor defensa:
 
   POST /api/v1/chat/complex-with-document
       Igual que complex-with-context, más un documento adjunto (PDF/DOCX/XLSX).
-      DEFENSA (Fase 2, ataque #7 — LLM01:2025 indirect / AML.T0051.001): el texto extraído
-      del documento pasa por `document_sanitizer` (Capa 1 regex, bloqueante) antes de llegar
-      al LLM, y si pasa esa capa, se concatena con separación semántica explícita (delimitado
-      y marcado como dato no confiable). Ver src/core/document_extractor.py y
-      src/core/document_sanitizer.py. Análisis completo de la defensa en
-      henri-tfm/02-defensa/README.md.
+      DEFENSA (Fase 2, ataque #7 — LLM01:2025 indirect / AML.T0051.001), dos capas bloqueantes
+      + una de profundidad:
+        1. `document_sanitizer` — Capa 1 regex sobre el texto ya extraído (base, agnóstica a la
+           técnica de ocultación).
+        2. `document_structural_detector` — capa complementaria de firmas conocidas (blanco
+           sobre blanco, fuente <2pt, texto fuera de página, run oculto de Word, fila/comentario
+           oculto de Excel). Catálogo parcial, documentado como tal — ver el aviso al inicio de
+           ese módulo.
+        3. Si ninguna de las dos bloquea, el texto se concatena con separación semántica
+           explícita (delimitado y marcado como dato no confiable).
+      Ver src/core/document_extractor.py, document_sanitizer.py, document_structural_detector.py.
+      Análisis completo de la defensa en henri-tfm/02-defensa/README.md.
 """
 
 import logging
@@ -37,7 +43,9 @@ from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.core.document_sanitizer import sanitize_document_text
+from src.core.document_structural_detector import detect_hiding_techniques
 from src.models.banking import MOCK_USERS
+from src.models.interaction import PromptDecision
 from src.utils.audit_repository import append_turn
 from src.core.output_auditor import audit_response
 
@@ -273,6 +281,21 @@ async def chat_complex_with_document(
         raise HTTPException(status_code=400, detail=str(e))
 
     decision = sanitize_document_text(document_text)
+
+    if decision.action != "BLOCK":
+        structural_findings = detect_hiding_techniques(document.filename or "", content)
+        if structural_findings:
+            decision = PromptDecision(
+                action="BLOCK",
+                confidence=1.0,
+                layer=1,
+                reason=(
+                    "Técnica(s) de ocultación conocida(s) detectada(s) — capa complementaria "
+                    f"document_structural_detector: {', '.join(structural_findings)}"
+                ),
+                attack_type="structural_hiding_technique",
+                matched_rule="document_structural_detector",
+            )
 
     if decision.action == "BLOCK":
         session_id_final = session_id or f"ses_{int(time.time())}"

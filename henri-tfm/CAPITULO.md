@@ -326,26 +326,48 @@ de las cinco caracterizadas en este trabajo— incluye al menos caracteres Unico
 capas de contenido opcional nativas de PDF, y objetos incrustados o anotaciones no visibles en el
 cuerpo principal. Es, por construcción, un enfoque de firmas conocidas: cubre perfectamente lo ya
 catalogado, pero cualquier técnica no contemplada lo evade por diseño, no por un fallo de
-implementación corregible. Se mantiene como un filtro complementario de bajo coste, pero **no**
-como la capa base de la defensa.
+implementación corregible. Por esa razón se implementa igualmente, pero como **capa
+complementaria de bajo coste**, nunca como la base de la defensa — con un aviso y un changelog
+versionado en el propio módulo que deja explícito su alcance parcial y el procedimiento a seguir
+cuando se documente una técnica nueva, siguiendo el mismo modelo operativo que una base de firmas
+de antivirus real.
 
-### Arquitectura de dos capas
+### Arquitectura de tres capas
 
-La defensa implementada se apoya, en cambio, en una capa que analiza el **contenido textual ya
-extraído**, con independencia de la técnica usada para ocultarlo dentro del documento:
+1. **Capa 1 — Sanitización del contenido extraído (`src/core/document_sanitizer.py`), bloqueante,
+   capa base.** Analiza el **contenido textual ya extraído**, con independencia de la técnica
+   usada para ocultarlo dentro del documento. Reutiliza `config/rules/injection_signatures.yaml`,
+   un conjunto de reglas regex ya redactado por el equipo del proyecto para el Input Sanitizer del
+   escenario base, pero que ningún código había cargado hasta este trabajo. Se añadieron tres
+   reglas específicas de este vector —las existentes se habían diseñado para inyección directa en
+   el chat y no capturaban el *framing* típico de un payload embebido en un documento (marcos de
+   autoridad falsos, instrucciones de auto-ocultación, solicitudes de saldo en formas verbales
+   distintas)—. Si el texto extraído coincide con alguna regla de bloqueo, la petición se rechaza
+   **antes de invocar al LLM**.
+2. **Capa complementaria — Detección estructural de técnicas de ocultación conocidas
+   (`src/core/document_structural_detector.py`), bloqueante, catálogo parcial.** Inspecciona el
+   documento (no el texto ya extraído) en busca de las cinco técnicas exactas caracterizadas en la
+   Fase 1: color de texto blanco puro y fuente <2pt en PDF (vía los *callbacks* `visitor_text` /
+   `visitor_operand_before` de `pypdf`, que exponen tamaño de fuente y color de relleno por cada
+   fragmento de texto), texto con coordenada Y fuera del alto de página, atributo
+   `run.font.hidden` de Word, y filas/columnas ocultas o comentarios de celda en hojas de cálculo.
+   Se combina con la Capa 1: si esta no bloquea pero la Capa complementaria encuentra alguna
+   técnica conocida, la petición se bloquea igualmente.
+3. **Capa de profundidad — Separación semántica dato/instrucción.** El texto que supera ambas
+   capas anteriores se concatena al contexto del LLM delimitado explícitamente y marcado como dato
+   del cliente, nunca como instrucción a seguir — reduce el riesgo residual si una variante futura
+   del payload no coincide con ninguna regla ni técnica catalogada.
 
-1. **Capa 1 — Sanitización del contenido extraído (`src/core/document_sanitizer.py`), bloqueante.**
-   Reutiliza `config/rules/injection_signatures.yaml`, un conjunto de reglas regex ya redactado
-   por el equipo del proyecto para el Input Sanitizer del escenario base, pero que ningún código
-   había cargado hasta este trabajo. Se añadieron tres reglas específicas de este vector —las
-   existentes se habían diseñado para inyección directa en el chat y no capturaban el *framing*
-   típico de un payload embebido en un documento (marcos de autoridad falsos, instrucciones de
-   auto-ocultación, solicitudes de saldo en formas verbales distintas)—. Si el texto extraído
-   coincide con alguna regla de bloqueo, la petición se rechaza **antes de invocar al LLM**.
-2. **Capa 2 — Separación semántica dato/instrucción, defensa en profundidad.** El texto que supera
-   la Capa 1 se concatena al contexto del LLM delimitado explícitamente y marcado como dato del
-   cliente, nunca como instrucción a seguir — reduce el riesgo residual si una variante futura del
-   payload no coincide con ninguna regla de la Capa 1.
+### Impacto en el rendimiento
+
+Se midió el coste real de las dos capas bloqueantes (200 iteraciones por documento, dentro del
+contenedor backend) en vez de asumirlo: la sanitización de contenido cuesta ~0,15ms de media en
+los tres formatos; la detección estructural cuesta ~1ms (PDF), ~7ms (DOCX, el más costoso por el
+parseo de `python-docx`) y ~2ms (XLSX) de media. El peor caso combinado (~14,5ms) es despreciable
+frente a la latencia real de una llamada al LLM local medida en la Fase 1 (5.000-40.000ms), y muy
+inferior al presupuesto de latencia añadida por el proxy de seguridad completo que fija la
+propuesta formal del TFM (<200ms p95 para el escenario base). El coste de estas dos capas de
+defensa no es un factor relevante en la latencia percibida por el usuario final.
 
 ### Deuda técnica descubierta al reutilizar el trabajo del equipo
 

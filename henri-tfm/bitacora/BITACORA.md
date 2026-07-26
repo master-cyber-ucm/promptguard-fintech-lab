@@ -487,3 +487,48 @@ cd henri-tfm/01-ataque/evidencia
 **Próximos pasos:**
 - Fase 2.4: redactar el capítulo de defensa (4.1 arquitectura, 6.1/6.2 resultados antes/después)
   en `CAPITULO.md`.
+
+---
+
+## 2026-07-26 (continuación) — (A) implementada como capa complementaria + benchmark de rendimiento
+
+**Contexto:** el usuario, satisfecho con la conclusión del análisis de viabilidad de (A), pidió
+implementarla igualmente como capa **parcial y complementaria** (no la base), documentando
+explícitamente que es un catálogo que debe evolucionar — la misma filosofía que una base de
+firmas de antivirus real. También expresó preocupación por el impacto en el rendimiento.
+
+**Qué se hizo:**
+
+1. Investigué la API de `pypdf` (`visitor_operand_before`/`visitor_text` en `extract_text`) para
+   poder extraer color de relleno, tamaño de fuente y posición Y de cada fragmento de texto de un
+   PDF — necesario para detectar blanco-sobre-blanco, fuente <2pt y texto fuera de página sin
+   reinventar un parser de PDF.
+2. Implementé `lab/backend/src/core/document_structural_detector.py`: `detect_hiding_techniques()`
+   cubre las 5 técnicas exactas de la Fase 1 (blanco puro en PDF, fuente <2pt, texto fuera de
+   página; `run.font.hidden` en DOCX; fila/columna oculta y comentario de celda en XLSX). El
+   docstring del módulo incluye un aviso explícito de que es un catálogo parcial y un
+   **changelog versionado** (v1, fecha, técnicas cubiertas) — mismo formato que una base de
+   firmas de antivirus, con el procedimiento a seguir cuando aparezca una técnica nueva.
+3. Escribí `test_document_structural_detector.py` (10 tests): detecta las 5 técnicas, 0 falsos
+   positivos sobre los 3 documentos sanos equivalentes.
+4. Conecté (A) al endpoint junto a (B): si (B) no bloquea pero (A) encuentra alguna técnica
+   conocida, se bloquea igual. Suite completa: **32/32**.
+5. **Benchmark de rendimiento** (respuesta a la preocupación del usuario, con datos reales, no
+   supuestos): `benchmark_structural_detector.py`, 200 iteraciones por documento dentro del
+   contenedor backend. Resultado: la capa complementaria cuesta ~1ms (PDF), ~7ms (DOCX, el más
+   lento por el parseo de `python-docx`), ~2ms (XLSX); la sanitización de contenido cuesta
+   ~0.15ms en los tres. Peor caso combinado ~14.5ms — despreciable frente a los 5.000-40.000ms
+   de latencia real del LLM y muy por debajo del presupuesto de <200ms p95 de la propuesta
+   formal del TFM.
+
+**Reproducir:**
+```bash
+cd lab && docker compose exec backend python -m pytest tests/ -v   # 32/32
+docker cp henri-tfm/02-defensa/benchmark_structural_detector.py promptguard-backend:/app/benchmark_structural_detector.py
+docker compose exec backend python /app/benchmark_structural_detector.py
+docker compose exec backend rm -f /app/benchmark_structural_detector.py
+```
+
+**Próximos pasos:**
+- Fase 2.4: terminar de incorporar (A) a la redacción de 4.1/6.1/6.2 en `CAPITULO.md`.
+- Fase 3: Marco normativo.

@@ -151,6 +151,18 @@ Fase 2 (Defensa).
       con `BLOCKED_BY_SANITIZER` **sin invocar al LLM**.
 - [x] Tests: 22/22 (`test_document_sanitizer.py` nuevo + `test_chat_document_endpoint.py`
       actualizado a comportamiento defendido), incluida regresión del bug de severidad.
+- [x] **(A) implementada como capa complementaria** (a petición del usuario, tras el análisis de
+      viabilidad): `document_structural_detector.py` — 5 técnicas de ocultación de la Fase 1
+      (blanco sobre blanco, fuente <2pt, fuera de página en PDF; run oculto en DOCX; fila/columna
+      oculta y comentario en XLSX), documentada explícitamente como catálogo parcial que debe
+      evolucionar (changelog versionado, igual que firmas de antivirus). 10 tests nuevos.
+      Combinada con (B) en el endpoint: bloquea si cualquiera de las dos capas dispara.
+- [x] **Rendimiento medido** (preocupación explícita del usuario): benchmark de 200 iteraciones
+      por documento — peor caso (DOCX) ~7ms para la capa complementaria, ~0.15ms para la
+      sanitización de contenido. Despreciable frente a la latencia real del LLM (5.000-40.000ms)
+      y muy por debajo del presupuesto de la propuesta formal (<200ms p95). Ver
+      `02-defensa/benchmark_structural_detector.py` y `02-defensa/README.md` §"Impacto en
+      rendimiento".
 
 ### 2.3 Validación ✅
 
@@ -158,7 +170,7 @@ Fase 2 (Defensa).
       endpoint ya defendido. **Resultado: 9/9 comprometidos bloqueados (0% en PDF/DOCX/XLSX,
       antes 85-100%), 0/9 falsos positivos en sanos** (latencia normal de LLM, sin bloqueo).
       Evidencia: `evidencia/session-files/run5-defensa-activa_20260726_223411/` (10 Session
-      Files, 18 turnos).
+      Files, 18 turnos). Total: **32/32 tests** en la suite del backend.
 
 ### 2.4 Capítulo de defensa
 
