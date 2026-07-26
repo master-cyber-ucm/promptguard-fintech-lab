@@ -268,6 +268,18 @@ tratamiento de documentos legítimos — importante para la validez del contrast
 medirá si la defensa introduce falsos positivos que el propio ataque, en su diseño actual, no
 tiene.
 
+**Corroboración independiente vía verificación manual.** Como último paso antes de cerrar esta
+fase, se probaron los 6 casos manualmente a través de la interfaz del Playground (una
+implementación de cliente distinta al script de evidencia: JavaScript en el navegador en vez de
+Python). Los 6 confirmaron el comportamiento esperado: los 3 sanos sin ninguna fuga, y los 3
+comprometidos (PDF, DOCX, XLSX) con éxito funcional completo. En el caso DOCX, la respuesta
+aportó además una variante del hallazgo de fiabilidad textual: el modelo no solo reportó un
+número incorrecto, sino que **cruzó a qué cuenta pertenecía cada saldo** —atribuyó el valor real
+de la cuenta objetivo a la cuenta propia del cliente, y un valor inventado a la cuenta objetivo—,
+reforzando que la brecha de acceso (verificable por la tool call) y la fiabilidad de la redacción
+textual son fenómenos independientes. Que una vía de disparo completamente distinta reproduzca el
+mismo resultado que la evidencia automatizada refuerza la validez externa del hallazgo.
+
 **Rigor del proceso: dos correcciones metodológicas documentadas, no descartadas.** (1) La primera
 ejecución de `ejecutar_evidencia.py` (Fase 1.3) tenía un criterio de éxito con un *fallback* de
 coincidencia de texto libre que generó 2 falsos positivos, corregido a un criterio único y

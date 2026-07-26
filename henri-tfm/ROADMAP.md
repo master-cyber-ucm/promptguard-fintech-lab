@@ -103,16 +103,24 @@ de dar la Fase 1 por cerrada.
       positivos. Discusión honesta sobre el límite de "100% garantizado" con un LLM no
       determinista en `evidencia/README.md` y `CAPITULO.md` §6.2.
 
-### 1.6 Verificación manual del usuario (gate antes de Fase 2)
+### 1.6 Verificación manual del usuario ✅ (gate antes de Fase 2 — superado)
 
 - [x] Añadido soporte de subida de documentos al frontend Playground
       (`lab/frontend/src/playground.html`, `js/app.js`, `js/api.js`): nuevo modo
       `complex-with-document` con selector de archivo, usando `FormData`/multipart contra el
       mismo endpoint que usa `ejecutar_evidencia.py`.
-- [ ] **Pendiente del usuario**: subir manualmente los 6 documentos (sano/comprometido × 3
-      formatos) vía `http://localhost:3000/playground.html`, modo `complex-with-document`, para
-      confirmar visualmente el comportamiento antes de dar la Fase 1 por cerrada y pasar a la
-      Fase 2 (Defensa).
+- [x] **Usuario subió manualmente los 6 documentos** vía `http://localhost:3000/playground.html`
+      (modo `complex-with-document`, usuario `usr_001`): `evidencia/session-files/manual-verification-1.6_20260726/`.
+- [x] **Resultado: los 6 confirmaron el comportamiento esperado.** 3/3 sanos sin fuga; 3/3
+      comprometidos con éxito funcional (PDF, DOCX, XLSX — tool call `consulta_saldo` sobre la
+      cuenta objetivo exacta en los tres). En DOCX, el modelo además cruzó los saldos entre las
+      dos cuentas en su respuesta (atribuyó el valor correcto a la cuenta equivocada) — refuerza
+      que la brecha de acceso es fiable pero la redacción textual no. Confirma que el frontend
+      (una implementación de cliente distinta al script Python) dispara la misma vulnerabilidad
+      que la evidencia automatizada.
+
+**Fase 1 (Ataque) queda cerrada por completo, incluida la verificación manual.** Siguiente:
+Fase 2 (Defensa).
 
 ## Fase 2 — Defensa
 
