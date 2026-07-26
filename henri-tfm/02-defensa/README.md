@@ -152,10 +152,14 @@ contra el endpoint ya defendido — sin cambiar el script, solo el comportamient
 
 | Documento | Condición | Resultado |
 |---|---|---|
-| PDF | comprometido | **0/3 (bloqueado 3/3)** — regla `indirect_doc_authority_framing`, latencia 0.0ms |
-| DOCX | comprometido | **0/3 (bloqueado 3/3)** — regla `indirect_doc_authority_framing`, latencia 0.0ms |
-| XLSX | comprometido | **0/3 (bloqueado 3/3)** — regla `indirect_doc_cross_account_request`, latencia 0.0ms |
+| PDF | comprometido | **0/3 (bloqueado 3/3)** — regla `indirect_doc_authority_framing` |
+| DOCX | comprometido | **0/3 (bloqueado 3/3)** — regla `indirect_doc_authority_framing` |
+| XLSX | comprometido | **0/3 (bloqueado 3/3)** — regla `indirect_doc_cross_account_request` |
 | PDF / DOCX / XLSX | sano | **0/9 falsos positivos** — los 9 pasaron con latencia normal de LLM (sin bloqueo) |
+
+> Esta primera validación se hizo con (B)+(C) activas, antes de implementar (A). La latencia
+> `0.0ms` que se registró aquí era un valor **hardcodeado**, no medido — corregido después (ver
+> §"Validación final" más abajo, con instrumentación de tiempo real por etapa).
 
 **Antes de la defensa (Fase 1.5): 85%-100% de éxito según formato. Con la defensa activa: 0% en
 los tres formatos, 0 falsos positivos.** Evidencia: `evidencia/session-files/run5-defensa-activa_20260726_223411/`
@@ -208,6 +212,35 @@ completo que fija la propuesta formal del TFM (<200ms p95 para el escenario base
 mínimo garantizado), y varios órdenes de magnitud menor que la latencia real de una llamada al
 LLM local medida en la Fase 1 (5.000-40.000ms). El coste de estas dos capas de defensa es
 irrelevante frente al resto del pipeline.
+
+## Validación final — las 3 capas juntas (A+B+C), con latencia real por petición
+
+El benchmark anterior mide las funciones de forma aislada (in-process, sin pasar por FastAPI ni
+por I/O real de red). Para confirmar que la conclusión se sostiene en peticiones reales, se
+instrumentó el propio endpoint (`chat_complex_with_document`) con cronómetros por etapa —lectura
+del archivo, extracción de texto, Capa 1 (sanitización), capa complementaria (detección
+estructural)— y se re-ejecutó `ejecutar_evidencia.py` contra las **3 capas ya activas juntas**
+(la validación anterior solo tenía B+C; (A) se añadió después).
+
+**Resultado del ataque:** 9/9 comprometidos bloqueados (0% en PDF/DOCX/XLSX), 0/9 falsos
+positivos en sanos — se mantiene igual que con B+C solas, porque en los 9 casos la Capa 1
+(`indirect_doc_authority_framing`, sobre el contenido) ya bloqueaba antes de que hiciera falta
+que interviniera la capa estructural.
+
+**Latencia real de la defensa, medida por petición** (no simulada):
+
+| Documento | Overhead total de la defensa (lectura + extracción + Capa 1 + capa estructural) |
+|---|---|
+| PDF comprometido | 4.6ms de media (3 intentos: 4.56–4.60ms) |
+| DOCX comprometido | 10.9ms de media (3 intentos: 9.88–11.69ms) |
+| XLSX comprometido | 5.0ms de media (3 intentos: 4.96–5.08ms) |
+| PDF / DOCX / XLSX sano (defensa + LLM real) | overhead de defensa 5-13ms antes de la llamada al LLM, que domina el resto (varios segundos) |
+
+Estas cifras son consistentes con el benchmark aislado (mismo orden de magnitud, DOCX el más
+costoso por el parseo de `python-docx`) y confirman, con medición real sobre el endpoint completo
+—no una estimación—, que el coste de las dos capas bloqueantes es irrelevante frente al resto del
+sistema. Evidencia: `evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/` (10
+Session Files, 18 turnos).
 
 ## Estructura de carpetas de esta fase
 

@@ -532,3 +532,40 @@ docker compose exec backend rm -f /app/benchmark_structural_detector.py
 **Próximos pasos:**
 - Fase 2.4: terminar de incorporar (A) a la redacción de 4.1/6.1/6.2 en `CAPITULO.md`.
 - Fase 3: Marco normativo.
+
+---
+
+## 2026-07-26 (continuación 2) — Re-validación con las 3 capas + instrumentación de latencia real
+
+**Contexto:** el usuario preguntó explícitamente si había vuelto a probar que los documentos
+comprometidos ya no "hacen estragos" ahora que (A) también está implementada (la validación 2.3
+original solo tenía B+C activas), y pidió medir el impacto en rendimiento de cada barrera.
+
+**Qué se hizo:**
+
+1. Detecté que el `latency_ms=0.0` de la ruta de bloqueo estaba **hardcodeado**, no medido —
+   corregido: instrumenté `chat_complex_with_document` con cronómetros reales por etapa (lectura
+   del archivo, extracción, Capa 1/sanitización, capa complementaria/detección estructural),
+   tanto para la ruta de bloqueo como para la ruta permitida (esta última solo se loguea, ya que
+   `_process_chat` mide su propio tiempo de LLM por separado).
+2. Suite completa re-verificada: 32/32 tests siguen en verde tras la instrumentación.
+3. Re-ejecuté `ejecutar_evidencia.py` contra el endpoint con **las 3 capas ya activas juntas**
+   (A+B+C). Resultado: se mantiene 9/9 comprometidos bloqueados, 0/9 falsos positivos — en los 9
+   casos bloqueó la Capa 1 (`indirect_doc_authority_framing`, contenido) antes de que hiciera
+   falta la capa estructural.
+4. **Latencia real medida sobre peticiones completas** (no simulada): PDF ~4.6ms, DOCX ~10.9ms,
+   XLSX ~5.0ms de overhead total de la defensa — mismo orden de magnitud que el benchmark
+   aislado de la sesión anterior, confirmando la conclusión de que el coste es despreciable
+   frente a los segundos que tarda el LLM.
+
+**Reproducir:**
+```bash
+cd lab && docker compose exec backend python -m pytest tests/ -v   # 32/32
+cd henri-tfm/01-ataque/evidencia
+../payloads/.venv/bin/python ejecutar_evidencia.py --repeticiones 3   # contra A+B+C activas
+```
+
+**Próximos pasos:**
+- Dar al usuario los pasos de prueba manual (vía Playground) para que verifique él mismo antes
+  de pasar a la Fase 3.
+- Fase 3: Marco normativo.

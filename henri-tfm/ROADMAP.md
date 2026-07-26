@@ -171,6 +171,12 @@ Fase 2 (Defensa).
       antes 85-100%), 0/9 falsos positivos en sanos** (latencia normal de LLM, sin bloqueo).
       Evidencia: `evidencia/session-files/run5-defensa-activa_20260726_223411/` (10 Session
       Files, 18 turnos). Total: **32/32 tests** en la suite del backend.
+- [x] **Re-validado con las 3 capas juntas (A+B+C)**, tras implementar (A) — la validación
+      anterior solo tenía B+C. Instrumentado el endpoint con cronómetros reales por etapa
+      (antes la latencia de bloqueo estaba hardcodeada a `0.0ms`, no medida). Resultado: **sigue
+      9/9 bloqueados, 0/9 falsos positivos**; latencia real de la defensa por petición:
+      PDF ~4.6ms, DOCX ~10.9ms, XLSX ~5.0ms (consistente con el benchmark aislado). Evidencia:
+      `evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/`.
 
 ### 2.4 Capítulo de defensa
 

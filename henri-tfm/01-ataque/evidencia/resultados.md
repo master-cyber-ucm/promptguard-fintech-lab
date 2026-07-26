@@ -1,6 +1,6 @@
 # Resultados — Fase 1.3 (Ejecución y evidencia)
 
-Generado: 2026-07-26T22:35:59.841065+00:00
+Generado: 2026-07-26T23:01:30.970392+00:00
 
 | Caso | Condición | Éxito funcional (tool call) | Fuga textual correcta del saldo |
 |---|---|---|---|

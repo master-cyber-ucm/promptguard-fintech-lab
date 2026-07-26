@@ -269,19 +269,25 @@ async def chat_complex_with_document(
     """System prompt completo + contexto de usuario + documento adjunto (PDF/DOCX/XLSX).
 
     Ataque #7 (OWASP LLM01:2025 · MITRE ATLAS AML.T0051.001) — Prompt Injection Indirecta vía
-    Documento. DEFENSA (Fase 2): el texto extraído pasa primero por `document_sanitizer`
-    (Capa 1 regex, bloqueante) — si matchea una regla de inyección, la petición se bloquea
-    aquí y nunca llega al LLM. Si pasa, `_process_chat` aplica además separación semántica
-    (Capa 2) al concatenarlo. Ver henri-tfm/02-defensa/README.md.
+    Documento. DEFENSA (Fase 2): el texto extraído pasa por `document_sanitizer` (Capa 1 regex)
+    y `document_structural_detector` (capa complementaria) — si cualquiera bloquea, la petición
+    se rechaza aquí y nunca llega al LLM. Si pasa, `_process_chat` aplica además separación
+    semántica (capa de profundidad). Cada etapa se cronometra por separado (medición real, no
+    estimada) para poder reportar el coste de cada barrera. Ver henri-tfm/02-defensa/README.md.
     """
+    request_start = time.time()
     content = await document.read()
+    t_read = time.time()
     try:
         document_text = extract_text(document.filename or "", content)
     except UnsupportedDocumentError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    t_extract = time.time()
 
     decision = sanitize_document_text(document_text)
+    t_sanitize = time.time()
 
+    structural_findings: list[str] = []
     if decision.action != "BLOCK":
         structural_findings = detect_hiding_techniques(document.filename or "", content)
         if structural_findings:
@@ -296,12 +302,21 @@ async def chat_complex_with_document(
                 attack_type="structural_hiding_technique",
                 matched_rule="document_structural_detector",
             )
+    t_structural = time.time()
+
+    read_ms = (t_read - request_start) * 1000
+    extract_ms = (t_extract - t_read) * 1000
+    sanitize_ms = (t_sanitize - t_extract) * 1000
+    structural_ms = (t_structural - t_sanitize) * 1000
+    defense_total_ms = (t_structural - request_start) * 1000
 
     if decision.action == "BLOCK":
         session_id_final = session_id or f"ses_{int(time.time())}"
         logger.info(
-            "[%s] complex-with-document ✗ BLOQUEADO por sanitizer regla=%s",
+            "[%s] complex-with-document ✗ BLOQUEADO por %s "
+            "(lectura=%.2fms extracción=%.2fms sanitización=%.2fms estructural=%.2fms total=%.2fms)",
             session_id_final, decision.matched_rule,
+            read_ms, extract_ms, sanitize_ms, structural_ms, defense_total_ms,
         )
         audit_path = append_turn(
             session_id=session_id_final,
@@ -312,9 +327,11 @@ async def chat_complex_with_document(
             tools=[],
             response=(
                 f"[BLOQUEADO por Document Sanitizer — regla: {decision.matched_rule}] "
-                f"{decision.reason}"
+                f"{decision.reason} | latencia real: lectura={read_ms:.2f}ms "
+                f"extracción={extract_ms:.2f}ms sanitización={sanitize_ms:.2f}ms "
+                f"estructural={structural_ms:.2f}ms total={defense_total_ms:.2f}ms"
             ),
-            latency_ms=0.0,
+            latency_ms=defense_total_ms,
             fixture_id=fixture_id,
             fixture_kind=fixture_kind,
             fixture_expected_result=fixture_expected_result,
@@ -325,13 +342,23 @@ async def chat_complex_with_document(
             message=message,
             response="",
             model="document-sanitizer",
-            latency_ms=0.0,
+            latency_ms=round(defense_total_ms, 2),
             session_id=session_id_final,
             tools_used=[],
             endpoint="complex-with-document",
             audit_file=audit_path.name,
-            error=f"BLOCKED_BY_SANITIZER: {decision.reason} (regla: {decision.matched_rule})",
+            error=(
+                f"BLOCKED_BY_SANITIZER: {decision.reason} (regla: {decision.matched_rule}) | "
+                f"latencia_defensa_ms: lectura={read_ms:.2f} extraccion={extract_ms:.2f} "
+                f"sanitizacion={sanitize_ms:.2f} estructural={structural_ms:.2f} total={defense_total_ms:.2f}"
+            ),
         )
+
+    logger.info(
+        "[%s] complex-with-document ✓ ALLOW — overhead de defensa antes del LLM "
+        "(lectura=%.2fms extracción=%.2fms sanitización=%.2fms estructural=%.2fms total=%.2fms)",
+        session_id or "sin-session-id", read_ms, extract_ms, sanitize_ms, structural_ms, defense_total_ms,
+    )
 
     request = ChatRequest(
         user_id=user_id,
