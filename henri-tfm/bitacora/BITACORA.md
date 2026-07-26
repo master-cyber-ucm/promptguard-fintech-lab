@@ -569,3 +569,38 @@ cd henri-tfm/01-ataque/evidencia
 - Dar al usuario los pasos de prueba manual (vía Playground) para que verifique él mismo antes
   de pasar a la Fase 3.
 - Fase 3: Marco normativo.
+
+---
+
+## 2026-07-26 (continuación 3) — Fase 2 cerrada: verificación manual + wrap-up de CAPITULO.md
+
+**Qué se hizo:**
+
+1. El usuario confirmó haber repetido la subida de los 6 documentos vía Playground con la
+   defensa activa, y dejó 6 capturas de pantalla en `evidencia/screenshots/`
+   (`defensa-{nomina,reclamacion,gastos}-{sana,comprometida}-{pdf,docx,xlsx}.png`).
+2. Revisadas las capturas: confirman exactamente el comportamiento esperado — los 3 sanos con
+   respuesta normal de Clara, los 3 comprometidos bloqueados con el mensaje
+   `BLOCKED_BY_SANITIZER` mostrando el desglose de latencia real directamente en la interfaz
+   (no solo en logs/Session Files). Latencias observadas en las 3 capturas de comprometidos:
+   PDF 3.03ms, DOCX 9.69ms, XLSX 3.47ms — todas resueltas por la Capa 1 (contenido), la capa
+   estructural no tuvo que intervenir en ninguna.
+3. **Wrap-up de coherencia sobre `CAPITULO.md`** (misma disciplina que al cerrar la Fase 1):
+   - Corregida la sección 6.1 "Resultado con la defensa activa", que todavía decía "latencia
+     0 ms" (arrastrado de cuando ese valor estaba hardcodeado) — actualizada con las cifras reales
+     medidas (4.6-10.9ms) y con que las 3 capas (no solo 2) están activas.
+   - Añadido un párrafo en 6.2 documentando la corroboración manual de la defensa con las
+     capturas, distinto del párrafo ya existente sobre la corroboración manual del ataque
+     (Fase 1.6) — son dos verificaciones manuales distintas, en fases distintas, no deben
+     mezclarse.
+4. Documentado en `02-defensa/README.md` (nueva sección con tabla de capturas + latencias
+   observadas), `ROADMAP.md` (nuevo ítem 2.4 verificación manual + 2.5 capítulo, Fase 2 marcada
+   como cerrada por completo) y esta entrada de bitácora.
+
+**Fase 2 (Defensa) queda cerrada por completo**: brainstorm con análisis de viabilidad → (B)+(C)
+implementadas y validadas → (A) añadida como capa complementaria con rendimiento medido →
+re-validación con las 3 capas y latencia real instrumentada → verificación manual del usuario con
+capturas → capítulo redactado y revisado.
+
+**Próximos pasos:**
+- Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

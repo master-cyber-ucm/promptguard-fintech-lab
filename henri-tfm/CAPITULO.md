@@ -218,19 +218,23 @@ payload. Con documento comprometido, y tras la iteración de mejora de la Fase 1
 alcanza una tasa de éxito funcional alta y consistente en los tres formatos —85-100%—, partiendo
 de una situación inicial muy desigual (0%-100%) en la primera medición.
 
-### Resultado con la defensa activa (Fase 2)
+### Resultado con la defensa activa (Fase 2 — las 3 capas: A+B+C)
 
-| Documento | Condición (defensa activa) | Resultado |
-|---|---|---|
-| PDF | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_authority_framing` |
-| DOCX | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_authority_framing` |
-| XLSX | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_cross_account_request` |
-| PDF / DOCX / XLSX | sano | **0/9 falsos positivos** — procesados con normalidad, latencia de LLM sin cambios |
+| Documento | Condición (defensa activa) | Resultado | Latencia real de la defensa (medida por petición) |
+|---|---|---|---|
+| PDF | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_authority_framing` (Capa 1) | ~4,6ms |
+| DOCX | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_authority_framing` (Capa 1) | ~10,9ms |
+| XLSX | comprometido | **0/3 (0%)** — bloqueado por `indirect_doc_cross_account_request` (Capa 1) | ~5,0ms |
+| PDF / DOCX / XLSX | sano | **0/9 falsos positivos** — procesados con normalidad | overhead de defensa 5-13ms antes de la llamada real al LLM |
 
 La tasa de éxito funcional del ataque cae de 85-100% (sin defensa) a 0% en los tres formatos, sin
-introducir ningún falso positivo sobre los documentos sanos. El bloqueo ocurre antes de invocar
-al LLM (latencia 0 ms), por lo que ninguna de las dos capas de defensa depende de que el modelo
-"decida" no seguir la instrucción — la mitigación es determinista, no conductual.
+introducir ningún falso positivo sobre los documentos sanos. En los 9 casos comprometidos, la
+Capa 1 (contenido) bastó para bloquear antes de que hiciera falta la capa complementaria de
+detección estructural. El bloqueo ocurre antes de invocar al LLM, con un coste real medido de
+4,6-10,9ms —instrumentado con cronómetros por etapa en el propio endpoint, no estimado—, por lo
+que ninguna de las capas de defensa depende de que el modelo "decida" no seguir la instrucción:
+la mitigación es determinista, no conductual, y su coste es irrelevante frente a los segundos que
+tarda una respuesta real del LLM.
 
 ## 6.2 — Análisis y discusión
 
@@ -311,6 +315,14 @@ principio general de diseño de defensas frente a prompt injection: **una mitiga
 aplicada antes del LLM es preferible a confiar en el comportamiento del modelo**, precisamente
 porque ese comportamiento —como demuestran los propios resultados de este capítulo— es
 inconsistente incluso cuando el ataque tiene éxito a nivel de acceso.
+
+**Corroboración manual de la defensa, con las 3 capas activas.** Igual que en la Fase 1, la
+evidencia automatizada se corroboró subiendo manualmente los 6 documentos vía la interfaz del
+Playground, esta vez con la defensa activa. Los 3 documentos comprometidos se bloquearon de forma
+prácticamente instantánea —a diferencia del comportamiento observado en la Fase 1.6, donde esos
+mismos documentos lograban que Clara filtrara el saldo de la cuenta objetivo—, y los 3 sanos se
+procesaron con normalidad. Las capturas de pantalla de esta verificación se conservan como
+evidencia visual complementaria a los Session Files.
 
 ## 4.1 — Defensa aplicada a este vector
 

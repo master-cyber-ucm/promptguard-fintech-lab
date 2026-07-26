@@ -178,12 +178,24 @@ Fase 2 (Defensa).
       PDF ~4.6ms, DOCX ~10.9ms, XLSX ~5.0ms (consistente con el benchmark aislado). Evidencia:
       `evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/`.
 
-### 2.4 Capítulo de defensa
+### 2.4 Verificación manual de la defensa (gate del usuario) ✅
 
-- [ ] Redactar el aporte a **4.1** (arquitectura general — cómo encaja este módulo) y a **6.1/6.2**
-      (resultados después de la defensa, análisis y discusión).
+- [x] **Usuario repitió la subida de los 6 documentos** vía Playground con la defensa activa
+      (mismo procedimiento que la Fase 1.6). Capturas guardadas en `evidencia/screenshots/`
+      (6 imágenes). Los 3 comprometidos se bloquearon casi al instante (latencia real visible en
+      la propia UI: 3.03-9.69ms); los 3 sanos se procesaron con normalidad. Ver
+      `02-defensa/README.md` §"Verificación manual de la defensa".
+
+### 2.5 Capítulo de defensa ✅
+
+- [x] Redactado el aporte a **4.1** (arquitectura de 3 capas, deuda técnica, rendimiento) y a
+      **6.1/6.2** (resultados antes/después de la defensa, análisis, corroboración manual —
+      incluida la de esta verificación con capturas).
 - [ ] Actualizar el checklist de estado en `docs/ataques/.../README.md` (si se decide tocar el
       material de referencia en esta etapa — a confirmar con el resto del equipo).
+
+**Fase 2 (Defensa) cerrada por completo, incluida la verificación manual.** Siguiente: Fase 3
+(Marco normativo).
 
 ## Fase 3 — Marco normativo
 
