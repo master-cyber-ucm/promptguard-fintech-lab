@@ -40,9 +40,11 @@ class _FakeAgent:
         self._system_prompts = ["System prompt de prueba"]
         self.model = _FakeModel()
         self.received_messages: list[str] = []
+        self.received_deps: list = []
 
-    async def run(self, message: str):
+    async def run(self, message: str, deps=None):
         self.received_messages.append(message)
+        self.received_deps.append(deps)
         return _FakeResult("Respuesta simulada de Clara.")
 
 

@@ -196,8 +196,31 @@ Fase 2 (Defensa).
 - [ ] Actualizar el checklist de estado en `docs/ataques/.../README.md` (si se decide tocar el
       material de referencia en esta etapa — a confirmar con el resto del equipo).
 
-**Fase 2 (Defensa) cerrada por completo, incluida la verificación manual.** Siguiente: Fase 3
-(Marco normativo).
+### 2.6 (D) Tool Gatekeeper — RBAC determinista ✅
+
+- [x] Propuesto por el usuario: verificación de autorización **después** de que el LLM decide
+      invocar una tool, ortogonal a (A)/(B)/(C) (que actúan antes, sobre el canal de entrada).
+      Corresponde al módulo "Tool Gatekeeper" ya descrito en la propuesta formal del proyecto.
+- [x] Implementado con `RunContext[Deps]` de PydanticAI: el `user_id` autenticado viaja por
+      `deps` (canal que el LLM no controla), no por el prompt. Las 4 tools que operan sobre un
+      recurso identificable (`consulta_saldo`, `transferencia_nacional`, `bloquear_tarjeta`,
+      `abrir_reclamacion`) verifican propiedad contra `ctx.deps.user_id`.
+- [x] Cerrado de paso un segundo vector de Confused Deputy: `abrir_reclamacion` aceptaba un
+      `user_id` que el LLM podía rellenar libremente — ya no acepta ese parámetro.
+- [x] Añadido `MOCK_CARDS` a `banking.py` (no existía tabla de tarjetas — necesaria para que la
+      verificación de `bloquear_tarjeta` fuera real). Bug propio encontrado y corregido:
+      mayúsculas/minúsculas inconsistentes entre el mock y la normalización.
+- [x] 9 tests nuevos (`test_tool_gatekeeper.py`). Suite completa: **41/41**.
+- [x] **Validación end-to-end real** vía `/chat/complex-with-context` (endpoint sin ninguna de
+      las capas A/B/C, solo protege el canal documental): una inyección **directa** (no vía
+      documento) engañó al LLM para que invocara `consulta_saldo` sobre la cuenta objetivo — el
+      Tool Gatekeeper lo denegó en la propia tool. Control con la cuenta propia: permitido, sin
+      falso positivo. Evidencia: `evidencia/session-files/tool-gatekeeper-validacion_20260727/`.
+      **Mitiga también los ataques #2 (inyección directa) y #4 (Confused Deputy) del catálogo**,
+      no solo el #7.
+
+**Fase 2 (Defensa) cerrada por completo, incluida la verificación manual y el Tool Gatekeeper.**
+Siguiente: Fase 3 (Marco normativo).
 
 ## Fase 3 — Marco normativo
 

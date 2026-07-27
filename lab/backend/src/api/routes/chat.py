@@ -41,6 +41,7 @@ from pydantic_ai.messages import ThinkingPart
 
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
+from src.agents.tools import Deps
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.core.document_sanitizer import sanitize_document_text
 from src.core.document_structural_detector import detect_hiding_techniques
@@ -139,7 +140,10 @@ async def _process_chat(
     logger.info("[%s]%s → %s (usuario=%s)", session_id, fixture_tag, endpoint_name, request.user_id)
 
     try:
-        result = await agent.run(full_message)
+        # Tool Gatekeeper: el user_id autenticado se pasa como `deps`, un canal que el LLM no
+        # controla — las tools lo usan (RunContext[Deps].deps.user_id) para verificar propiedad
+        # del recurso solicitado, con independencia de qué pida el propio modelo.
+        result = await agent.run(full_message, deps=Deps(user_id=request.user_id))
         latency_ms = (time.time() - start_time) * 1000
 
         tools_used, thinking = _extract_tools_and_thinking(result)

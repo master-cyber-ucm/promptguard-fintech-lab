@@ -100,6 +100,17 @@ MOCK_ACCOUNTS: dict[str, AccountInfo] = {
     ),
 }
 
+# Tarjetas mock — card_id -> user_id titular. No existía ninguna tabla de tarjetas antes del
+# Tool Gatekeeper (Fase 2, ataque #7): `bloquear_tarjeta` aceptaba cualquier card_id sin nada
+# contra lo que verificar propiedad. Se añade aquí lo mínimo necesario para que la verificación
+# de propiedad de `bloquear_tarjeta` sea real, no solo de cuentas.
+MOCK_CARDS: dict[str, str] = {
+    "CARD-USR001-4521": "usr_001",
+    "CARD-USR002-7734": "usr_002",
+    "CARD-USR003-1198": "usr_003",
+    "CARD-USRADMIN-0001": "usr_admin",
+}
+
 # Usuarios mock del sistema
 MOCK_USERS: dict[str, dict] = {
     "usr_001": {
