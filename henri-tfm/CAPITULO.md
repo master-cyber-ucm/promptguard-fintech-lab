@@ -296,7 +296,11 @@ número incorrecto, sino que **cruzó a qué cuenta pertenecía cada saldo** —
 de la cuenta objetivo a la cuenta propia del cliente, y un valor inventado a la cuenta objetivo—,
 reforzando que la brecha de acceso (verificable por la tool call) y la fiabilidad de la redacción
 textual son fenómenos independientes. Que una vía de disparo completamente distinta reproduzca el
-mismo resultado que la evidencia automatizada refuerza la validez externa del hallazgo.
+mismo resultado que la evidencia automatizada refuerza la validez externa del hallazgo. Las 6
+capturas de esta verificación (`henri-tfm/01-ataque/evidencia/screenshots/ataque-*.png`) muestran
+el mismo patrón: el documento sano recibe una respuesta genérica sin tool call, el comprometido
+dispara `consulta_saldo` sobre la cuenta objetivo con el saldo reportado de forma incorrecta
+("2.315 €" en el caso de PDF, capturado en pantalla).
 
 **Rigor del proceso: dos correcciones metodológicas documentadas, no descartadas.** (1) La primera
 ejecución de `ejecutar_evidencia.py` (Fase 1.3) tenía un criterio de éxito con un *fallback* de

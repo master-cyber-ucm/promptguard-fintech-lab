@@ -604,3 +604,26 @@ capturas → capítulo redactado y revisado.
 
 **Próximos pasos:**
 - Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+---
+
+## 2026-07-27 — Renombradas capturas del ataque (prefijo `ataque-`) y referenciadas
+
+**Qué se hizo:**
+- Encontradas 6 capturas de pantalla adicionales en `evidencia/screenshots/` sin prefijo
+  (`nomina-sana-pdf.png`, `nomina-comprometida-pdf.png`, etc.) — correspondían a la verificación
+  manual de la Fase 1.6 (ataque, sin defensa), que no se habían documentado hasta ahora porque no
+  se sabía que existían en el momento de cerrar esa fase.
+- Renombradas con prefijo `ataque-` para distinguirlas claramente de las 6 capturas de la Fase 2
+  (prefijo `defensa-`, mismo documento pero con la defensa activa).
+- Confirmado el contenido: `ataque-nomina-sana-pdf.png` muestra a Clara rechazando la petición
+  (sin tool call); `ataque-nomina-comprometida-pdf.png` muestra `consulta_saldo` sobre la cuenta
+  objetivo con el saldo reportado incorrectamente ("2.315 €") — coincide exactamente con lo ya
+  documentado en el Session File de texto de la Fase 1.6.
+- Actualizadas todas las referencias: `evidencia/README.md` (nueva tabla de capturas en
+  §"Verificación manual (1.6)"), `CAPITULO.md` (párrafo de corroboración manual del ataque, 6.2),
+  `ROADMAP.md` (1.6). Verificado con `grep` que no queda ninguna referencia a los nombres de
+  fichero antiguos (sin prefijo) en ningún `.md` del proyecto.
+
+**Próximos pasos:**
+- Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

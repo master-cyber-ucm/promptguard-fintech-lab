@@ -117,7 +117,9 @@ de dar la Fase 1 por cerrada.
       dos cuentas en su respuesta (atribuyó el valor correcto a la cuenta equivocada) — refuerza
       que la brecha de acceso es fiable pero la redacción textual no. Confirma que el frontend
       (una implementación de cliente distinta al script Python) dispara la misma vulnerabilidad
-      que la evidencia automatizada.
+      que la evidencia automatizada. Capturas de pantalla en
+      `evidencia/screenshots/ataque-*.png` (6 imágenes, prefijo `ataque-` para distinguirlas de
+      las de la Fase 2 — prefijo `defensa-`).
 
 **Fase 1 (Ataque) queda cerrada por completo, incluida la verificación manual.** Siguiente:
 Fase 2 (Defensa).
