@@ -20,6 +20,13 @@ const modeSelectEl   = document.getElementById('mode-select');
 const documentAttach = document.getElementById('document-attach');
 const documentInput  = document.getElementById('document-input');
 const documentName   = document.getElementById('document-filename');
+const defensasPanel  = document.getElementById('defensas-panel');
+const defensaCheckboxes = {
+    estructural:         document.getElementById('defensa-estructural'),
+    sanitizer:            document.getElementById('defensa-sanitizer'),
+    separacionSemantica: document.getElementById('defensa-separacion-semantica'),
+    toolGatekeeper:      document.getElementById('defensa-tool-gatekeeper'),
+};
 
 
 // --- Init ---
@@ -57,7 +64,19 @@ function init() {
 
 function updateDocumentAttachVisibility() {
     if (!documentAttach || !modeSelectEl) return;
-    documentAttach.style.display = modeSelectEl.value === 'complex-with-document' ? 'flex' : 'none';
+    const isDocumentMode = modeSelectEl.value === 'complex-with-document';
+    documentAttach.style.display = isDocumentMode ? 'flex' : 'none';
+    if (defensasPanel) defensasPanel.style.display = isDocumentMode ? 'flex' : 'none';
+}
+
+
+function getDefensasFromUI() {
+    const d = {};
+    for (const key in defensaCheckboxes) {
+        const el = defensaCheckboxes[key];
+        d[key] = el ? el.checked : true;
+    }
+    return d;
 }
 
 
@@ -92,7 +111,7 @@ async function handleSend() {
         btnSend.disabled = true;
 
         const response = documentFile
-            ? await window.VB.API.sendMessageWithDocument(userId, SESSION_ID, message, documentFile, getActiveFixtureMeta())
+            ? await window.VB.API.sendMessageWithDocument(userId, SESSION_ID, message, documentFile, getActiveFixtureMeta(), getDefensasFromUI())
             : await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta(), endpoint);
 
         if (documentInput) { documentInput.value = ''; documentName.textContent = ''; }

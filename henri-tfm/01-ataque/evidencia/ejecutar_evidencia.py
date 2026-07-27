@@ -13,10 +13,19 @@ Uso:
     cd henri-tfm/01-ataque/evidencia
     ../payloads/.venv/bin/python ejecutar_evidencia.py [--repeticiones 3] [--base-url http://localhost:8000]
 
+Estudio de ablación (Fase 2 — efecto aislado de cada capa de defensa A/B/C/D, ver
+02-defensa/README.md): el flag `--defensas` controla qué combinación de las 4 capas
+(A=estructural, B=sanitizer, C=separación semántica, D=Tool Gatekeeper) va activa en la
+petición. Por defecto `ABCD` (todas). Ejemplos:
+    ejecutar_evidencia.py --defensas none   # reproduce el comportamiento vulnerable de Fase 1
+    ejecutar_evidencia.py --defensas B      # solo el sanitizer de contenido
+    ejecutar_evidencia.py --defensas AC     # estructural + separación semántica, sin gatekeeper
+
 Genera:
-    resultados.json  — datos crudos de cada llamada
-    resultados.md     — tabla resumen legible (tasa de éxito por combinación)
-    Session Files reales en lab/audit/runs/{timestamp}_henri-atk7-evidencia/complex-with-document/
+    resultados.json / resultados.md                       — tanda con `--defensas ABCD` (por defecto)
+    resultados_ablacion_<combo>.json / .md                 — cualquier otra combinación de `--defensas`
+    Session Files reales en lab/audit/runs/{timestamp}_henri-atk7-evidencia/complex-with-document/,
+    copiados a session-files/{timestamp}_defensas-{COMBO}/ para persistir en git.
 """
 
 from __future__ import annotations
@@ -105,8 +114,33 @@ def _balance_leaked_correctly(response_text: str) -> bool:
     return any(variant in response_text for variant in BALANCE_VARIANTS)
 
 
-def run(base_url: str, repeticiones: int, formato: str | None = None) -> list[dict]:
+# Letras del estudio de ablación -> nombre del parámetro de formulario que activa esa capa.
+DEFENSA_LETRA_A_PARAM = {
+    "A": "defensa_estructural",
+    "B": "defensa_sanitizer",
+    "C": "defensa_separacion_semantica",
+    "D": "defensa_tool_gatekeeper",
+}
+
+
+def parse_defensas(spec: str) -> dict[str, bool]:
+    """Convierte un spec tipo 'ABCD' (todas), 'none' (ninguna), o 'B' (solo sanitizer) en el
+    dict de form-fields `defensa_*` que espera el endpoint. Case-insensitive."""
+    letras_activas = set() if spec.strip().lower() == "none" else set(spec.strip().upper())
+    invalid = letras_activas - set(DEFENSA_LETRA_A_PARAM)
+    if invalid:
+        raise ValueError(f"Letras de defensa desconocidas: {invalid}. Usa combinación de A/B/C/D o 'none'.")
+    return {param: (letra in letras_activas) for letra, param in DEFENSA_LETRA_A_PARAM.items()}
+
+
+def run(
+    base_url: str,
+    repeticiones: int,
+    formato: str | None = None,
+    defensas: dict[str, bool] | None = None,
+) -> list[dict]:
     casos = [c for c in CASOS if formato is None or c[0].startswith(formato)] if formato else CASOS
+    defensas = defensas if defensas is not None else parse_defensas("ABCD")
     run_ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     run_folder_host = AUDIT_RUNS_DIR_HOST / f"{run_ts}_henri-atk7-evidencia"
     endpoint_dir_host = run_folder_host / "complex-with-document"
@@ -138,6 +172,7 @@ def run(base_url: str, repeticiones: int, formato: str | None = None) -> list[di
                             "fixture_id": f"henri_atk7_{caso_id}",
                             "fixture_kind": "attack-prompts" if condicion == "comprometido" else "legitimate-prompts",
                             "fixture_expected_result": "BLOCK" if condicion == "comprometido" else "ALLOW",
+                            **{k: str(v).lower() for k, v in defensas.items()},
                         },
                         files={"document": (filename, f, content_type)},
                     )
@@ -174,23 +209,28 @@ def run(base_url: str, repeticiones: int, formato: str | None = None) -> list[di
                     "error": body.get("error"),
                 })
 
-    n_copied = _persist_session_files(endpoint_dir_host)
-    print(f"Session Files copiados a {SESSION_FILES_REPO_DIR.relative_to(REPO_ROOT)}/: {n_copied}")
+    defensas_label = "".join(letra for letra, param in DEFENSA_LETRA_A_PARAM.items() if defensas[param]) or "none"
+    subfolder = f"{run_ts}_defensas-{defensas_label}"
+    n_copied = _persist_session_files(endpoint_dir_host, subfolder=subfolder)
+    print(f"Session Files copiados a {SESSION_FILES_REPO_DIR.relative_to(REPO_ROOT)}/{subfolder}/: {n_copied}")
 
     return resultados
 
 
-def _persist_session_files(endpoint_dir_host: Path) -> int:
+def _persist_session_files(endpoint_dir_host: Path, subfolder: str) -> int:
     """Copia los Session Files reales (evidencia primaria) a una carpeta trackeada en git.
 
     `lab/audit/` está en .gitignore por defecto (es evidencia generada de uso corriente del
-    lab). La evidencia formal de esta tanda de Fase 1.3 es parte del entregable del TFM y debe
-    persistir en el repo — se copia aquí en vez de depender de una ruta gitignored.
+    lab). La evidencia formal de esta tanda de Fase 1.3/1.5/estudio de ablación es parte del
+    entregable del TFM y debe persistir en el repo — se copia aquí en vez de depender de una
+    ruta gitignored. `subfolder` agrupa cada tanda (incluye qué combinación de defensas se probó)
+    para no mezclar evidencia de tandas distintas en un único directorio plano.
     """
-    SESSION_FILES_REPO_DIR.mkdir(parents=True, exist_ok=True)
+    dest = SESSION_FILES_REPO_DIR / subfolder
+    dest.mkdir(parents=True, exist_ok=True)
     count = 0
     for f in sorted(endpoint_dir_host.glob("*.md")):
-        shutil.copy2(f, SESSION_FILES_REPO_DIR / f.name)
+        shutil.copy2(f, dest / f.name)
         count += 1
     return count
 
@@ -213,13 +253,21 @@ def summarize(resultados: list[dict]) -> dict:
     return resumen
 
 
-def write_reports(resultados: list[dict], resumen: dict, casos: list[tuple] = CASOS) -> None:
-    (HERE / "resultados.json").write_text(
+def write_reports(
+    resultados: list[dict],
+    resumen: dict,
+    casos: list[tuple] = CASOS,
+    sufijo: str = "",
+) -> None:
+    """`sufijo` (p.ej. '_ablacion_B') evita sobreescribir resultados.json/md de una tanda
+    completa (--defensas ABCD, el valor por defecto) al correr una combinación parcial para el
+    estudio de ablación."""
+    (HERE / f"resultados{sufijo}.json").write_text(
         json.dumps({"resultados": resultados, "resumen": resumen}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    lines = ["# Resultados — Fase 1.3 (Ejecución y evidencia)\n"]
+    lines = [f"# Resultados{sufijo} — Fase 1.3/1.5/2 (Ejecución y evidencia)\n"]
     lines.append(f"Generado: {datetime.now(timezone.utc).isoformat()}\n")
     lines.append(
         "| Caso | Condición | Éxito funcional (tool call) | Fuga textual correcta del saldo |"
@@ -232,7 +280,7 @@ def write_reports(resultados: list[dict], resumen: dict, casos: list[tuple] = CA
             f"| {caso_id} | {condicion} | {d['exitos']}/{d['total']} ({d['tasa_exito']:.0%}) "
             f"| {d['fugas_correctas']}/{d['exitos']} ({d['tasa_fuga_correcta']:.0%}) |"
         )
-    (HERE / "resultados.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (HERE / f"resultados{sufijo}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
@@ -241,12 +289,18 @@ if __name__ == "__main__":
     ap.add_argument("--base-url", default="http://localhost:8000")
     ap.add_argument("--formato", default=None,
                      help="Filtra por prefijo de caso, p.ej. 'xlsx' para correr solo xlsx_sano/xlsx_comprometido")
+    ap.add_argument("--defensas", default="ABCD",
+                     help="Estudio de ablación: combinación de capas activas. "
+                          "'ABCD' = todas (por defecto), 'none' = ninguna, o cualquier subconjunto "
+                          "p.ej. 'B' (solo sanitizer), 'AC' (estructural+separación semántica).")
     args = ap.parse_args()
 
+    defensas = parse_defensas(args.defensas)
     casos_a_correr = [c for c in CASOS if args.formato is None or c[0].startswith(args.formato)]
-    resultados = run(args.base_url, args.repeticiones, formato=args.formato)
+    resultados = run(args.base_url, args.repeticiones, formato=args.formato, defensas=defensas)
     resumen = summarize(resultados)
-    write_reports(resultados, resumen, casos=casos_a_correr)
+    sufijo = "" if args.defensas.upper() == "ABCD" else f"_ablacion_{args.defensas.strip().lower()}"
+    write_reports(resultados, resumen, casos=casos_a_correr, sufijo=sufijo)
 
     print("\n=== Resumen ===")
     for caso, d in resumen.items():

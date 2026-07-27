@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(ls /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python 2>&1 | head -5)",
+      "Read(//usr/bin/**)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python -c ' *)",
+      "Bash(node --check lab/frontend/src/js/api.js)",
+      "Bash(node --check --input-type=module lab/frontend/src/js/app.js)",
+      "Bash(node --experimental-vm-modules -e ' *)",
+      "Bash(node --check lab/frontend/src/js/app.js)",
+      "Bash(../payloads/.venv/bin/python ejecutar_evidencia.py --defensas none --formato pdf --repeticiones 1)"
+    ]
+  }
+}

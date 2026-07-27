@@ -32,7 +32,7 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
         });
     };
 
-    window.VB.API.sendMessageWithDocument = function(userId, sessionId, message, file, fixtureMetadata) {
+    window.VB.API.sendMessageWithDocument = function(userId, sessionId, message, file, fixtureMetadata, defensas) {
         var formData = new FormData();
         formData.append('user_id', userId);
         formData.append('session_id', sessionId);
@@ -42,6 +42,14 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
             if (fixtureMetadata.fixture_id) formData.append('fixture_id', fixtureMetadata.fixture_id);
             if (fixtureMetadata.fixture_kind) formData.append('fixture_kind', fixtureMetadata.fixture_kind);
             if (fixtureMetadata.fixture_expected_result) formData.append('fixture_expected_result', fixtureMetadata.fixture_expected_result);
+        }
+        // Estudio de ablación (Fase 2, ataque #7): por defecto las 4 capas van activas si no se
+        // especifica `defensas` — el backend también asume `True` por defecto en cada parámetro.
+        if (defensas) {
+            formData.append('defensa_estructural', String(!!defensas.estructural));
+            formData.append('defensa_sanitizer', String(!!defensas.sanitizer));
+            formData.append('defensa_separacion_semantica', String(!!defensas.separacionSemantica));
+            formData.append('defensa_tool_gatekeeper', String(!!defensas.toolGatekeeper));
         }
         return fetch(API_BASE + '/api/v1/chat/complex-with-document', {
             method: 'POST',

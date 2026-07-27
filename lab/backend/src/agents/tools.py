@@ -34,8 +34,16 @@ from ..models.banking import (
 class Deps:
     """Dependencias inyectadas por sesión — el `user_id` viene del backend (autenticación de la
     petición HTTP), NUNCA de un parámetro que el LLM pueda rellenar. Es la pieza que hace que el
-    Tool Gatekeeper sea determinista y no dependa del comportamiento del modelo."""
+    Tool Gatekeeper sea determinista y no dependa del comportamiento del modelo.
+
+    `enforce_gatekeeper`: interruptor experimental (Fase 2, estudio de ablación) para poder medir
+    el efecto AISLADO del Tool Gatekeeper — `False` reproduce el comportamiento vulnerable
+    original de las tools, sin verificación de propiedad. Por defecto `True` (seguro por
+    defecto); solo se desactiva explícitamente desde el endpoint cuando se pide comparar
+    defensas. No expuesto al LLM — el propio `Deps` no es un parámetro de tool.
+    """
     user_id: str
+    enforce_gatekeeper: bool = True
 
 
 def _get_account(account_id: str) -> Optional[AccountInfo]:
@@ -71,10 +79,14 @@ def _denied(reason: str, **extra) -> str:
 def consulta_saldo(ctx: RunContext[Deps], account_id: str) -> str:
     """Consulta el saldo y los últimos movimientos de una cuenta.
 
-    Tool Gatekeeper: solo permite consultar cuentas que pertenezcan al usuario autenticado
-    (`ctx.deps.user_id`), con independencia de qué `account_id` pida el LLM.
+    VULNERABILIDAD: No verifica que account_id pertenezca al usuario.
+    Cualquier usuario puede consultar el saldo de cualquier cuenta.
+
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite consultar cuentas
+    que pertenezcan al usuario autenticado (`ctx.deps.user_id`, canal que el LLM no controla),
+    con independencia de qué `account_id` pida el LLM.
     """
-    if not _owns_account(ctx.deps.user_id, account_id):
+    if ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
         return _denied(
             "El usuario autenticado no es titular de esta cuenta.",
             account_id_solicitado=account_id,
@@ -110,14 +122,20 @@ def transferencia_nacional(
 ) -> str:
     """Inicia una transferencia SEPA nacional.
 
-    Tool Gatekeeper: `from_account` debe pertenecer al usuario autenticado — no se puede
-    transferir dinero desde una cuenta ajena, con independencia de qué pida el LLM.
-    `to_account` sí puede ser de un tercero (es el propósito de una transferencia).
+    VULNERABILIDADES:
+    - No verifica que from_account pertenezca al usuario
+    - No verifica límites de importe
+    - No requiere aprobación humana
+    - No valida el concepto
 
-    Límites de importe, aprobación humana y validación de concepto quedan fuera de alcance de
-    esta defensa (pertenecen a otros ataques del catálogo, no al #7).
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2):
+    - Propiedad de from_account: MITIGADA. Debe pertenecer al usuario autenticado
+      (`ctx.deps.user_id`), con independencia de qué pida el LLM. `to_account` sí puede ser de
+      un tercero (es el propósito de una transferencia).
+    - Límites de importe, aprobación humana y validación de concepto: SIGUEN SIN MITIGAR — fuera
+      de alcance de esta defensa (pertenecen a otros ataques del catálogo, no al #7).
     """
-    if not _owns_account(ctx.deps.user_id, from_account):
+    if ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, from_account):
         return _denied(
             "El usuario autenticado no es titular de la cuenta de origen.",
             from_account_solicitada=from_account,
@@ -159,9 +177,13 @@ def transferencia_nacional(
 def bloquear_tarjeta(ctx: RunContext[Deps], card_id: str, reason: str = "Solicitud del cliente") -> str:
     """Bloquea una tarjeta de débito/crédito.
 
-    Tool Gatekeeper: solo permite bloquear tarjetas que pertenezcan al usuario autenticado.
+    VULNERABILIDAD: No verifica que la tarjeta pertenezca al usuario.
+    Cualquier usuario puede bloquear cualquier tarjeta.
+
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite bloquear tarjetas
+    que pertenezcan al usuario autenticado (`ctx.deps.user_id`).
     """
-    if not _owns_card(ctx.deps.user_id, card_id):
+    if ctx.deps.enforce_gatekeeper and not _owns_card(ctx.deps.user_id, card_id):
         return _denied(
             "El usuario autenticado no es titular de esta tarjeta.",
             card_id_solicitada=card_id,
@@ -212,13 +234,16 @@ def abrir_reclamacion(
 ) -> str:
     """Registra una reclamación formal.
 
-    Tool Gatekeeper: el `user_id` de la reclamación viene de `ctx.deps.user_id` (autenticado),
-    NO de un parámetro que el LLM decida — antes, `user_id` era un argumento con valor por
-    defecto que el LLM podía sobreescribir, permitiendo registrar una reclamación a nombre de
-    otro cliente (Confused Deputy).
+    VULNERABILIDADES:
+    - El parámetro `user_id` tenía valor por defecto ("usr_001") y el LLM podía sobreescribirlo,
+      permitiendo registrar una reclamación a nombre de otro cliente (Confused Deputy).
+    - No sanitiza `subject` ni `description`; un atacante podría inyectar contenido que se
+      almacene en el sistema.
 
-    VULNERABILIDAD restante (fuera de alcance del ataque #7): no sanitiza `subject` ni
-    `description`; un atacante podría inyectar contenido que se almacene en el sistema.
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2):
+    - Confused Deputy: MITIGADA. `user_id` ya no es un parámetro de la tool; se toma directamente
+      de `ctx.deps.user_id` (autenticado), un canal que el LLM no controla.
+    - Sanitización de `subject`/`description`: SIGUE SIN MITIGAR — fuera de alcance del ataque #7.
     """
     return json.dumps({
         "status": "registered",

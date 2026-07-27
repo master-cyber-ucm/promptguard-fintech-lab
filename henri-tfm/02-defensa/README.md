@@ -341,6 +341,60 @@ también la variante directa de prompt injection (ataque #2) y el Confused Deput
 catálogo, que hoy no tienen ninguna otra defensa en el lab compartido — es, en la práctica, la
 primera pieza del módulo "Tool Gatekeeper" del escenario base que describe la propuesta formal.
 
+## Selector de defensas por petición — estudio de ablación
+
+Propuesto por el usuario tras cerrar (D): *"debería existir un selector o un parámetro para
+poner cuáles son las medidas de mitigación aplicadas, si ponerlas todas, solo 1 (a elegir) o
+ninguna, para probar el ataque contra cada una de esas defensas"*. El objetivo no es una nueva
+defensa, sino **instrumentación experimental** para medir el efecto AISLADO de cada una de las 4
+capas — la misma filosofía de "niveles de configuración" que el proyecto ya aplica en otros
+puntos (ver `TODOs.md` §17), extendida aquí al canal documental.
+
+### Diseño
+
+Cuatro parámetros booleanos, uno por capa, en el endpoint `/chat/complex-with-document`:
+
+| Parámetro | Capa | Por defecto |
+|---|---|---|
+| `defensa_estructural` | (A) firmas estructurales (`document_structural_detector`) | `true` |
+| `defensa_sanitizer` | (B) sanitización de contenido (`document_sanitizer`) | `true` |
+| `defensa_separacion_semantica` | (C) delimitación dato/instrucción en el prompt | `true` |
+| `defensa_tool_gatekeeper` | (D) RBAC determinista en las tools | `true` |
+
+Seguro por defecto: si el cliente no envía ninguno de los 4 campos (comportamiento normal de
+producción), las 4 capas quedan activas — el modo "todo desactivado" exige una acción explícita,
+solo pensada para este estudio.
+
+`defensa_tool_gatekeeper` viaja hasta las tools vía `Deps.enforce_gatekeeper` (ver
+`lab/backend/src/agents/tools.py`), el mismo canal `RunContext[Deps]` no controlable por el LLM
+que usa (D); las otras 3 controlan directamente si `chat.py` invoca cada función de defensa antes
+de construir el prompt. El bloque `defensas_activas` (`A(estructural)=… B(sanitizer)=… C(separacion)=…
+D(gatekeeper)=…`) queda registrado en el campo `error` de la respuesta y en el Session File,
+para que cada evidencia sea auto-descriptiva de qué combinación se probó.
+
+### Herramientas actualizadas
+
+- **Backend**: `chat_complex_with_document` acepta los 4 `Form()` nuevos; `_process_chat`
+  propaga `defensa_separacion_semantica` y `defensa_tool_gatekeeper`.
+- **Tests**: `lab/backend/tests/test_ablacion_defensas.py` (6 tests) verifica cada combinación
+  clave con un `_FakeAgent` — las 4 off reproducen el comportamiento vulnerable de Fase 1, (B)
+  sola basta para bloquear el payload completo, (A) sola detecta lo que (B) no captura (payload
+  oculto sin lenguaje reconocible por las reglas de contenido), (C) cambia el mensaje recibido
+  por el agente, (D) se propaga a `Deps`. Suite completa tras esta adición: **47/47**.
+- **Script de evidencia**: `henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py --defensas <spec>`
+  (`ABCD` = todas, `none` = ninguna, o cualquier subconjunto p. ej. `B`, `AC`). Escribe
+  `resultados.json/.md` para la tanda por defecto (`ABCD`) y `resultados_ablacion_<combo>.json/.md`
+  para el resto, sin sobreescribir la evidencia ya consolidada de Fase 1.3/2.3. Los Session Files
+  de cada tanda se agrupan en `evidencia/session-files/{timestamp}_defensas-{COMBO}/`.
+- **Playground**: checkboxes "🛡️ Defensas activas" (A/B/C/D), visibles solo en modo
+  `complex-with-document`, marcados por defecto; permiten reproducir manualmente cualquier
+  combinación desde la UI sin tocar la API directamente.
+
+### Resultados del estudio de ablación
+
+_(pendiente — en ejecución; ver `evidencia/resultados_ablacion_*.md` y §"Ejecución y evidencia"
+de este documento para la tabla final una vez completada la tanda real contra el LLM)._
+
 ## Estructura de carpetas de esta fase
 
 - `evidencia/` — Session Files, Run Reports, capturas mostrando el ataque bloqueado (y el

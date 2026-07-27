@@ -219,8 +219,29 @@ Fase 2 (Defensa).
       **Mitiga también los ataques #2 (inyección directa) y #4 (Confused Deputy) del catálogo**,
       no solo el #7.
 
-**Fase 2 (Defensa) cerrada por completo, incluida la verificación manual y el Tool Gatekeeper.**
-Siguiente: Fase 3 (Marco normativo).
+### 2.7 Selector de defensas por petición — estudio de ablación 🔄
+
+- [x] Propuesto por el usuario: parámetro para elegir qué combinación de las 4 capas (A/B/C/D)
+      va activa en cada petición — todas, ninguna, o cualquier subconjunto — para poder medir el
+      efecto aislado de cada una contra el mismo ataque.
+- [x] 4 `Form()` booleanos nuevos en `/chat/complex-with-document` (`defensa_estructural`,
+      `defensa_sanitizer`, `defensa_separacion_semantica`, `defensa_tool_gatekeeper`), todos
+      `true` por defecto (seguro por defecto). `defensa_tool_gatekeeper` se propaga a las tools
+      vía `Deps.enforce_gatekeeper`.
+- [x] 6 tests nuevos (`test_ablacion_defensas.py`) cubriendo: las 4 off reproducen el
+      comportamiento vulnerable de Fase 1; cada capa aislada basta (o no) según el caso de prueba
+      diseñado específicamente para ella. Suite completa: **47/47**.
+- [x] `ejecutar_evidencia.py --defensas <spec>` (`ABCD`/`none`/subconjunto) para automatizar la
+      evidencia de cualquier combinación, sin sobreescribir los resultados ya consolidados.
+- [x] Checkboxes de las 4 capas en el Playground (visibles solo en modo
+      `complex-with-document`), para reproducir manualmente cualquier combinación.
+- [ ] **Ejecución real del estudio contra el LLM** (`none`, `A`, `B`, `C`, `D` — 3 repeticiones,
+      6 casos cada una): en curso. Ver `02-defensa/README.md` §"Resultados del estudio de
+      ablación" y `evidencia/resultados_ablacion_*.md` para la tabla final.
+
+**Fase 2 (Defensa) cerrada en su núcleo (A+B+C+D implementadas y validadas); el estudio de
+ablación es instrumentación experimental adicional, en curso de ejecución.**
+Siguiente, tras cerrar 2.7: Fase 3 (Marco normativo).
 
 ## Fase 3 — Marco normativo
 

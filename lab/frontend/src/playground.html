@@ -54,6 +54,15 @@
                     <span id="document-filename" class="text-muted" style="font-size:0.85em"></span>
                 </div>
 
+                <!-- Estudio de ablación: toggles por capa de defensa (solo modo complex-with-document) -->
+                <div id="defensas-panel" class="defensas-panel" style="display:none">
+                    <span class="text-muted" style="font-size:0.85em">🛡️ Defensas activas:</span>
+                    <label><input type="checkbox" id="defensa-estructural" checked> A · estructural</label>
+                    <label><input type="checkbox" id="defensa-sanitizer" checked> B · sanitizer</label>
+                    <label><input type="checkbox" id="defensa-separacion-semantica" checked> C · separación semántica</label>
+                    <label><input type="checkbox" id="defensa-tool-gatekeeper" checked> D · tool gatekeeper</label>
+                </div>
+
                 <!-- Input -->
                 <div class="chat-input">
                     <textarea

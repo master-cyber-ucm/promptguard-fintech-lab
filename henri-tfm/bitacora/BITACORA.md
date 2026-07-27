@@ -689,3 +689,53 @@ escenario base descrito en la propuesta formal.
 
 **Próximos pasos:**
 - Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+## 2026-07-27 (continuación 2) — Selector de defensas por petición: estudio de ablación
+
+**Contexto:** antes de pasar a Fase 3, el usuario pidió: *"debería existir un selector o un
+parámetro para poner cuáles son las medidas de mitigación aplicados, si ponerlas todas, solo 1 (a
+elegir) o ninguna, para probar el ataque contra cada una de esas defensas"*. No es una defensa
+nueva, es instrumentación experimental para medir el efecto AISLADO de cada una de las 4 capas
+(A/B/C/D) — misma filosofía que los "niveles de configuración" que el proyecto ya usa en otras
+partes (`TODOs.md` §17).
+
+1. Añadidos 4 `Form()` booleanos a `/chat/complex-with-document`
+   (`defensa_estructural`/`defensa_sanitizer`/`defensa_separacion_semantica`/`defensa_tool_gatekeeper`),
+   todos `true` por defecto. `chat.py` los usa para saltarse condicionalmente cada función de
+   defensa; `defensa_tool_gatekeeper` se propaga a las tools vía el nuevo campo
+   `Deps.enforce_gatekeeper` (`tools.py`), reusando el mismo canal `RunContext[Deps]` del Tool
+   Gatekeeper — no expuesto al LLM.
+2. `Deps` ahora es `enforce_gatekeeper: bool = True` en vez de solo `user_id`; las 3 tools con
+   verificación de propiedad comprueban `if ctx.deps.enforce_gatekeeper and not _owns_...(...)`.
+3. Escrito `test_ablacion_defensas.py` (6 tests, todos con `_FakeAgent` real vía `TestClient`):
+   las 4 off reproducen exactamente el comportamiento vulnerable de Fase 1 (payload sin delimitar,
+   `enforce_gatekeeper=False`); por defecto (sin pasar nada) bloquea; (B) sola basta para un
+   payload con lenguaje reconocible; (A) sola detecta un payload oculto (blanco sobre blanco) SIN
+   lenguaje reconocible por (B) — diseñado a propósito para aislar el efecto de cada una; (C)
+   cambia el mensaje que recibe el agente; (D) se propaga a `Deps`. Suite completa: **47/47**.
+4. Actualizado `henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py`: nueva función
+   `parse_defensas(spec)` (`'ABCD'`/`'none'`/subconjunto como `'B'` o `'AC'`, case-insensitive) y
+   flag `--defensas`. `write_reports()` ahora acepta un `sufijo` para no sobreescribir
+   `resultados.json/.md` (la tanda `ABCD` ya consolidada de Fase 1.3/2.3) al correr combinaciones
+   parciales — esas se escriben como `resultados_ablacion_<combo>.json/.md`. Los Session Files de
+   cada tanda se agrupan en `session-files/{timestamp}_defensas-{COMBO}/`.
+5. Añadidos checkboxes "🛡️ Defensas activas" (A/B/C/D) al Playground
+   (`playground.html`/`app.js`/`api.js`/`app.css`), visibles solo en modo
+   `complex-with-document`, marcados por defecto — permiten reproducir manualmente cualquier
+   combinación sin tocar la API. Verificado end-to-end vía `curl`: con las 4 off, el documento
+   comprometido filtra el saldo de un tercero (reproduce Fase 1 tal cual); con la config por
+   defecto, `BLOCKED_BY_SANITIZER` con latencia real de 14.94ms.
+6. Lanzado el estudio real contra el LLM (qwen2.5:3b): combinaciones `none`, `A`, `B`, `C`, `D`
+   (3 repeticiones × 6 casos cada una) — en curso al cerrar esta entrada. Pendiente completar
+   tabla de resultados en `02-defensa/README.md` y aquí.
+
+**Reproducir:**
+```bash
+cd lab && docker compose exec backend python -m pytest tests/test_ablacion_defensas.py -v   # 6/6
+cd henri-tfm/01-ataque/evidencia
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas B --repeticiones 3   # solo sanitizer
+```
+
+**Próximos pasos:**
+- Completar y documentar los resultados del estudio de ablación.
+- Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
