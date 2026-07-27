@@ -726,16 +726,37 @@ partes (`TODOs.md` §17).
    comprometido filtra el saldo de un tercero (reproduce Fase 1 tal cual); con la config por
    defecto, `BLOCKED_BY_SANITIZER` con latencia real de 14.94ms.
 6. Lanzado el estudio real contra el LLM (qwen2.5:3b): combinaciones `none`, `A`, `B`, `C`, `D`
-   (3 repeticiones × 6 casos cada una) — en curso al cerrar esta entrada. Pendiente completar
-   tabla de resultados en `02-defensa/README.md` y aquí.
+   (3 repeticiones × 6 casos cada una, 90 llamadas). **Resultado agregado (9 documentos
+   comprometidos por combinación):**
+   - `none` (ninguna defensa) → **7/9 (78%)** de éxito funcional, reproduce el baseline vulnerable
+     de Fase 1.
+   - `A` sola (estructural) → **0/9 (0%)**. `B` sola (sanitizer) → **0/9 (0%)**. Cada una, por
+     separado, basta para bloquear el 100% de los payloads reales — porque los payloads de Fase 1
+     combinan ocultación estructural Y lenguaje reconocible a la vez. (No son redundantes en
+     general: `test_solo_estructural_a_activo_detecta_lo_que_b_no_captura` prueba con un payload
+     diseñado para que SOLO (A) lo detecte.)
+   - `C` sola (separación semántica) → **6/9 (67%)**. No bloquea nada (no es su función); el LLM
+     obedece la instrucción inyectada en la mayoría de los intentos pese a la delimitación
+     dato/instrucción — igual que en Fase 1.5 con el mismo modelo.
+   - `D` sola (Tool Gatekeeper) → **9/9 (100%) de invocación de la tool, pero 0/9 de fuga textual
+     real.** Hallazgo interesante: el criterio de "éxito funcional" del script (¿se invocó
+     `consulta_saldo` con la cuenta objetivo?) no distingue "invocada y denegada" de "invocada y
+     exitosa" — (D) no toca el canal de entrada, así que el LLM sigue siendo engañado e invoca la
+     tool en el 100% de los casos, pero la tool devuelve `{"status": "denied", ...}` en el 100%
+     también, y confirmé inspeccionando `response_text` que Clara responde con la disculpa de
+     "no titular de esta cuenta", nunca con el saldo. La métrica correcta para juzgar (D) es la
+     fuga textual, no la invocación.
+   - `ABCD` (las 4) → **0/9 (0%)**, ya documentado en Fase 2.3.
+   - **0 falsos positivos en documentos sanos, en las 6 combinaciones.**
+7. Documentado el análisis completo en `02-defensa/README.md` §"Resultados del estudio de
+   ablación".
 
 **Reproducir:**
 ```bash
 cd lab && docker compose exec backend python -m pytest tests/test_ablacion_defensas.py -v   # 6/6
 cd henri-tfm/01-ataque/evidencia
-../payloads/.venv/bin/python ejecutar_evidencia.py --defensas B --repeticiones 3   # solo sanitizer
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas D --repeticiones 3   # solo tool gatekeeper
 ```
 
 **Próximos pasos:**
-- Completar y documentar los resultados del estudio de ablación.
 - Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

@@ -236,6 +236,53 @@ que ninguna de las capas de defensa depende de que el modelo "decida" no seguir 
 la mitigación es determinista, no conductual, y su coste es irrelevante frente a los segundos que
 tarda una respuesta real del LLM.
 
+### Estudio de ablación — efecto aislado de cada capa (A/B/C/D)
+
+La validación anterior mide la defensa como conjunto (A+B+C). Para saber qué aporta cada capa
+por separado, se instrumentó un selector por petición (4 parámetros booleanos en el endpoint,
+propagados también a las tools vía `RunContext[Deps]` para (D)) y se repitió la ejecución con
+cada combinación activada en solitario, 3 repeticiones × 6 casos, contra el mismo LLM
+(qwen2.5:3b) y los mismos documentos:
+
+| Combinación activa | Éxito funcional (9 comprometidos) | Fuga textual real | Falsos positivos (9 sanos) |
+|---|---|---|---|
+| Ninguna (`none`) | **7/9 (78%)** — baseline vulnerable | 6/7 | 0/9 |
+| Solo (A) estructural | **0/9 (0%)** | — | 0/9 |
+| Solo (B) sanitizer | **0/9 (0%)** | — | 0/9 |
+| Solo (C) separación semántica | **6/9 (67%)** | 5/6 | 0/9 |
+| Solo (D) tool gatekeeper | 9/9 tool call, **0/9 fuga real** | **0/9** | 0/9 |
+| Las 4 (`ABCD`) | **0/9 (0%)** | — | 0/9 |
+
+Tres lecturas relevantes:
+
+1. **(A) y (B), cada una por separado, ya bloquean el 100% de los payloads reales** de este
+   dataset, porque estos combinan deliberadamente ocultación estructural (texto blanco sobre
+   blanco / tamaño de fuente 0) con lenguaje de autoridad reconocible ("Nota del sistema:",
+   "SYSTEM:"). Esto no las hace redundantes en general: un payload diseñado para activar solo una
+   de las dos (oculto, pero sin lenguaje reconocible por las reglas de contenido de (B)) confirma
+   en `test_solo_estructural_a_activo_detecta_lo_que_b_no_captura` que son detecciones
+   independientes, con solapamiento solo en el caso concreto evaluado aquí.
+2. **(C) sola no bloquea nada —no es su función— y el ataque conserva un 67% de éxito** incluso
+   con el documento explícitamente delimitado como datos frente a instrucciones. El modelo local
+   obedece la instrucción inyectada en la mayoría de los intentos pese a la separación semántica,
+   coherente con lo ya observado en la Fase 1.5 con el mismo LLM. Es una defensa de profundidad,
+   no una barrera de bloqueo por sí sola.
+3. **(D) expone un matiz importante en cómo se mide "éxito del ataque".** El criterio de tool
+   call (¿se invocó `consulta_saldo` con la cuenta objetivo?) no distingue una llamada denegada de
+   una exitosa: como (D) actúa después de la decisión del LLM, no antes, el modelo sigue siendo
+   engañado y llama a la tool en el 100% de los intentos — pero la tool devuelve `denied` en el
+   100% de ellos, y la respuesta final de Clara nunca contiene el saldo real (fuga textual 0/9,
+   verificado inspeccionando cada `response_text`: son disculpas explicando que la cuenta no
+   pertenece al usuario autenticado). Frente al criterio original de éxito, (D) parece no
+   funcionar; frente al dato que realmente importa —si el atacante obtiene el saldo—, (D) lo
+   impide en el 100% de los casos, exactamente el resultado que motivó incorporarlo como capa
+   ortogonal a (A)/(B)/(C).
+
+Ninguna de las 5 combinaciones parciales, ni la ausencia total de defensa, produjo un falso
+positivo sobre un documento sano. Evidencia completa (JSON crudo, Session Files por combinación)
+en `henri-tfm/01-ataque/evidencia/resultados_ablacion_*.json` y
+`evidencia/session-files/{timestamp}_defensas-{COMBO}/`.
+
 ## 6.2 — Análisis y discusión
 
 **Brecha de control de acceso frente a fuga textual explotable.** El primer hallazgo relevante no
@@ -427,6 +474,12 @@ usuario funcionó con normalidad, sin falso positivo. Esto significa que el Tool
 diseñado como defensa complementaria para el ataque #7, mitiga también la inyección directa
 (ataque #2) y el Confused Deputy (#4) del catálogo — ambos sin ninguna otra defensa hoy en el lab
 compartido.
+
+**Selector de defensas por petición.** Para poder medir el aporte de cada una de las 4 capas por
+separado —no solo del conjunto— se añadió un parámetro booleano por capa en el endpoint
+(propagado a las tools vía `Deps` para (D)), de forma que cualquier combinación pueda activarse o
+desactivarse en una petición concreta: todas, ninguna, o cualquier subconjunto. Resultados del
+estudio de ablación resultante en **§6.1**.
 
 ## 7 — Marco normativo aplicado a este vector
 

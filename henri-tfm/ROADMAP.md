@@ -219,7 +219,7 @@ Fase 2 (Defensa).
       **Mitiga también los ataques #2 (inyección directa) y #4 (Confused Deputy) del catálogo**,
       no solo el #7.
 
-### 2.7 Selector de defensas por petición — estudio de ablación 🔄
+### 2.7 Selector de defensas por petición — estudio de ablación ✅
 
 - [x] Propuesto por el usuario: parámetro para elegir qué combinación de las 4 capas (A/B/C/D)
       va activa en cada petición — todas, ninguna, o cualquier subconjunto — para poder medir el
@@ -235,13 +235,18 @@ Fase 2 (Defensa).
       evidencia de cualquier combinación, sin sobreescribir los resultados ya consolidados.
 - [x] Checkboxes de las 4 capas en el Playground (visibles solo en modo
       `complex-with-document`), para reproducir manualmente cualquier combinación.
-- [ ] **Ejecución real del estudio contra el LLM** (`none`, `A`, `B`, `C`, `D` — 3 repeticiones,
-      6 casos cada una): en curso. Ver `02-defensa/README.md` §"Resultados del estudio de
-      ablación" y `evidencia/resultados_ablacion_*.md` para la tabla final.
+- [x] **Ejecución real del estudio contra el LLM** (`none`, `A`, `B`, `C`, `D` — 3 repeticiones,
+      6 casos cada una, 90 llamadas). Resultado agregado (9 documentos comprometidos por
+      combinación): `none`=7/9 (78%, baseline vulnerable), `A` sola=0/9, `B` sola=0/9 (ambas
+      bastan solas para bloquear el 100% de los payloads reales), `C` sola=6/9 (67% — no bloquea,
+      el LLM sigue obedeciendo la instrucción inyectada pese a la delimitación), `D` sola=9/9 de
+      *tool call* pero **0/9 de fuga textual real** (el LLM es engañado igual, pero la tool
+      deniega el acceso — la métrica correcta para D es la fuga, no la invocación), `ABCD`=0/9
+      (ya documentado en Fase 2.3). 0 falsos positivos en sanos en las 6 combinaciones. Ver
+      `02-defensa/README.md` §"Resultados del estudio de ablación" para el análisis completo.
 
-**Fase 2 (Defensa) cerrada en su núcleo (A+B+C+D implementadas y validadas); el estudio de
-ablación es instrumentación experimental adicional, en curso de ejecución.**
-Siguiente, tras cerrar 2.7: Fase 3 (Marco normativo).
+**Fase 2 (Defensa) cerrada por completo, incluido el estudio de ablación.**
+Siguiente: Fase 3 (Marco normativo).
 
 ## Fase 3 — Marco normativo
 

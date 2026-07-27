@@ -392,8 +392,64 @@ para que cada evidencia sea auto-descriptiva de qué combinación se probó.
 
 ### Resultados del estudio de ablación
 
-_(pendiente — en ejecución; ver `evidencia/resultados_ablacion_*.md` y §"Ejecución y evidencia"
-de este documento para la tabla final una vez completada la tanda real contra el LLM)._
+Ejecución real contra el LLM (qwen2.5:3b), 3 repeticiones × 6 casos por combinación —
+`ejecutar_evidencia.py --defensas <combo> --repeticiones 3`. Tabla agregada de **éxito funcional
+del ataque** (tool call `consulta_saldo` sobre la cuenta objetivo) en los 3 documentos
+comprometidos (PDF+DOCX+XLSX, 9 intentos por combinación):
+
+| Combinación | Capas activas | Éxito funcional (comprometidos) | Fuga textual correcta | Falsos positivos (sanos) |
+|---|---|---|---|---|
+| `none` | ninguna | **7/9 (78%)** | 6/7 | 0/9 |
+| `A` | solo estructural | **0/9 (0%)** | — | 0/9 |
+| `B` | solo sanitizer | **0/9 (0%)** | — | 0/9 |
+| `C` | solo separación semántica | **6/9 (67%)** | 5/6 | 0/9 |
+| `D` | solo tool gatekeeper | **9/9 (100%)\*** | **0/9\*** | 0/9 |
+| `ABCD` | las 4 | **0/9 (0%)** | — | 0/9 |
+
+(`ABCD` ya estaba documentado en `evidencia/resultados.md`, Fase 2.3; aquí solo se referencia
+para completar la comparación. Datos crudos de cada combinación en
+`evidencia/resultados_ablacion_<combo>.json/.md`, Session Files en
+`evidencia/session-files/{timestamp}_defensas-{COMBO}/`.)
+
+**Lecturas:**
+
+- **(A) y (B) aisladas ya bastan, cada una por separado, para bloquear el 100% de los documentos
+  comprometidos reales.** Los payloads usados en Fase 1 combinan ocultación estructural (texto
+  blanco sobre blanco / fuente 0) con lenguaje de autoridad reconocible ("Nota del sistema:",
+  "SYSTEM:") — cualquiera de las dos capas los detecta por separado. Esto no implica que sean
+  redundantes en general: `test_solo_estructural_a_activo_detecta_lo_que_b_no_captura` en
+  `test_ablacion_defensas.py` prueba con un payload construido a propósito para que solo (A) lo
+  detecte (oculto, pero sin lenguaje reconocible por las reglas de (B)) — confirmando que son
+  detecciones independientes que en este dataset concreto se solapan.
+- **(C) sola no bloquea nada — no es su función — y el ataque sigue teniendo éxito en 6/9 casos
+  (67%) incluso con el documento claramente delimitado como datos.** El modelo local
+  (qwen2.5:3b) obedece la instrucción inyectada pese a la separación semántica en la mayoría de
+  los intentos, igual que ya se observó en Fase 1.5 con el mismo LLM. (C) es una defensa de
+  profundidad — reduce la superficie de confusión del prompt — pero **no sustituye** a (A)/(B)
+  como barrera de bloqueo.
+- **(D) es un caso especial que el criterio "éxito funcional" (tool call) no captura bien y hay
+  que leer junto con la fuga textual.** Con solo (D) activa, el LLM sigue siendo engañado e
+  invoca `consulta_saldo` sobre la cuenta objetivo en el 100% de los intentos (9/9) — (D) no
+  actúa sobre el canal de entrada, así que no puede evitar que el LLM decida llamar a la tool.
+  Pero **la tool deniega la llamada en el 100% de los casos** (`"status": "denied", "reason": "El
+  usuario autenticado no es titular de esta cuenta."`) y el saldo real nunca se filtra
+  (`fuga_textual_correcta = 0/9`, confirmado inspeccionando `response_text` de cada intento — la
+  respuesta de Clara es una disculpa explicando que la cuenta no pertenece al usuario, no un
+  saldo). Es la prueba empírica de que (D) protege el dato aunque el engaño al LLM tenga éxito,
+  el diseño que motivó añadirlo como capa ortogonal a (A)/(B)/(C).
+- **0 falsos positivos en documentos sanos, en las 6 combinaciones** (`none` incluida) — ninguna
+  capa individual, ni su ausencia total, generó un bloqueo o una denegación espuria sobre un
+  documento legítimo.
+
+**Reproducir:**
+```bash
+cd henri-tfm/01-ataque/evidencia
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas none --repeticiones 3
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas A --repeticiones 3
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas B --repeticiones 3
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas C --repeticiones 3
+../payloads/.venv/bin/python ejecutar_evidencia.py --defensas D --repeticiones 3
+```
 
 ## Estructura de carpetas de esta fase
 
