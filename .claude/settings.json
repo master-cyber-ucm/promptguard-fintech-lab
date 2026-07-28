@@ -13,7 +13,8 @@
       "Bash(curl -s -o /dev/null -w \"Frontend HTTP: %{http_code}\\\\n\" http://localhost:3000/playground.html)",
       "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error']\\)\")",
       "Bash(mkdir -p /home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory)",
-      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error'][:60]\\)\")"
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error'][:60]\\)\")",
+      "Bash(sort -k6,7)"
     ],
     "additionalDirectories": [
       "/home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory"
