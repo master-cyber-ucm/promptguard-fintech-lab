@@ -250,6 +250,13 @@ Fase 2 (Defensa).
       (ya documentado en Fase 2.3). 0 falsos positivos en sanos en las 6 combinaciones. Ver
       `02-defensa/README.md` §"Resultados del estudio de ablación" para el análisis completo y la
       nota metodológica sobre la corrección.
+- [x] Etiqueta de bloqueo diferenciada por capa (`BLOCKED_BY_STRUCTURAL_DETECTOR` vs
+      `BLOCKED_BY_SANITIZER`, antes ambas decían "SANITIZER") — necesario para que las pruebas
+      manuales de (A) y (B) por separado sean legibles a simple vista en el Playground.
+- [x] Documentado como limitación explícita del lab (no recomendación de producción): el `error`
+      devuelto al cliente expone regla/capa/latencia — deliberado para verificación visual en el
+      lab, pero sería un oráculo de evasión en un sistema real. Detalle en `02-defensa/README.md`
+      §"Nota de diseño" y `CAPITULO.md` §4.1.
 
 **Fase 2 (Defensa) cerrada por completo, incluido el estudio de ablación.**
 Siguiente: Fase 3 (Marco normativo).

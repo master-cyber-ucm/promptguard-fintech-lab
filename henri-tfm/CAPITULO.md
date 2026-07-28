@@ -457,6 +457,31 @@ que hacía que una regla no se activara por la vía esperada en documentos de va
 tres se corrigieron como parte de este trabajo, documentados como hallazgos, no simplemente
 silenciados.
 
+### Nota de diseño: los mensajes de error detallados son deliberados en el lab, no aptos para producción
+
+El campo `error` de `/chat/complex-with-document` (y su reflejo visual en el Playground, la caja
+roja `BLOCKED_BY_STRUCTURAL_DETECTOR` / `BLOCKED_BY_SANITIZER`) expone, directamente en la
+respuesta HTTP que recibiría el cliente, el nombre exacto de la regla que coincidió (p. ej.
+`indirect_doc_authority_framing`), la técnica de ocultación detectada, la latencia real de cada
+subetapa de defensa y qué combinación de capas estaba activa. Es una decisión deliberada **del
+laboratorio**: permite verificar visualmente, sin herramientas adicionales, qué capa bloqueó cada
+intento durante las pruebas manuales del estudio de ablación (§6.1) y depurar el propio pipeline
+de defensa durante su desarrollo.
+
+En un sistema en producción esta verbosidad sería en sí misma una vulnerabilidad. Devolver al
+cliente qué regla concreta disparó el bloqueo convierte la respuesta de error en un **oráculo**
+para un atacante: le permite iterar el payload contra el propio sistema hasta encontrar una
+variante que no coincida con ninguna regla conocida, sin necesidad de acceso al código ni a
+`injection_signatures.yaml`. El diseño correcto es el habitual en detección de fraude o WAFs: la
+respuesta al cliente debe ser genérica ("no se puede procesar esta solicitud"), y el detalle
+completo (regla, capa, latencia, documento, usuario, timestamp) debe ir únicamente a un log
+interno estructurado, accesible solo a personal autorizado con las credenciales adecuadas (equipo
+de seguridad / SOC), nunca a la respuesta de la API pública. Este lab no implementa esa
+separación —lo que se ve en el Playground es exactamente lo que se audita— porque su objetivo es
+la evidencia pedagógica, no un despliegue real; se señala aquí como limitación explícita del
+diseño del laboratorio, no como recomendación de arquitectura, y se retoma en el marco normativo
+(Fase 3) como consideración de exposición de información en el diseño de controles de seguridad.
+
 ### (D) Tool Gatekeeper — una cuarta capa, ortogonal a las tres anteriores
 
 Las tres capas descritas arriba actúan todas **antes** de la llamada al LLM, sobre el canal de

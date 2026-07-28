@@ -145,7 +145,7 @@ def test_solo_estructural_a_activo_detecta_lo_que_b_no_captura(tmp_path, client,
         defensa_sanitizer="false", defensa_estructural="true",
         defensa_separacion_semantica="false", defensa_tool_gatekeeper="false",
     )
-    assert "BLOCKED_BY_SANITIZER" in resp_solo_a.json()["error"]
+    assert "BLOCKED_BY_STRUCTURAL_DETECTOR" in resp_solo_a.json()["error"]
     assert "document_structural_detector" in resp_solo_a.json()["error"]
 
 

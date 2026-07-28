@@ -352,6 +352,15 @@ async def chat_complex_with_document(
     )
 
     if decision.action == "BLOCK":
+        # Etiqueta dinámica: distingue qué CAPA bloqueó realmente, para que el estudio de
+        # ablación (probar A y B por separado) sea legible en la UI — antes decía siempre
+        # "BLOCKED_BY_SANITIZER" incluso cuando el bloqueo venía de (A) document_structural_
+        # detector, lo que confundía la verificación manual de cada capa en aislamiento.
+        blocked_by = (
+            "BLOCKED_BY_STRUCTURAL_DETECTOR"
+            if decision.matched_rule == "document_structural_detector"
+            else "BLOCKED_BY_SANITIZER"
+        )
         session_id_final = session_id or f"ses_{int(time.time())}"
         logger.info(
             "[%s] complex-with-document ✗ BLOQUEADO por %s "
@@ -367,7 +376,7 @@ async def chat_complex_with_document(
             thinking=None,
             tools=[],
             response=(
-                f"[BLOQUEADO por Document Sanitizer — regla: {decision.matched_rule}] "
+                f"[{blocked_by} — regla: {decision.matched_rule}] "
                 f"{decision.reason} | latencia real: lectura={read_ms:.2f}ms "
                 f"extracción={extract_ms:.2f}ms sanitización={sanitize_ms:.2f}ms "
                 f"estructural={structural_ms:.2f}ms total={defense_total_ms:.2f}ms | "
@@ -390,7 +399,7 @@ async def chat_complex_with_document(
             endpoint="complex-with-document",
             audit_file=audit_path.name,
             error=(
-                f"BLOCKED_BY_SANITIZER: {decision.reason} (regla: {decision.matched_rule}) | "
+                f"{blocked_by}: {decision.reason} (regla: {decision.matched_rule}) | "
                 f"latencia_defensa_ms: lectura={read_ms:.2f} extraccion={extract_ms:.2f} "
                 f"sanitizacion={sanitize_ms:.2f} estructural={structural_ms:.2f} total={defense_total_ms:.2f} | "
                 f"defensas_activas: {defensas_activas}"

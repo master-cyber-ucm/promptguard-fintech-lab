@@ -9,7 +9,14 @@
       "Bash(node --check --input-type=module lab/frontend/src/js/app.js)",
       "Bash(node --experimental-vm-modules -e ' *)",
       "Bash(node --check lab/frontend/src/js/app.js)",
-      "Bash(../payloads/.venv/bin/python ejecutar_evidencia.py --defensas none --formato pdf --repeticiones 1)"
+      "Bash(../payloads/.venv/bin/python ejecutar_evidencia.py --defensas none --formato pdf --repeticiones 1)",
+      "Bash(curl -s -o /dev/null -w \"Frontend HTTP: %{http_code}\\\\n\" http://localhost:3000/playground.html)",
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error']\\)\")",
+      "Bash(mkdir -p /home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory)",
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error'][:60]\\)\")"
+    ],
+    "additionalDirectories": [
+      "/home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory"
     ]
   }
 }

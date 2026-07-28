@@ -852,3 +852,35 @@ funcionaba para las otras capas. La pregunta del usuario fue la señal correcta 
 
 **Próximos pasos:**
 - Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+## 2026-07-28 (continuación) — Preparación de pruebas manuales: etiqueta por capa y verbosidad del error
+
+Antes de que el usuario hiciera las 12 pruebas manuales del estudio de ablación (3 documentos
+comprometidos × 4 defensas activadas en solitario), dos ajustes:
+
+1. **Etiqueta de bloqueo diferenciada.** El usuario preguntó: *"las respuestas visuales siempre
+   seran: BLOCKED_BY_SANITIZER?"* — y tenía razón en sospechar: el mensaje decía siempre
+   `BLOCKED_BY_SANITIZER` aunque el bloqueo real viniera de (A) estructural (etiqueta heredada de
+   cuando (A) no existía). Corregido en `chat.py`: la etiqueta ahora se elige según
+   `decision.matched_rule` (`BLOCKED_BY_STRUCTURAL_DETECTOR` si es `document_structural_detector`,
+   `BLOCKED_BY_SANITIZER` en cualquier otro caso). Ajustado el test que dependía del texto viejo
+   (`test_solo_estructural_a_activo_detecta_lo_que_b_no_captura`). Suite: 47/47. Verificado con
+   `curl` real que (A) y (B) ya devuelven etiquetas distintas.
+2. **Verbosidad del error, documentada como limitación deliberada del lab.** El usuario señaló:
+   *"tambien es importante documentar que los errores se muestran visualmente porque es un lab de
+   pruebas pero estos deben ser logs internos de acceso solo por el personal con las credenciales
+   adecuadas"*. Correcto — el `error` que devuelve la API expone regla, capa, latencia y
+   combinación de defensas activa directamente al cliente, lo cual en producción sería un oráculo
+   para que un atacante itere el payload hasta esquivar la regla exacta. Documentado como
+   limitación explícita del diseño del lab (no como recomendación) en `CAPITULO.md` §4.1 (nueva
+   sección "Nota de diseño") y `02-defensa/README.md`, con referencia cruzada a retomarlo en la
+   Fase 3 (exposición de información como consideración de seguridad en el marco normativo).
+3. Aclarado (sin cambiar código) que solo (A)/(B) tienen mensaje fijo determinista; (D) tiene un
+   resultado determinista en el JSON de la tool (`status: denied`) pero el texto final lo redacta
+   el LLM y varía en la forma (confirmado con 9 respuestas reales de la tanda `D`, todas sin saldo
+   pero con redacciones distintas); (C) no genera ningún mensaje propio — es solo una instrucción
+   en el prompt, sin ninguna señal determinista de éxito o fracaso.
+
+**Próximos pasos:**
+- El usuario ejecuta las 12 pruebas manuales (Playground) y aporta las capturas.
+- Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

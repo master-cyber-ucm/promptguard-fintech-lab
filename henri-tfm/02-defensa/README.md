@@ -464,6 +464,19 @@ cd henri-tfm/01-ataque/evidencia
 ../payloads/.venv/bin/python ejecutar_evidencia.py --defensas D --repeticiones 3
 ```
 
+## Nota de diseño: verbosidad de los errores es del lab, no de producción
+
+El campo `error` de `/chat/complex-with-document` (visible en el Playground como la caja roja
+`BLOCKED_BY_STRUCTURAL_DETECTOR` / `BLOCKED_BY_SANITIZER`) expone directamente al cliente qué
+regla coincidió, qué técnica se detectó y la latencia real de cada capa — deliberado en el lab,
+para poder verificar visualmente cada capa durante las pruebas manuales (§"Resultados del estudio
+de ablación") sin herramientas adicionales. En producción esto sería una vulnerabilidad por sí
+misma: da a un atacante un oráculo para iterar el payload hasta esquivar la regla exacta que lo
+bloqueó. La respuesta al cliente debería ser genérica; el detalle (regla, capa, latencia, usuario,
+documento) debería ir solo a un log interno accesible únicamente a personal autorizado con
+credenciales adecuadas (equipo de seguridad), nunca a la respuesta pública de la API. Ver
+`CAPITULO.md` §4.1 para el desarrollo completo de esta limitación explícita del diseño del lab.
+
 ## Estructura de carpetas de esta fase
 
 - `evidencia/` — Session Files, Run Reports, capturas mostrando el ataque bloqueado (y el
