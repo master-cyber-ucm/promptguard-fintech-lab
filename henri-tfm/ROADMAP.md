@@ -236,14 +236,20 @@ Fase 2 (Defensa).
 - [x] Checkboxes de las 4 capas en el Playground (visibles solo en modo
       `complex-with-document`), para reproducir manualmente cualquier combinación.
 - [x] **Ejecución real del estudio contra el LLM** (`none`, `A`, `B`, `C`, `D` — 3 repeticiones,
-      6 casos cada una, 90 llamadas). Resultado agregado (9 documentos comprometidos por
-      combinación): `none`=7/9 (78%, baseline vulnerable), `A` sola=0/9, `B` sola=0/9 (ambas
-      bastan solas para bloquear el 100% de los payloads reales), `C` sola=6/9 (67% — no bloquea,
-      el LLM sigue obedeciendo la instrucción inyectada pese a la delimitación), `D` sola=9/9 de
-      *tool call* pero **0/9 de fuga textual real** (el LLM es engañado igual, pero la tool
-      deniega el acceso — la métrica correcta para D es la fuga, no la invocación), `ABCD`=0/9
+      6 casos cada una, 90 llamadas). Primera versión con un defecto de métrica: contaba como
+      "éxito" la mera invocación de `consulta_saldo`, no si la tool devolvía el dato — válido
+      para `none`/`A`/`B`/`C` (el mock no verificaba nada) pero incorrecto para `D`, donde la
+      tool puede denegar la llamada. Corregido capturando el resultado real de la tool
+      (`ToolReturnPart.content`, antes descartado) y exigiendo `"status": "ok"` para contar
+      éxito; la tanda con el criterio incorrecto se descartó por completo y se repitió. Resultado
+      final agregado (9 documentos comprometidos por combinación): `none`=8/9 (89%, baseline
+      vulnerable), `A` sola=0/9, `B` sola=0/9 (ambas bastan solas para bloquear el 100% de los
+      payloads reales), `C` sola=6/9 (67% — no bloquea, el LLM sigue obedeciendo la instrucción
+      inyectada pese a la delimitación), `D` sola=**0/9** (el LLM sigue siendo engañado e invoca
+      la tool, pero esta deniega el acceso en el 100% de los casos — 0% de éxito real), `ABCD`=0/9
       (ya documentado en Fase 2.3). 0 falsos positivos en sanos en las 6 combinaciones. Ver
-      `02-defensa/README.md` §"Resultados del estudio de ablación" para el análisis completo.
+      `02-defensa/README.md` §"Resultados del estudio de ablación" para el análisis completo y la
+      nota metodológica sobre la corrección.
 
 **Fase 2 (Defensa) cerrada por completo, incluido el estudio de ablación.**
 Siguiente: Fase 3 (Marco normativo).

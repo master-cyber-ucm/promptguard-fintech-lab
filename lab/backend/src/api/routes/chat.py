@@ -37,7 +37,7 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
-from pydantic_ai.messages import ThinkingPart
+from pydantic_ai.messages import ThinkingPart, ToolCallPart, ToolReturnPart
 
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
@@ -82,6 +82,12 @@ class ChatResponse(BaseModel):
 # --- Helpers ---
 
 def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
+    """Extrae las llamadas a tools y su RESULTADO real (no solo los argumentos con los que se
+    invocaron). Necesario para poder distinguir, en el estudio de ablación de la Fase 2, una tool
+    call DENEGADA por el Tool Gatekeeper (D) de una tool call que sí devolvió datos — antes solo
+    se registraba `args` incluso para el `ToolReturnPart` (que no tiene `args`, quedaba como
+    cadena vacía), perdiendo el `content` con el JSON de retorno de la tool.
+    """
     tools: list[dict] = []
     thinking: str | None = None
     if not hasattr(result, "all_messages"):
@@ -90,8 +96,10 @@ def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
         for part in getattr(msg, "parts", []):
             if isinstance(part, ThinkingPart):
                 thinking = part.content
-            elif hasattr(part, "tool_name"):
-                tools.append({"tool": part.tool_name, "args": str(getattr(part, "args", ""))})
+            elif isinstance(part, ToolCallPart):
+                tools.append({"tool": part.tool_name, "args": str(part.args)})
+            elif isinstance(part, ToolReturnPart):
+                tools.append({"tool": part.tool_name, "result": str(part.content)})
     return tools, thinking
 
 

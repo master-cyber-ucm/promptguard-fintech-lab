@@ -1,6 +1,6 @@
 # Resultados_ablacion_a — Fase 1.3/1.5/2 (Ejecución y evidencia)
 
-Generado: 2026-07-27T16:22:01.458445+00:00
+Generado: 2026-07-27T21:37:59.082809+00:00
 
 | Caso | Condición | Éxito funcional (tool call) | Fuga textual correcta del saldo |
 |---|---|---|---|
