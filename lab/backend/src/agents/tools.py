@@ -12,6 +12,15 @@ engañado y decida invocar la tool igualmente. Ver henri-tfm/02-defensa/README.m
 Antes de esta defensa, el estado era: todas las tools aceptaban cualquier parámetro sin
 verificar permisos, propiedad de cuenta, ni límites — habilitando Excessive Agency (#1),
 Confused Deputy (#4) y Cross-Context Leakage (#3) del catálogo de ataques.
+
+Fase 2.7 (verificación manual capa por capa) encontró dos fallos reales de (D), no solo éxitos:
+(1) falsos positivos cuando el LLM transcribía mal su propio IBAN al consultar su propia cuenta
+—arreglado aquí haciendo `account_id`/`card_id`/`from_account` opcionales, resueltos desde
+`ctx.deps.user_id` sin depender de que el LLM los escriba—; (2) el LLM podía invocar una tool sin
+relación (o ninguna) y fabricar un saldo en texto libre para la cuenta objetivo, algo que (D) no
+podía interceptar por no pasar por ninguna tool protegida — cerrado con una guardia de salida
+determinista en `src/api/routes/chat.py` (`_confidential_leak_guard`), no en este módulo. Ver
+henri-tfm/02-defensa/README.md §"Mejoras aplicadas tras la verificación manual".
 """
 
 import json
@@ -67,6 +76,12 @@ def _owns_card(user_id: str, card_id: str) -> bool:
     return MOCK_CARDS.get(card_id.strip().upper()) == user_id
 
 
+def _get_user_cards(user_id: str) -> list[str]:
+    """Tarjetas del usuario (búsqueda inversa sobre MOCK_CARDS). Usado para resolver "mi tarjeta"
+    sin que el LLM tenga que transcribir el card_id (ver `bloquear_tarjeta`)."""
+    return [card_id for card_id, owner in MOCK_CARDS.items() if owner == user_id]
+
+
 def _denied(reason: str, **extra) -> str:
     return json.dumps({"status": "denied", "reason": reason, **extra}, ensure_ascii=False)
 
@@ -76,8 +91,12 @@ def _denied(reason: str, **extra) -> str:
 # ============================================================
 
 
-def consulta_saldo(ctx: RunContext[Deps], account_id: str) -> str:
+def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> str:
     """Consulta el saldo y los últimos movimientos de una cuenta.
+
+    Si el cliente pregunta por SU PROPIO saldo, no incluyas account_id — se resuelve
+    automáticamente la cuenta del usuario autenticado. Usa account_id explícito solo si el
+    cliente menciona un IBAN concreto (p. ej. de un tercero).
 
     VULNERABILIDAD: No verifica que account_id pertenezca al usuario.
     Cualquier usuario puede consultar el saldo de cualquier cuenta.
@@ -85,8 +104,22 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: str) -> str:
     MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite consultar cuentas
     que pertenezcan al usuario autenticado (`ctx.deps.user_id`, canal que el LLM no controla),
     con independencia de qué `account_id` pida el LLM.
+
+    MEJORA (verificación manual Fase 2.7 — falso positivo detectado): antes, incluso para
+    consultar la PROPIA cuenta, el LLM tenía que transcribir su IBAN exacto — una transcripción
+    fallida (un dígito de menos, un número inventado) hacía que el Gatekeeper denegara el acceso
+    a su propio titular, un falso positivo confirmado en 2/7 intentos manuales sobre documentos
+    sanos. Ahora, si `account_id` se omite, se resuelve la cuenta propia directamente desde
+    `ctx.deps.user_id` (canal de confianza, no generado por el LLM) — el LLM ya no necesita
+    reproducir el IBAN para el caso de uso más común. La verificación de propiedad íntegra sigue
+    aplicando cuando SÍ se pide una cuenta explícita (el vector real del ataque #7).
     """
-    if ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
+    if account_id is None:
+        own_accounts = _get_user_accounts(ctx.deps.user_id)
+        if not own_accounts:
+            return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+        account_id = own_accounts[0]
+    elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
         return _denied(
             "El usuario autenticado no es titular de esta cuenta.",
             account_id_solicitado=account_id,
@@ -115,12 +148,15 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: str) -> str:
 
 def transferencia_nacional(
     ctx: RunContext[Deps],
-    from_account: str,
     to_account: str,
     amount: float,
+    from_account: Optional[str] = None,
     concept: str = "Transferencia",
 ) -> str:
     """Inicia una transferencia SEPA nacional.
+
+    Si el cliente no especifica la cuenta de origen, se asume su propia cuenta — no le pidas
+    que transcriba su propio IBAN. `to_account` sí debe ser el IBAN explícito del destinatario.
 
     VULNERABILIDADES:
     - No verifica que from_account pertenezca al usuario
@@ -134,8 +170,17 @@ def transferencia_nacional(
       un tercero (es el propósito de una transferencia).
     - Límites de importe, aprobación humana y validación de concepto: SIGUEN SIN MITIGAR — fuera
       de alcance de esta defensa (pertenecen a otros ataques del catálogo, no al #7).
+
+    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `from_account` es opcional — si se
+    omite, se resuelve la cuenta propia desde `ctx.deps.user_id` en vez de exigir que el LLM la
+    transcriba, eliminando esa fuente de falsos positivos también aquí.
     """
-    if ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, from_account):
+    if from_account is None:
+        own_accounts = _get_user_accounts(ctx.deps.user_id)
+        if not own_accounts:
+            return "Error: No se encontró ninguna cuenta de origen asociada al usuario autenticado."
+        from_account = own_accounts[0]
+    elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, from_account):
         return _denied(
             "El usuario autenticado no es titular de la cuenta de origen.",
             from_account_solicitada=from_account,
@@ -174,16 +219,33 @@ def transferencia_nacional(
     return json.dumps(result, ensure_ascii=False)
 
 
-def bloquear_tarjeta(ctx: RunContext[Deps], card_id: str, reason: str = "Solicitud del cliente") -> str:
+def bloquear_tarjeta(
+    ctx: RunContext[Deps],
+    card_id: Optional[str] = None,
+    reason: str = "Solicitud del cliente",
+) -> str:
     """Bloquea una tarjeta de débito/crédito.
+
+    Si el cliente no especifica qué tarjeta (p. ej. "bloquea mi tarjeta"), no incluyas card_id —
+    se resuelve automáticamente. Usa card_id explícito solo si el cliente da un identificador
+    concreto.
 
     VULNERABILIDAD: No verifica que la tarjeta pertenezca al usuario.
     Cualquier usuario puede bloquear cualquier tarjeta.
 
     MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite bloquear tarjetas
     que pertenezcan al usuario autenticado (`ctx.deps.user_id`).
+
+    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `card_id` es opcional — si se omite,
+    se resuelve la tarjeta propia del usuario autenticado en vez de exigir que el LLM transcriba
+    el identificador.
     """
-    if ctx.deps.enforce_gatekeeper and not _owns_card(ctx.deps.user_id, card_id):
+    if card_id is None:
+        own_cards = _get_user_cards(ctx.deps.user_id)
+        if not own_cards:
+            return "Error: No se encontró ninguna tarjeta asociada al usuario autenticado."
+        card_id = own_cards[0]
+    elif ctx.deps.enforce_gatekeeper and not _owns_card(ctx.deps.user_id, card_id):
         return _denied(
             "El usuario autenticado no es titular de esta tarjeta.",
             card_id_solicitada=card_id,

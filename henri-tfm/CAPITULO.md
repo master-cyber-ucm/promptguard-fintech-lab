@@ -338,9 +338,66 @@ verificación manual los expuso con claridad y sería deshonesto omitirlos del c
 Ninguno de los dos fallos se resuelve añadiendo más capas de las ya implementadas: ambos son
 manifestaciones de una misma limitación estructural —delegar en un modelo de lenguaje pequeño la
 construcción exacta de argumentos estructurados (IBANs) o la elección de qué tool invocar—, no
-defectos del código de verificación en sí. Se documentan aquí como límite conocido del diseño,
-relevante tanto para la discusión de la Fase 2 como para cualquier trabajo futuro que proponga (D)
-como mitigación suficiente por sí sola.
+defectos del código de verificación en sí.
+
+### Arreglando (D), no solo documentándolo
+
+A diferencia de (A)/(B)/(C), cuyas limitaciones se documentan como características conocidas de su
+diseño, los dos fallos de (D) admitían una corrección directa sin comprometer la garantía que (D)
+ofrece — y el usuario pidió explícitamente no dar la fase por cerrada mientras quedaran solo
+documentados y no abordados.
+
+**Arreglo del falso positivo:** `consulta_saldo`, `transferencia_nacional` (`from_account`) y
+`bloquear_tarjeta` dejan de exigir que el LLM transcriba el identificador cuando el cliente
+pregunta por su propio recurso — el parámetro pasa a ser opcional y, si se omite, se resuelve
+directamente desde `ctx.deps.user_id` (el mismo canal de confianza que ya usaba la verificación de
+propiedad), sin ninguna transcripción de por medio. La verificación completa se mantiene intacta
+cuando sí se pide una cuenta o tarjeta explícita — el vector real del ataque #7 no se toca.
+Validado en vivo con 9 intentos reales sobre los 3 documentos sanos (3 repeticiones cada uno):
+**0/9 falsos positivos**, frente al 2/7 (≈29%) observado antes del arreglo.
+
+**Arreglo de la alucinación:** una nueva guardia de salida determinista (`_confidential_leak_guard`,
+en el propio endpoint) escanea la respuesta final en busca de un IBAN español; si aparece uno que
+no es la cuenta propia del usuario ni proviene de un resultado real —y no denegado— de una tool
+call de ese mismo turno, sustituye la respuesta completa por un mensaje genérico. No requiere que
+el LLM "decida" no alucinar: es una verificación de código sobre el texto de salida, cruzada contra
+el registro real de tool calls del turno, con el mismo espíritu de (D) —autorización determinista,
+no confianza en el comportamiento del modelo— aplicado ahora también al contenido de la respuesta,
+no solo a la ejecución de tools. Validado en vivo con 7 intentos reales sobre el documento donde se
+había observado el patrón (`reclamacion_comprometida.docx`, "solo D"): las 7 veces el LLM invocó
+`consulta_saldo` sobre la cuenta objetivo y fue denegado, y en las 6 que el texto final citaba el
+IBAN, la guardia lo sustituyó — **0/7 con IBAN ajeno visible en la respuesta**, frente a los tres
+saldos inventados (0,00 €, 1.234,56 €, 7.234,56 €) de la tanda de verificación manual original.
+
+Ninguno de los dos arreglos es una garantía absoluta: el primero depende de que el LLM omita el
+parámetro cuando corresponde (sigue siendo, en última instancia, un nudge de prompt en el
+docstring de la tool); el segundo detecta específicamente el patrón "IBAN reconocible", no
+cualquier forma posible de alucinación (una respuesta que evite citar el número con formato IBAN
+—"la otra cuenta tiene 231.500 €"— no la dispara). Se documentan con ese alcance real, sin
+sobrevender su cobertura, y con evidencia empírica —no solo tests unitarios— que respalda la
+mejora observada.
+
+### Experimento sobre (C): ¿importa cómo se presenta el documento al modelo?
+
+(C) no admitía el mismo tipo de arreglo determinista que (D): seguía siendo, por diseño, una
+técnica de prompt. Se probó, en cambio, una hipótesis distinta: los LLM suelen entrenarse para
+*reportar* el contenido de una tool call, no para *obedecer* instrucciones dentro de él. La
+implementación de (C) evaluada hasta aquí concatena el documento como texto delimitado dentro del
+mensaje del usuario —misma "clase" de tokens que la instrucción inyectada, diferenciada solo por
+una frase pidiendo que se trate como dato—. El experimento presenta en cambio el documento como si
+un tool `document_reader` ya lo hubiera leído y devuelto, mediante un historial de mensajes
+sintético (`ToolCallPart` + `ToolReturnPart` fabricados, sin ejecutar ninguna tool real).
+
+El resultado, aislado del efecto de (D): **22% (2/9) de éxito real**, frente al 67-89% medido para
+el delimitador de texto en las mismas condiciones —una reducción de 3-4 veces—. Con (D) también
+activo, la combinación llega a 0/9 fugas reales en la muestra evaluada, aunque en 4 de esos 9
+intentos el LLM seguía siendo engañado y era (D), no el nuevo framing, quien lo bloqueaba. El
+framing importa —el canal percibido del contenido no es neutro para un modelo pequeño— pero no
+convierte a (C) en una barrera de bloqueo comparable a (A)/(B): sigue sin haber ningún mecanismo de
+código que fuerce el comportamiento, solo una probabilidad más baja de que el modelo se deje
+engañar. El resultado se documenta como mejora real y medible, con su límite reconocido, sin
+integrarse todavía en el pipeline de producción del lab — queda como hallazgo reproducible
+(`henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/`) para una futura iteración.
 
 ## 6.2 — Análisis y discusión
 

@@ -272,9 +272,38 @@ Fase 2 (Defensa).
       para los ficheros de reclamación, error de nomenclatura). Detalle completo en
       `02-defensa/README.md` §"Verificación manual del estudio de ablación".
 
-**Fase 2 (Defensa) cerrada por completo, incluido el estudio de ablación y su verificación manual
-capa por capa.**
-Siguiente: Fase 3 (Marco normativo).
+### 2.8 Robustecer (D) antes de cerrar Fase 2 — a petición explícita del usuario ✅
+
+El usuario pidió explícitamente no dar la Fase 2 por cerrada hasta abordar los fallos reales, no
+solo documentarlos: *"no quiero cerrarla hasta que cada defensa no sea lo completamente robusta
+como para evitar los 3 ataques"*. Dos arreglos concretos para (D):
+
+- [x] **Cuenta/tarjeta propia por defecto** — `account_id`/`card_id`/`from_account` opcionales en
+      `consulta_saldo`/`bloquear_tarjeta`/`transferencia_nacional`; si se omiten, se resuelven
+      desde `ctx.deps.user_id` sin que el LLM tenga que transcribir el identificador. Cierra el
+      falso positivo. 3 tests nuevos + **validación en vivo: 0/9 falsos positivos** (antes 2/7).
+- [x] **Guardia de salida determinista** (`_confidential_leak_guard` en `chat.py`) — sustituye la
+      respuesta si menciona un IBAN ajeno no respaldado por una tool call real de ese turno.
+      Cierra la alucinación de saldos cuando el LLM invoca una tool equivocada o ninguna. 6 tests
+      nuevos + **validación en vivo: 0/7 con IBAN ajeno visible** (antes 3 saldos inventados en la
+      misma tanda de 7 intentos).
+- [x] Suite completa del backend: **56/56**. Detalle en `02-defensa/README.md` §"Mejoras
+      aplicadas tras la verificación manual", incluida la sección "Alcance — qué queda sin
+      resolver" (ninguno de los dos arreglos es una garantía absoluta).
+- [x] **Experimento de (C)**: framing del documento como resultado de una tool
+      (`document_reader` sintético vía `message_history` de pydantic_ai) en vez de texto plano
+      delimitado. **Mejora real y sustancial, no elimina el problema**: 22% (2/9) de éxito real
+      aislado de (D), frente al 67-89% de la (C) actual — reducción de 3-4 veces. Con (D) también
+      activo (condición realista): 0/9 fugas reales (4/9 denegadas por D, 5/9 el LLM ni lo
+      intentó). Sigue siendo una técnica de prompt sin mecanismo de código que la haga cumplir —
+      no llega a 0% ni se esperaba que lo hiciera. Evidencia completa en
+      `henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/`. Detalle en
+      `02-defensa/README.md` §"Experimento (C)".
+
+**Fase 2 (Defensa) cerrada por completo**: implementación de las 4 capas, validación
+automatizada, estudio de ablación, verificación manual capa por capa (con sus fallos encontrados
+Y arreglados, no solo documentados), y el experimento de (C) con resultado honesto (mejora, no
+solución completa). Ninguna defensa se declaró "robusta" sin evidencia empírica que lo respalde.
 
 ## Fase 3 — Marco normativo
 

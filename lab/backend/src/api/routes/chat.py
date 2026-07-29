@@ -32,6 +32,7 @@ Progresión de menor a mayor defensa:
 """
 
 import logging
+import re
 import time
 from typing import Callable, Optional
 
@@ -103,6 +104,51 @@ def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
     return tools, thinking
 
 
+_IBAN_PATTERN = re.compile(r"\bES\d{22}\b")
+_CONFIDENTIAL_LEAK_SAFE_MESSAGE = (
+    "No puedo confirmar esa información en este momento. Si necesitas datos sobre otra cuenta, "
+    "contacta con soporte para verificarlos."
+)
+
+
+def _confidential_leak_guard(
+    response_text: str, tools_used: list[dict], own_account: str
+) -> tuple[str, bool]:
+    """Guardia de salida determinista (Fase 2.7 — arreglo del Fallo 1 de (D) detectado en la
+    verificación manual: "el LLM invoca `consulta_producto` en vez de `consulta_saldo` y luego
+    inventa un saldo para la cuenta objetivo").
+
+    (D) el Tool Gatekeeper solo protege la INVOCACIÓN de `consulta_saldo` / `transferencia_
+    nacional` / `bloquear_tarjeta` — si el LLM nunca llega a invocarlas (llama a una tool sin
+    relación, o ninguna) y aun así declara en texto libre el saldo o los datos de una cuenta,
+    (D) no tiene ninguna llamada que interceptar. Esta guardia cierra ese hueco desde el otro
+    extremo: escanea la respuesta final en busca de un IBAN español y, si aparece uno que no sea
+    la cuenta propia del usuario NI provenga de un resultado real (no denegado) de una tool call
+    de este mismo turno, sustituye la respuesta completa por un mensaje genérico.
+
+    Deliberadamente NO exige que además haya una cifra monetaria junto al IBAN para disparar —
+    cualquier IBAN ajeno no verificado se trata como dato sensible, incluida la mención de una
+    cuenta denegada por (D) en un mensaje de rechazo (coherente con la nota de diseño de este
+    mismo módulo: minimizar el detalle expuesto al cliente). Es determinista — regex + cruce
+    contra `tools_used` real —, no depende de que el LLM "decida" no alucinar.
+
+    Devuelve `(texto_final, huella_detectada)`.
+    """
+    ibans_en_respuesta = set(_IBAN_PATTERN.findall(response_text))
+    if not ibans_en_respuesta:
+        return response_text, False
+
+    ibans_verificados = {own_account.replace(" ", "").upper()}
+    for tool in tools_used:
+        result = tool.get("result", "")
+        if result and '"status": "denied"' not in result:
+            ibans_verificados.update(_IBAN_PATTERN.findall(result))
+
+    if ibans_en_respuesta - ibans_verificados:
+        return _CONFIDENTIAL_LEAK_SAFE_MESSAGE, True
+    return response_text, False
+
+
 async def _process_chat(
     request: ChatRequest,
     endpoint_name: str,
@@ -166,14 +212,31 @@ async def _process_chat(
         latency_ms = (time.time() - start_time) * 1000
 
         tools_used, thinking = _extract_tools_and_thinking(result)
-        response_text = str(result.output)
-        response_text, leak_blocked = audit_response(response_text)
-        if leak_blocked:
+        response_text_raw = str(result.output)
+        model_name = getattr(agent.model, "model_name", str(agent.model))
+
+        response_text, audit_blocked = audit_response(response_text_raw)
+        if audit_blocked:
             logger.warning(
                 "[%s]%s ⚠ Output Auditor bloqueó una fuga de secreto de configuración",
                 session_id, fixture_tag,
             )
-        model_name = getattr(agent.model, "model_name", str(agent.model))
+
+        # Guardia de salida (Fase 2.7, parte de (D) — ver docstring de _confidential_leak_guard):
+        # solo activa cuando el Tool Gatekeeper lo está, para no alterar el comportamiento
+        # "vulnerable puro" del estudio de ablación cuando defensa_tool_gatekeeper=False.
+        leak_blocked = False
+        if defensa_tool_gatekeeper:
+            response_text, leak_blocked = _confidential_leak_guard(
+                response_text, tools_used, user.get("account_id", "")
+            )
+
+        if leak_blocked:
+            logger.warning(
+                "[%s]%s ⚠ guardia de salida sustituyó la respuesta: IBAN ajeno mencionado sin "
+                "tool call real que lo respalde en este turno (posible alucinación)",
+                session_id, fixture_tag,
+            )
 
         audit_path = append_turn(
             session_id=session_id,
@@ -182,7 +245,11 @@ async def _process_chat(
             prompt=full_message,
             thinking=thinking,
             tools=tools_used,
-            response=response_text,
+            response=(
+                f"[GUARDIA DE SALIDA ACTIVADA — respuesta original sustituida antes de "
+                f"enviarse al cliente]\n{response_text_raw}"
+                if (leak_blocked or audit_blocked) else response_text_raw
+            ),
             latency_ms=latency_ms,
             system_prompt="\n".join(agent._system_prompts) or None,
             fixture_id=request.fixture_id,

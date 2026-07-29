@@ -939,5 +939,103 @@ cada uno, con timestamps del 28-29 de julio); capturas en
 automatizada, estudio de ablación y verificación manual capa por capa, incluidos los fallos
 encontrados.**
 
+## 2026-07-29 (continuación) — Robustecer (D): el usuario no acepta cerrar Fase 2 solo con los fallos documentados
+
+**Contexto:** tras la entrada anterior, el usuario corrigió el rumbo: *"vale, no quiero cerrarla
+hasta que cada defensa no sea lo completamente robusta como para evitar los 3 ataques. ayudame a
+ver porque la C no funciona y la D lo que tiene que provoca alucinaciones..."*. Documentar los
+fallos no bastaba — pedía arreglarlos.
+
+**Diagnóstico de (C):** es una técnica pura de prompt (delimitador de texto), sin ningún mecanismo
+de código que la haga cumplir. No puede llegar a 0% de éxito de ataque mientras siga siendo eso —
+es la limitación conocida de toda mitigación basada en prompt (OWASP LLM01). Propuesto como
+siguiente paso un experimento (framing como resultado de tool en vez de texto plano), con
+expectativa gestionada de que probablemente no la lleve a 0%. El usuario priorizó: primero (D),
+la (C) después.
+
+**Diagnóstico y arreglo de (D):**
+1. **Falso positivo** — causa raíz: `consulta_saldo`/`transferencia_nacional`/`bloquear_tarjeta`
+   exigían que el LLM transcribiera el IBAN/card_id incluso para el propio recurso del usuario.
+   Arreglo: `account_id`/`card_id`/`from_account` ahora opcionales; si se omiten, se resuelven
+   directamente desde `ctx.deps.user_id` (canal de confianza) en vez de depender de que el LLM
+   los escriba. La verificación de propiedad completa se mantiene intacta para cuentas/tarjetas
+   explícitas — no se toca el vector real del ataque #7. Añadido `_get_user_cards` (búsqueda
+   inversa sobre `MOCK_CARDS`). 3 tests nuevos en `test_tool_gatekeeper.py`.
+2. **Alucinación de saldo sin pasar por la tool** — causa raíz: (D) solo protege la invocación de
+   las 3 tools sensibles; si el LLM llama a una tool sin relación (`consulta_producto`) o ninguna,
+   y aun así declara un saldo inventado en texto libre, (D) no tiene nada que interceptar. Arreglo:
+   nueva función `_confidential_leak_guard` en `chat.py` — tras generar la respuesta, escanea el
+   texto en busca de un IBAN español; si aparece uno que no es la cuenta propia del usuario ni
+   proviene de un resultado real (no denegado) de una tool call de ese mismo turno, sustituye la
+   respuesta completa por un mensaje genérico. Deliberadamente no exige una cifra monetaria junto
+   al IBAN — también sustituye mensajes de denegación de (D) que citan el IBAN ajeno, minimizando
+   el detalle expuesto. Activa solo cuando `defensa_tool_gatekeeper` lo está (no altera el
+   comportamiento "vulnerable puro" del estudio de ablación). 6 tests nuevos en
+   `test_confidential_leak_guard.py`, cubriendo explícitamente que NO debe bloquear un IBAN de
+   tercero legítimo (destino de una transferencia completada) ni un IBAN respaldado por una
+   consulta real (eso es responsabilidad de (A)/(B)/(C)/(D), no de esta guardia).
+3. **Validación en vivo, no solo unitaria:**
+   - 9 intentos reales (3 documentos sanos × 3 repeticiones, `ABCD` activo): **0/9 falsos
+     positivos** (antes 2/7 ≈ 29%).
+   - 7 intentos reales ("solo D" sobre `reclamacion_comprometida.docx`, el documento donde se
+     había observado la alucinación): las 7 veces el LLM invocó `consulta_saldo` sobre la cuenta
+     objetivo (correctamente denegado las 7), y en las 6 que el texto final citaba el IBAN, la
+     guardia lo sustituyó. **0/7 con IBAN ajeno visible en la respuesta final**, frente a los 3
+     saldos inventados (0,00 €, 1.234,56 €, 7.234,56 €) de la tanda anterior.
+4. Suite completa del backend: **56/56**.
+5. Documentado con honestidad el alcance real: ninguno de los dos arreglos es una garantía
+   absoluta (el primero depende de que el LLM omita el parámetro cuando corresponde; el segundo
+   solo detecta el patrón "IBAN reconocible", no cualquier forma de alucinación). Sección
+   "Alcance — qué queda sin resolver" en `02-defensa/README.md`, para no sobrevender el arreglo.
+
+**Reproducir:**
+```bash
+cd lab && docker compose exec backend python -m pytest tests/test_tool_gatekeeper.py tests/test_confidential_leak_guard.py -v   # 9/9
+curl -X POST http://localhost:8000/api/v1/chat/complex-with-document \
+  -F "user_id=usr_001" -F "message=Adjunto mi informe de reclamación por el cargo duplicado." \
+  -F "defensa_estructural=false" -F "defensa_sanitizer=false" -F "defensa_separacion_semantica=false" -F "defensa_tool_gatekeeper=true" \
+  -F "document=@henri-tfm/01-ataque/payloads/reclamacion_comprometida.docx;type=application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+```
+
+**Próximos pasos:**
+- Experimento de (C): framing como resultado de tool en vez de texto plano en el prompt.
+- Cerrar formalmente Fase 2 tras el experimento de (C) (con o sin mejora, documentando el resultado).
+- Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+## 2026-07-29 (continuación 2) — Experimento de (C): framing como tool result, y cierre de Fase 2
+
+**Metodología:** construido un `message_history` sintético de pydantic_ai —`ToolCallPart` +
+`ToolReturnPart` fabricados, simulando que un tool `document_reader` ya había leído el documento y
+devuelto su contenido— en vez de concatenar el texto delimitado en el mensaje del usuario (la
+implementación actual de (C)). Ejecutado como script independiente (no forma parte del pipeline de
+producción): tuvo que copiarse dentro del contenedor backend porque necesita importar `src.*` y
+llamar a Ollama directamente (los payloads tampoco están montados en el contenedor — se copiaron
+con `docker cp` antes de ejecutar y se limpiaron después).
+
+**Primera tanda (con (D) activo, como en el uso real):** 0/9 fugas reales — pero inspeccionando el
+JSON crudo, 4/9 intentos SÍ fueron el LLM engañado + (D) denegando como siempre, y solo 5/9 fueron
+casos donde el LLM ni intentó la cuenta objetivo. No permite aislar si el framing nuevo ayuda o si
+es (D) haciendo su trabajo habitual — repetido con (D) desactivado para medir el efecto de (C) por
+sí sola, mismo método que el resto del estudio de ablación.
+
+**Segunda tanda (sin (D), aislando (C)):** **2/9 (22%) de éxito real**, frente al 67-89% medido
+para la (C) actual (delimitador de texto) en las mismas condiciones. Mejora real y sustancial —
+reducción de 3-4 veces— pero no elimina el problema, tal como se anticipó al plantear el
+experimento: (C) sigue siendo una técnica de prompt sin ningún mecanismo de código que la haga
+cumplir.
+
+**Decisión:** documentar el resultado del experimento (mejora real, no solución completa) sin
+integrarlo todavía en el pipeline de producción — queda registrado como hallazgo y evidencia
+reproducible para una futura iteración, no como reemplazo inmediato de la implementación actual de
+(C) en `chat.py`.
+
+**Con esto, Fase 2 (Defensa) queda cerrada por completo**: las 4 capas implementadas y validadas
+(automatizada + manual), los dos fallos reales de (D) encontrados Y arreglados (no solo
+documentados, con validación en vivo de la mejora), y el experimento de (C) con un resultado
+honesto — mejora medible, límite reconocido, sin inflar las expectativas de ninguna defensa.
+
+**Reproducir:** `henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/` (script + JSON crudos
++ instrucciones exactas de copiado al contenedor).
+
 **Próximos pasos:**
 - Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

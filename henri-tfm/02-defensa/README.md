@@ -551,6 +551,96 @@ p. ej. `D-reclamacion-comprometida-docx(4).png` para el 4º intento de "solo D" 
 reclamación comprometida. (Los ficheros de reclamación se renombraron de `-pdf` a `-docx` — el
 documento es un `.docx`, el sufijo original era un error de nomenclatura, no del contenido.)
 
+## Mejoras aplicadas tras la verificación manual — cerrando los dos fallos de (D)
+
+El usuario pidió explícitamente no cerrar la Fase 2 hasta abordar los fallos reales de (D)
+detectados en la verificación manual (no solo dejarlos documentados). Se implementaron dos
+arreglos concretos, cada uno con tests unitarios y validación en vivo contra el LLM real.
+
+### Arreglo 1 — cuenta/tarjeta propia por defecto (cierra el falso positivo)
+
+`consulta_saldo`, `transferencia_nacional` (`from_account`) y `bloquear_tarjeta` ya no exigen que
+el LLM transcriba el identificador cuando el cliente pregunta por su propio recurso —
+`account_id`/`card_id`/`from_account` pasan a ser opcionales; si se omiten, se resuelven
+directamente desde `ctx.deps.user_id` (canal de confianza, no generado por el LLM), sin ninguna
+transcripción de por medio. La verificación de propiedad completa se mantiene intacta cuando SÍ
+se pide una cuenta/tarjeta explícita — el vector real del ataque #7 no se toca.
+
+- 3 tests nuevos en `test_tool_gatekeeper.py` (cuenta/tarjeta propia resuelta sin `account_id`).
+- **Validación en vivo** (9 intentos reales, 3 documentos sanos × 3 repeticiones cada uno, con
+  `ABCD` activo, tras el arreglo): **0/9 falsos positivos** — ni `reclamacion_sana.docx` ni
+  `gastos_sano.xlsx` volvieron a producir la denegación indebida observada antes (2/7, ≈29%).
+
+### Arreglo 2 — guardia de salida determinista (cierra la alucinación)
+
+Nueva función `_confidential_leak_guard` en `chat.py`: tras generar la respuesta, escanea el
+texto en busca de un IBAN español. Si aparece uno que no es la cuenta propia del usuario **ni**
+proviene de un resultado real y no denegado de una tool call de ese mismo turno, sustituye la
+respuesta completa por un mensaje genérico (`"No puedo confirmar esa información en este
+momento..."`). Deliberadamente no exige que además haya una cifra monetaria junto al IBAN —
+cualquier IBAN ajeno no verificado se trata como dato sensible, minimizando también el detalle
+expuesto en los propios mensajes de denegación de (D). Activa solo cuando `defensa_tool_gatekeeper`
+lo está, para no alterar el comportamiento "vulnerable puro" del estudio de ablación.
+
+- 6 tests nuevos en `test_confidential_leak_guard.py`: sin IBAN no cambia nada; cuenta propia
+  nunca se bloquea; IBAN ajeno alucinado (sin tool call real) se bloquea; IBAN ajeno respaldado
+  por una consulta real (`status: ok`) NO se bloquea (no es su función corregir a (C)); IBAN
+  denegado por (D) y citado en el mensaje de rechazo también se sustituye; el destino de una
+  transferencia completada (tercero legítimo) no se bloquea.
+- **Validación en vivo** (7 intentos reales, "solo D" sobre `reclamacion_comprometida.docx` —el
+  documento donde se había observado el patrón de alucinación—): las 7 veces el LLM invocó
+  `consulta_saldo` sobre la cuenta objetivo (denegado por (D) las 7), y en las 6 que el texto
+  final citaba el IBAN, la guardia lo sustituyó por el mensaje genérico. **0/7 con IBAN ajeno
+  visible en la respuesta final**, frente a los 3 saldos inventados (0,00 €, 1.234,56 €,
+  7.234,56 €) de la tanda de verificación manual original.
+
+Suite completa del backend tras ambos arreglos: **56/56**.
+
+### Alcance — qué queda sin resolver
+
+Ninguno de los dos arreglos es una garantía absoluta. El Arreglo 1 depende de que el LLM omita
+`account_id` cuando corresponde (nudge de prompt, no forzado) — si en el futuro el LLM decide
+igualmente transcribir un IBAN incorrecto de forma explícita, la verificación estricta seguiría
+denegando. El Arreglo 2 detecta específicamente el patrón "IBAN ajeno no verificado en el texto";
+una alucinación que evite mencionar un IBAN con formato reconocible (p. ej. "la otra cuenta tiene
+231.500 €" sin citar el número) no dispara la guardia. Ambos arreglos reducen sustancialmente la
+superficie de los dos fallos observados, con evidencia empírica que lo respalda, pero no la
+eliminan por completo — se documentan aquí sin sobrevender su alcance.
+
+## Experimento (C) — framing como resultado de tool en vez de texto delimitado
+
+**Hipótesis:** los LLM suelen entrenarse para *reportar* el contenido de una tool call, no para
+*obedecer* instrucciones dentro de él. La implementación actual de (C) concatena el documento como
+texto plano delimitado dentro del mensaje del usuario — misma "clase" de tokens que la instrucción
+inyectada, diferenciada solo por una frase pidiendo que se trate como dato. El experimento presenta
+el documento como si un tool `document_reader` ya lo hubiera leído y devuelto, construyendo un
+`message_history` sintético de pydantic_ai (`ToolCallPart` + `ToolReturnPart` fabricados, sin
+ejecutar ninguna tool real) antes de la llamada real al agente.
+
+**Resultado — mejora real, no elimina el problema:**
+
+| Variante de (C) | Éxito real aislado (sin (D), 9 intentos) |
+|---|---|
+| Delimitador de texto (actual) | 6-8/9 (67-89%, según la tanda) |
+| Framing como resultado de tool (experimento) | **2/9 (22%)** |
+
+Con (D) también activo (condición realista, ambas capas juntas): de los 9 intentos, (D) denegó 4
+(el LLM sí fue engañado, pero el Gatekeeper lo bloqueó igual que siempre) y en los otros 5 el LLM
+ni siquiera intentó la cuenta objetivo — **0/9 fugas reales** con ambas capas combinadas.
+
+El framing por sí solo reduce el éxito real de ~78% (punto medio de 67-89%) a 22% — una reducción
+de 3-4 veces, medida con muestra pequeña (9 intentos por variante, mismo tamaño que el resto del
+estudio de ablación). No llega a 0%: sigue siendo una técnica de prompt, sin ningún mecanismo de
+código que la haga cumplir, y el modelo (qwen2.5:3b) sigue sin estar entrenado específicamente
+para esta jerarquía. Confirma la hipótesis de partida —el framing importa, y el "canal" percibido
+del contenido no es neutro para un LLM pequeño— sin convertir a (C) en una barrera de bloqueo
+comparable a (A)/(B).
+
+**Reproducir y evidencia completa:**
+`henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/` — script, resultados crudos
+(`resultados_conD.json`, `resultados_sinD.json`) e instrucciones de reproducción (requiere
+copiarse dentro del contenedor backend, no se ejecuta desde el host — ver docstring del script).
+
 ## Nota de diseño: verbosidad de los errores es del lab, no de producción
 
 El campo `error` de `/chat/complex-with-document` (visible en el Playground como la caja roja

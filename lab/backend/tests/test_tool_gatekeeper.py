@@ -46,11 +46,21 @@ def test_consulta_saldo_cuenta_ajena_denegada():
     assert result["status"] == "denied"
 
 
+def test_consulta_saldo_sin_account_id_usa_la_cuenta_propia():
+    """Mejora Fase 2.7: si el LLM omite account_id (p. ej. "¿cuál es mi saldo?"), se resuelve la
+    cuenta propia desde ctx.deps.user_id — el LLM no necesita transcribir su IBAN. Elimina el
+    falso positivo detectado en la verificación manual (IBAN mal transcrito -> denegación
+    indebida al titular real, 2/7 intentos sobre documentos sanos)."""
+    result = json.loads(consulta_saldo(_ctx("usr_001")))
+    assert result["status"] == "ok"
+    assert result["account_id"] == OWN_ACCOUNT
+
+
 # --- transferencia_nacional ---
 
 def test_transferencia_desde_cuenta_propia_permitida():
     result = json.loads(
-        transferencia_nacional(_ctx("usr_001"), OWN_ACCOUNT, OTHER_ACCOUNT, 50.0)
+        transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
     assert result["status"] == "completed"
 
@@ -58,7 +68,7 @@ def test_transferencia_desde_cuenta_propia_permitida():
 def test_transferencia_desde_cuenta_ajena_denegada():
     """usr_001 no puede iniciar una transferencia con origen en la cuenta de usr_003."""
     result = json.loads(
-        transferencia_nacional(_ctx("usr_001"), OTHER_ACCOUNT, OWN_ACCOUNT, 50.0)
+        transferencia_nacional(_ctx("usr_001"), from_account=OTHER_ACCOUNT, to_account=OWN_ACCOUNT, amount=50.0)
     )
     assert result["status"] == "denied"
 
@@ -66,10 +76,22 @@ def test_transferencia_desde_cuenta_ajena_denegada():
 def test_transferencia_a_cuenta_ajena_es_valida_ese_es_el_proposito():
     """El destino SÍ puede ser de un tercero — es lo que hace una transferencia."""
     result = json.loads(
-        transferencia_nacional(_ctx("usr_001"), OWN_ACCOUNT, OTHER_ACCOUNT, 50.0)
+        transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
     assert result["status"] == "completed"
     assert result["to"] == OTHER_ACCOUNT
+
+
+def test_transferencia_sin_from_account_usa_la_cuenta_propia():
+    """Mejora Fase 2.7: si el LLM omite from_account (p. ej. "transfiere desde mi cuenta"), se
+    resuelve la cuenta propia sin que el LLM tenga que transcribir el IBAN — elimina la fuente de
+    falsos positivos detectada en la verificación manual (IBAN mal transcrito -> denegación
+    indebida al titular real)."""
+    result = json.loads(
+        transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=50.0)
+    )
+    assert result["status"] == "completed"
+    assert result["from"] == OWN_ACCOUNT
 
 
 # --- bloquear_tarjeta ---
@@ -89,6 +111,14 @@ def test_bloquear_tarjeta_propia_en_minusculas_tambien_permitido():
     normalización a mayúsculas en _owns_card) hacía que incluso la tarjeta propia se denegara."""
     result = json.loads(bloquear_tarjeta(_ctx("usr_001"), OWN_CARD.lower()))
     assert result["status"] == "blocked"
+
+
+def test_bloquear_tarjeta_sin_card_id_usa_la_tarjeta_propia():
+    """Mejora Fase 2.7: si el LLM omite card_id (p. ej. "bloquea mi tarjeta"), se resuelve la
+    tarjeta propia desde ctx.deps.user_id en vez de exigir que el LLM transcriba el identificador."""
+    result = json.loads(bloquear_tarjeta(_ctx("usr_001")))
+    assert result["status"] == "blocked"
+    assert result["card_id"] == OWN_CARD
 
 
 # --- abrir_reclamacion ---

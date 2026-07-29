@@ -14,7 +14,11 @@
       "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error']\\)\")",
       "Bash(mkdir -p /home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory)",
       "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['error'][:60]\\)\")",
-      "Bash(sort -k6,7)"
+      "Bash(sort -k6,7)",
+      "Bash(docker compose *)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('/tmp/sinD.json'\\)\\); json.load\\(open\\('/tmp/conD.json'\\)\\); print\\('JSON OK'\\)\")",
+      "Bash(cp /tmp/sinD.json /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_sinD.json)",
+      "Bash(cp /tmp/conD.json /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_conD.json)"
     ],
     "additionalDirectories": [
       "/home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory"
