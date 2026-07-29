@@ -257,8 +257,23 @@ Fase 2 (Defensa).
       devuelto al cliente expone regla/capa/latencia — deliberado para verificación visual en el
       lab, pero sería un oráculo de evasión en un sistema real. Detalle en `02-defensa/README.md`
       §"Nota de diseño" y `CAPITULO.md` §4.1.
+- [x] **Verificación manual capa por capa (gate del usuario)**: 33 turnos reales vía Playground —
+      3 documentos comprometidos × 4 capas en solitario, y 3 documentos sanos con `ABCD` activo.
+      (A)/(B) 100% consistentes (3/3 bloqueados cada una). (C) confirma manualmente su baja
+      fiabilidad (8/9 fugas reales). **(D) documentado con sus fallos reales, no solo sus
+      éxitos**: cuando la verificación de propiedad se ejecuta contra la cuenta correcta, deniega
+      siempre — pero (1) no cubre al LLM alucinando un saldo falso cuando invoca una tool distinta
+      o ninguna (3 ocurrencias, cifras inventadas sin relación con ningún dato real), y (2) genera
+      falsos positivos en documentos sanos cuando el LLM transcribe mal el IBAN propio del usuario
+      (2/7 intentos, ≈29%) — el Gatekeeper deniega correctamente por no-coincidencia exacta, pero
+      el titular real es quien queda bloqueado. Ninguno de los dos fallos es un defecto del código
+      del Gatekeeper; ambos son limitaciones estructurales de delegar en un LLM pequeño la
+      construcción exacta del argumento de una tool call. Capturas renombradas (`-pdf`→`-docx`
+      para los ficheros de reclamación, error de nomenclatura). Detalle completo en
+      `02-defensa/README.md` §"Verificación manual del estudio de ablación".
 
-**Fase 2 (Defensa) cerrada por completo, incluido el estudio de ablación.**
+**Fase 2 (Defensa) cerrada por completo, incluido el estudio de ablación y su verificación manual
+capa por capa.**
 Siguiente: Fase 3 (Marco normativo).
 
 ## Fase 3 — Marco normativo

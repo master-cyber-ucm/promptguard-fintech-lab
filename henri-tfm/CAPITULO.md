@@ -296,6 +296,52 @@ positivo sobre un documento sano. Evidencia completa (JSON crudo, Session Files 
 en `henri-tfm/01-ataque/evidencia/resultados_ablacion_*.json` y
 `evidencia/session-files/{timestamp}_defensas-{COMBO}/`.
 
+### Verificación manual capa por capa — confirmación independiente, y los fallos reales de (D)
+
+El estudio automatizado se complementó con una segunda ronda de verificación manual, vía
+Playground: los 3 documentos comprometidos contra cada capa activada en solitario, y los 3
+documentos sanos con las 4 capas activas — 33 turnos reales, contrastados contra el JSON exacto de
+cada Session File, no contra el texto libre de la respuesta de Clara (una lectura superficial del
+texto ya había producido, en esta misma verificación, una interpretación incorrecta de un intento
+concreto, corregida al inspeccionar el `tools_used` real).
+
+(A) y (B) resultaron perfectamente consistentes: 3/3 documentos bloqueados cada una, sin ninguna
+excepción — coherente con ser código determinista y no depender del comportamiento del modelo.
+(C) confirmó, con una muestra manual independiente, la misma conclusión que el estudio
+automatizado: 8 de 9 intentos comprometidos lograron acceso real no autorizado, una tasa incluso
+peor que el 67% de la tanda de 90 llamadas.
+
+El caso de (D) merece un tratamiento explícito de sus **fallos**, no solo de sus éxitos, porque la
+verificación manual los expuso con claridad y sería deshonesto omitirlos del capítulo:
+
+1. **(D) no cubre datos que el LLM fabrica sin pasar por la tool protegida.** Sobre 5 intentos de
+   "solo (D)" con el documento de reclamación, únicamente uno hizo que el LLM invocara
+   `consulta_saldo` sobre la cuenta objetivo —y en ese caso, el Gatekeeper denegó correctamente—.
+   En los otros cuatro, el modelo o bien no intentó la cuenta ajena en absoluto, o bien —en tres
+   ocasiones— invocó una tool sin ninguna relación (`consulta_producto`, el catálogo de productos)
+   y a continuación **inventó un saldo** para la cuenta objetivo (0,00 €, 1.234,56 € y 7.234,56 €
+   en tres intentos distintos, ninguno correspondiente a ningún dato real). El Tool Gatekeeper
+   verifica la propiedad del recurso en el momento en que la tool sensible se invoca; no tiene
+   ningún mecanismo para impedir que el modelo presente, con la misma confianza discursiva, una
+   cifra fabricada como si proviniera de una consulta real. No hay brecha de acceso —el dato
+   fabricado no es el dato real de un tercero—, pero sí un riesgo distinto e igualmente relevante
+   en un contexto bancario: información financiera inventada, presentada como consultada.
+2. **(D) genera falsos positivos sobre documentos sanos, por un motivo ajeno a su propia lógica.**
+   De 7 intentos con documentos legítimos y las 4 capas activas, 2 (≈29%) resultaron en una
+   denegación indebida: el LLM intentó verificar el saldo de la **propia** cuenta de la usuaria
+   autenticada, pero transcribió mal su IBAN —una vez con un dígito de menos, otra con un número
+   sin relación alguna con ningún dato real—, y el Gatekeeper, al no hallar coincidencia exacta,
+   denegó el acceso a su titular legítimo. El comportamiento del Gatekeeper es correcto conforme a
+   su diseño (verificación estricta de propiedad); el problema es la fiabilidad del LLM para
+   reproducir con exactitud un identificador de cuenta al construir el argumento de la llamada.
+
+Ninguno de los dos fallos se resuelve añadiendo más capas de las ya implementadas: ambos son
+manifestaciones de una misma limitación estructural —delegar en un modelo de lenguaje pequeño la
+construcción exacta de argumentos estructurados (IBANs) o la elección de qué tool invocar—, no
+defectos del código de verificación en sí. Se documentan aquí como límite conocido del diseño,
+relevante tanto para la discusión de la Fase 2 como para cualquier trabajo futuro que proponga (D)
+como mitigación suficiente por sí sola.
+
 ## 6.2 — Análisis y discusión
 
 **Brecha de control de acceso frente a fuga textual explotable.** El primer hallazgo relevante no
