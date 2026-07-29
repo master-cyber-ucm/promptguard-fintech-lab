@@ -38,7 +38,14 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
-from pydantic_ai.messages import ThinkingPart, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
@@ -157,6 +164,7 @@ async def _process_chat(
     inject_context: bool,
     document_text: Optional[str] = None,
     defensa_separacion_semantica: bool = True,
+    defensa_separacion_tool_framing: bool = False,
     defensa_tool_gatekeeper: bool = True,
 ) -> ChatResponse:
     start_time = time.time()
@@ -174,8 +182,40 @@ async def _process_chat(
     else:
         full_message = request.message
 
+    message_history: Optional[list] = None
+    prompt_for_audit = full_message
+
     if document_text:
-        if defensa_separacion_semantica:
+        if defensa_separacion_semantica and defensa_separacion_tool_framing:
+            # DEFENSA — Capa 2, variante experimental (Fase 2.8): en vez de concatenar el
+            # documento como texto delimitado en el mensaje del usuario, se presenta como si un
+            # tool `document_reader` ya lo hubiera leído y devuelto — aprovechando que los LLM
+            # suelen entrenarse para REPORTAR el contenido de una tool call, no para OBEDECER
+            # instrucciones dentro de él. Validado en el experimento de Fase 2.8: reduce el éxito
+            # real de ~78% a 22% (aislado de (D)) — mejora real, no elimina el problema (sigue
+            # siendo una técnica de prompt). Ver henri-tfm/02-defensa/README.md §"Experimento (C)".
+            tool_call_id = "call_document_reader_1"
+            message_history = [
+                ModelRequest(parts=[UserPromptPart(content=full_message)]),
+                ModelResponse(
+                    parts=[ToolCallPart(tool_name="document_reader", args={}, tool_call_id=tool_call_id)]
+                ),
+                ModelRequest(
+                    parts=[
+                        ToolReturnPart(
+                            tool_name="document_reader",
+                            content=f"Documento adjunto por el cliente (leído automáticamente):\n{document_text}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                ),
+            ]
+            prompt_for_audit = (
+                f"{full_message}\n\n[Variante tool_framing — documento vía tool sintética "
+                f"document_reader]\n{document_text}"
+            )
+            full_message = None
+        elif defensa_separacion_semantica:
             # DEFENSA — Capa 2, separación semántica (Fase 2, ataque #7): el texto extraído del
             # documento se marca explícitamente como DATO no confiable, nunca una instrucción,
             # delimitado sin ambigüedad. No es infalible por sí sola (ver henri-tfm/02-defensa/
@@ -191,11 +231,13 @@ async def _process_chat(
                 f"{document_text}\n"
                 "[FIN DOCUMENTO ADJUNTO]"
             )
+            prompt_for_audit = full_message
         else:
             # Estudio de ablación: reproduce la concatenación VULNERABLE original (Fase 1), sin
             # marca de procedencia ni delimitación — para medir el efecto aislado de desactivar
             # esta capa.
             full_message = f"{full_message}\n\nDocumento adjunto por el cliente:\n{document_text}"
+            prompt_for_audit = full_message
 
     session_id = request.session_id or f"ses_{int(time.time())}"
     fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
@@ -208,7 +250,7 @@ async def _process_chat(
         # `enforce_gatekeeper=False` reproduce el comportamiento vulnerable original (estudio de
         # ablación) — solo se desactiva si el llamador lo pide explícitamente.
         deps = Deps(user_id=request.user_id, enforce_gatekeeper=defensa_tool_gatekeeper)
-        result = await agent.run(full_message, deps=deps)
+        result = await agent.run(full_message, message_history=message_history, deps=deps)
         latency_ms = (time.time() - start_time) * 1000
 
         tools_used, thinking = _extract_tools_and_thinking(result)
@@ -242,7 +284,7 @@ async def _process_chat(
             session_id=session_id,
             user_id=request.user_id,
             model=model_name,
-            prompt=full_message,
+            prompt=prompt_for_audit,
             thinking=thinking,
             tools=tools_used,
             response=(
@@ -357,6 +399,7 @@ async def chat_complex_with_document(
     defensa_sanitizer: bool = Form(default=True),
     defensa_estructural: bool = Form(default=True),
     defensa_separacion_semantica: bool = Form(default=True),
+    defensa_separacion_tool_framing: bool = Form(default=False),
     defensa_tool_gatekeeper: bool = Form(default=True),
     document: UploadFile = File(...),
 ):
@@ -369,10 +412,17 @@ async def chat_complex_with_document(
     separación semántica ((C)) y el Tool Gatekeeper ((D)) verifica autorización en las tools.
     Cada etapa se cronometra por separado (medición real, no estimada).
 
-    **Estudio de ablación**: los 4 parámetros `defensa_*` (por defecto `True`, comportamiento
+    **Estudio de ablación**: los parámetros `defensa_*` (por defecto `True`, comportamiento
     seguro) permiten desactivar cada capa individualmente para medir su efecto aislado —
     `ejecutar_evidencia.py --defensas <combinación>` los usa para comparar. Ver
     henri-tfm/02-defensa/README.md §"Estudio de ablación".
+
+    **Variante experimental de (C) (Fase 2.8)**: `defensa_separacion_tool_framing=True` (solo
+    tiene efecto si `defensa_separacion_semantica` también es `True`) sustituye el delimitador de
+    texto por un framing del documento como resultado de una tool sintética `document_reader` —
+    validado con una reducción real del éxito de ataque (~78%→22% aislado de (D), ver
+    henri-tfm/02-defensa/README.md §"Experimento (C)"). Por defecto `False` — no cambia el
+    comportamiento ya documentado de (C) a menos que se active explícitamente.
     """
     request_start = time.time()
     content = await document.read()
@@ -415,7 +465,9 @@ async def chat_complex_with_document(
 
     defensas_activas = (
         f"B(sanitizer)={defensa_sanitizer} A(estructural)={defensa_estructural} "
-        f"C(separacion)={defensa_separacion_semantica} D(gatekeeper)={defensa_tool_gatekeeper}"
+        f"C(separacion)={defensa_separacion_semantica}"
+        f"{'[tool_framing]' if defensa_separacion_semantica and defensa_separacion_tool_framing else ''} "
+        f"D(gatekeeper)={defensa_tool_gatekeeper}"
     )
 
     if decision.action == "BLOCK":
@@ -494,5 +546,6 @@ async def chat_complex_with_document(
         inject_context=True,
         document_text=document_text,
         defensa_separacion_semantica=defensa_separacion_semantica,
+        defensa_separacion_tool_framing=defensa_separacion_tool_framing,
         defensa_tool_gatekeeper=defensa_tool_gatekeeper,
     )

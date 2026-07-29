@@ -18,7 +18,13 @@
       "Bash(docker compose *)",
       "Bash(python3 -c \"import json; json.load\\(open\\('/tmp/sinD.json'\\)\\); json.load\\(open\\('/tmp/conD.json'\\)\\); print\\('JSON OK'\\)\")",
       "Bash(cp /tmp/sinD.json /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_sinD.json)",
-      "Bash(cp /tmp/conD.json /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_conD.json)"
+      "Bash(cp /tmp/conD.json /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_conD.json)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('tools:', d['tools_used']\\); print\\('resp:', d['response'][:150]\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('tools:', d['tools_used']\\); print\\('resp:', d['response'][:200]\\); print\\('error:', d['error']\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(../payloads/.venv/bin/python ejecutar_evidencia.py --defensas C --c-tool-framing --formato pdf --repeticiones 1)",
+      "Bash(grep -n \"Experimento de \\(C\\)\\\\`\\\\|Ninguna defensa se declaró\" /home/henri/Projects/promptguard-fintech-lab/henri-tfm/ROADMAP.md)",
+      "Bash(awk '{print $6, $7, $8, $9}')"
     ],
     "additionalDirectories": [
       "/home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory"

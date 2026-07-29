@@ -41,10 +41,12 @@ class _FakeAgent:
         self.model = _FakeModel()
         self.received_messages: list[str] = []
         self.received_deps: list = []
+        self.received_message_histories: list = []
 
-    async def run(self, message: str, deps=None):
+    async def run(self, message: str, message_history=None, deps=None):
         self.received_messages.append(message)
         self.received_deps.append(deps)
+        self.received_message_histories.append(message_history)
         return _FakeResult("Respuesta simulada de Clara.")
 
 

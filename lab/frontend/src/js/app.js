@@ -25,6 +25,7 @@ const defensaCheckboxes = {
     estructural:         document.getElementById('defensa-estructural'),
     sanitizer:            document.getElementById('defensa-sanitizer'),
     separacionSemantica: document.getElementById('defensa-separacion-semantica'),
+    separacionToolFraming: document.getElementById('defensa-separacion-tool-framing'),
     toolGatekeeper:      document.getElementById('defensa-tool-gatekeeper'),
 };
 

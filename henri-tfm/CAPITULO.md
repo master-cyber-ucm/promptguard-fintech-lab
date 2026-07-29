@@ -395,9 +395,28 @@ intentos el LLM seguía siendo engañado y era (D), no el nuevo framing, quien l
 framing importa —el canal percibido del contenido no es neutro para un modelo pequeño— pero no
 convierte a (C) en una barrera de bloqueo comparable a (A)/(B): sigue sin haber ningún mecanismo de
 código que fuerce el comportamiento, solo una probabilidad más baja de que el modelo se deje
-engañar. El resultado se documenta como mejora real y medible, con su límite reconocido, sin
-integrarse todavía en el pipeline de producción del lab — queda como hallazgo reproducible
-(`henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/`) para una futura iteración.
+engañar. El resultado se documenta como mejora real y medible, con su límite reconocido, y se
+llevó a producción como **variante seleccionable** (`defensa_separacion_tool_framing`, por
+defecto desactivada) en vez de reemplazar el delimitador de texto — así los números ya
+documentados de la (C) actual (67-89%) siguen reflejando el comportamiento por defecto, y ambas
+variantes quedan comparables en el mismo estudio de ablación
+(`henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/`).
+
+### Cierre de Fase 2 — verificación manual final
+
+Como gate final antes de dar la fase por cerrada, se repitió una última ronda de verificación
+manual (20 turnos reales) sobre las piezas añadidas en esta última iteración: la variante
+tool_framing de (C) —tanto sobre documentos comprometidos como sanos—, los dos arreglos de (D), y
+la pila completa `ABCD` con la variante nueva activada. Los resultados son coherentes con todo lo
+ya documentado: (C) con tool_framing tuvo 2 fugas reales de 3 intentos sobre comprometidos en esta
+muestra puntual —más alto que el 22% agregado del experimento, diferencia esperable con una
+muestra tan pequeña, no una contradicción— y **0 falsos positivos sobre los 3 documentos sanos**,
+completando la matriz de esta variante; (D) denegó los 4 intentos sobre cuentas ajenas y la
+guardia de salida actuó siempre que el texto citaba el IBAN; los 3 documentos sanos con solo (D)
+activo tampoco produjeron ningún falso positivo; y la pila `ABCD` con tool_framing bloqueó los 3
+documentos comprometidos antes de llegar al LLM y dejó pasar los 3 sanos sin ningún error. Cada
+pieza de esta fase —las 4 capas originales, los arreglos de (D), la variante de (C)— cuenta así
+con evidencia doble: tests automatizados y uso real contra el LLM.
 
 ## 6.2 — Análisis y discusión
 

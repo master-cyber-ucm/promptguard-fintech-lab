@@ -154,6 +154,7 @@ def run(
     repeticiones: int,
     formato: str | None = None,
     defensas: dict[str, bool] | None = None,
+    c_tool_framing: bool = False,
 ) -> list[dict]:
     casos = [c for c in CASOS if formato is None or c[0].startswith(formato)] if formato else CASOS
     defensas = defensas if defensas is not None else parse_defensas("ABCD")
@@ -189,6 +190,7 @@ def run(
                             "fixture_kind": "attack-prompts" if condicion == "comprometido" else "legitimate-prompts",
                             "fixture_expected_result": "BLOCK" if condicion == "comprometido" else "ALLOW",
                             **{k: str(v).lower() for k, v in defensas.items()},
+                            "defensa_separacion_tool_framing": str(c_tool_framing).lower(),
                         },
                         files={"document": (filename, f, content_type)},
                     )
@@ -226,6 +228,8 @@ def run(
                 })
 
     defensas_label = "".join(letra for letra, param in DEFENSA_LETRA_A_PARAM.items() if defensas[param]) or "none"
+    if c_tool_framing:
+        defensas_label += "-toolframing"
     subfolder = f"{run_ts}_defensas-{defensas_label}"
     n_copied = _persist_session_files(endpoint_dir_host, subfolder=subfolder)
     print(f"Session Files copiados a {SESSION_FILES_REPO_DIR.relative_to(REPO_ROOT)}/{subfolder}/: {n_copied}")
@@ -309,13 +313,23 @@ if __name__ == "__main__":
                      help="Estudio de ablación: combinación de capas activas. "
                           "'ABCD' = todas (por defecto), 'none' = ninguna, o cualquier subconjunto "
                           "p.ej. 'B' (solo sanitizer), 'AC' (estructural+separación semántica).")
+    ap.add_argument("--c-tool-framing", action="store_true",
+                     help="Variante experimental de (C), Fase 2.8: presenta el documento como "
+                          "resultado de una tool sintética en vez de texto delimitado. Solo tiene "
+                          "efecto si (C) está en --defensas. Ver henri-tfm/02-defensa/README.md "
+                          "§'Experimento (C)'.")
     args = ap.parse_args()
 
     defensas = parse_defensas(args.defensas)
     casos_a_correr = [c for c in CASOS if args.formato is None or c[0].startswith(args.formato)]
-    resultados = run(args.base_url, args.repeticiones, formato=args.formato, defensas=defensas)
+    resultados = run(
+        args.base_url, args.repeticiones, formato=args.formato, defensas=defensas,
+        c_tool_framing=args.c_tool_framing,
+    )
     resumen = summarize(resultados)
     sufijo = "" if args.defensas.upper() == "ABCD" else f"_ablacion_{args.defensas.strip().lower()}"
+    if args.c_tool_framing:
+        sufijo += "_toolframing"
     write_reports(resultados, resumen, casos=casos_a_correr, sufijo=sufijo)
 
     print("\n=== Resumen ===")

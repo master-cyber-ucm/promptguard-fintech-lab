@@ -49,6 +49,9 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
             formData.append('defensa_estructural', String(!!defensas.estructural));
             formData.append('defensa_sanitizer', String(!!defensas.sanitizer));
             formData.append('defensa_separacion_semantica', String(!!defensas.separacionSemantica));
+            // Variante experimental (Fase 2.8): solo tiene efecto si defensa_separacion_semantica
+            // también es true. Por defecto false — no cambia el comportamiento ya validado de (C).
+            formData.append('defensa_separacion_tool_framing', String(!!defensas.separacionToolFraming));
             formData.append('defensa_tool_gatekeeper', String(!!defensas.toolGatekeeper));
         }
         return fetch(API_BASE + '/api/v1/chat/complex-with-document', {

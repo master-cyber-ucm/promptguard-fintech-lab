@@ -299,6 +299,18 @@ como para evitar los 3 ataques"*. Dos arreglos concretos para (D):
       no llega a 0% ni se esperaba que lo hiciera. Evidencia completa en
       `henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/`. Detalle en
       `02-defensa/README.md` §"Experimento (C)".
+- [x] **Llevado a producción como variante seleccionable** (no reemplazo, decisión del usuario):
+      nuevo parámetro `defensa_separacion_tool_framing` (default `False`, no cambia el
+      comportamiento de (C) ya documentado) en `/chat/complex-with-document`, expuesto también en
+      `ejecutar_evidencia.py --c-tool-framing` y como checkbox en el Playground. 3 tests nuevos +
+      validación end-to-end contra el backend real. Suite completa: **59/59**.
+- [x] **Verificación manual final (gate del usuario, 20 turnos reales)**: comparación directa de
+      (C) con/sin tool_framing (2/3 fugas en esta muestra puntual — coherente con el 22% agregado,
+      esperable con muestra pequeña); (C)+tool_framing sobre sanos, 0/3 falsos positivos (completa
+      la matriz); (D) sobre comprometidos deniega y la guardia de salida actúa cuando el texto
+      cita el IBAN (4/4); (D) sobre sanos, 0/3 falsos positivos tras el arreglo; `ABCD`+tool_framing
+      completo, 6/6 correctos (comprometidos bloqueados antes de llegar al LLM, sanos limpios).
+      Detalle en `02-defensa/README.md` §"Verificación manual final — cierre de Fase 2".
 
 **Fase 2 (Defensa) cerrada por completo**: implementación de las 4 capas, validación
 automatizada, estudio de ablación, verificación manual capa por capa (con sus fallos encontrados

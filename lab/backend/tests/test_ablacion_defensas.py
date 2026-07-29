@@ -47,10 +47,12 @@ class _FakeAgent:
         self.model = _FakeModel()
         self.received_messages: list[str] = []
         self.received_deps: list = []
+        self.received_message_histories: list = []
 
-    async def run(self, message: str, deps=None):
+    async def run(self, message: str, message_history=None, deps=None):
         self.received_messages.append(message)
         self.received_deps.append(deps)
+        self.received_message_histories.append(message_history)
         return _FakeResult("Respuesta simulada de Clara.")
 
 
@@ -177,3 +179,58 @@ def test_toggle_tool_gatekeeper_d_se_propaga_a_deps(tmp_path, client, fake_agent
     )
     assert resp.json()["error"] is None
     assert fake_agent.received_deps[-1].enforce_gatekeeper is True
+
+
+# --- Variante experimental de (C): framing como resultado de tool (Fase 2.8) ---
+
+def test_variante_tool_framing_activa_construye_historial_sintetico(tmp_path, client, fake_agent):
+    """Con defensa_separacion_tool_framing=True (y C activa), el documento no se concatena como
+    texto delimitado en el mensaje del usuario — viaja en un `message_history` sintético con un
+    ToolCallPart + ToolReturnPart de un tool `document_reader` fabricado, y el nuevo `user_prompt`
+    pasado a `agent.run()` es None (todo el contexto ya está en el historial)."""
+    resp = _post(
+        client, tmp_path, _pdf_with_hidden_text(STRUCTURAL_ONLY_PAYLOAD),
+        defensa_sanitizer="false", defensa_estructural="false",
+        defensa_separacion_semantica="true", defensa_separacion_tool_framing="true",
+        defensa_tool_gatekeeper="false",
+    )
+    assert resp.json()["error"] is None
+    assert fake_agent.received_messages[-1] is None
+    historial = fake_agent.received_message_histories[-1]
+    assert historial is not None
+    assert len(historial) == 3
+    tool_call = historial[1].parts[0]
+    tool_return = historial[2].parts[0]
+    assert tool_call.tool_name == "document_reader"
+    assert tool_return.tool_name == "document_reader"
+    assert STRUCTURAL_ONLY_PAYLOAD in tool_return.content
+    assert "INICIO DOCUMENTO ADJUNTO" not in tool_return.content  # no lleva el delimitador de texto
+
+
+def test_variante_tool_framing_sin_c_activa_no_tiene_efecto(tmp_path, client, fake_agent):
+    """defensa_separacion_tool_framing=True solo importa si defensa_separacion_semantica también
+    está activa — si (C) está desactivada, se reproduce el comportamiento vulnerable plano (Fase
+    1), ignorando la variante."""
+    resp = _post(
+        client, tmp_path, _pdf_with_hidden_text(STRUCTURAL_ONLY_PAYLOAD),
+        defensa_sanitizer="false", defensa_estructural="false",
+        defensa_separacion_semantica="false", defensa_separacion_tool_framing="true",
+        defensa_tool_gatekeeper="false",
+    )
+    assert resp.json()["error"] is None
+    assert fake_agent.received_message_histories[-1] is None
+    assert STRUCTURAL_ONLY_PAYLOAD in fake_agent.received_messages[-1]
+    assert "INICIO DOCUMENTO ADJUNTO" not in fake_agent.received_messages[-1]
+
+
+def test_variante_tool_framing_por_defecto_desactivada(tmp_path, client, fake_agent):
+    """Comportamiento por defecto (sin pasar defensa_separacion_tool_framing): sigue usando el
+    delimitador de texto ya validado, sin ningún cambio — la variante nueva no es la opción por
+    defecto."""
+    resp = _post(
+        client, tmp_path, _pdf_with_hidden_text(STRUCTURAL_ONLY_PAYLOAD),
+        defensa_sanitizer="false", defensa_estructural="false", defensa_tool_gatekeeper="false",
+    )
+    assert resp.json()["error"] is None
+    assert fake_agent.received_message_histories[-1] is None
+    assert "INICIO DOCUMENTO ADJUNTO" in fake_agent.received_messages[-1]
