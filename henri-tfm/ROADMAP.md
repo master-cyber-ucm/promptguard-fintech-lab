@@ -319,14 +319,67 @@ solución completa). Ninguna defensa se declaró "robusta" sin evidencia empíri
 
 ## Fase 3 — Marco normativo
 
-- [ ] Verificar contra fuentes oficiales (EUR-Lex) el borrador ya existente en
-      `05-cumplimiento-normativo.md` (GDPR Art. 5.1.c/32/33/34, DORA Art. 9/10, AI Act Art. 9/15).
-- [ ] Investigar si aplica EBA guidelines / PSD2 a este vector concreto.
-- [ ] Ampliar NIST AI RMF (ya esbozado en `01-mapeo-taxonomico.md`) e investigar ISO 27001 si
-      aplica.
-- [ ] Estimar impacto/multas potenciales para el escenario VerdaBank (orden de magnitud,
-      justificado).
-- [ ] Redactar el aporte a la sección **7** del índice del TFM (Marco normativo y cumplimiento).
+Punto de partida: `docs/ataques/LLM01-prompt-injection/indirecta-documento/05-cumplimiento-normativo.md`
+(capítulo de referencia, **PRE-implementación** — escrito antes de que existiera ninguna defensa) y
+el mapeo NIST en `01-mapeo-taxonomico.md` §3. El trabajo de esta fase no es solo verificar esas
+citas contra la fuente oficial, sino **reevaluar cada obligación a la luz de lo que Fase 1 y Fase 2
+demostraron realmente** (tasas de éxito de ataque medidas, 4 capas de defensa implementadas y
+validadas con datos reales, 2 fallos de (D) encontrados y corregidos) — no es el mismo análisis de
+riesgo antes que después de tener evidencia empírica.
+
+### 3.1 GDPR (Reglamento UE 2016/679)
+- [ ] Verificar contra EUR-Lex el texto exacto de Art. 5.1.c, 32, 33, 34 (el borrador de
+      referencia los cita; confirmar redacción y numerar bien cualquier apartado).
+- [ ] Reevaluar la obligación de notificación (Art. 33/34) a la luz de Fase 2: con `ABCD` activo
+      el bloqueo es 100% en los documentos comprometidos probados — ¿sigue siendo "brecha de alto
+      riesgo" con las defensas puestas, o el riesgo residual ya no cruza el umbral de notificación
+      obligatoria? Justificar con las tasas reales medidas, no con la situación PRE-defensa.
+- [ ] Esbozar la plantilla de notificación AEPD 72h (si se concluye que sigue aplicando).
+
+### 3.2 DORA (Reglamento UE 2022/2554)
+- [ ] Verificar Art. 9 y 10 contra EUR-Lex.
+- [ ] Confirmar si Arts. 6, 11, 17 (descartados en el borrador) siguen fuera de alcance — el Tool
+      Gatekeeper (D) y la guardia de salida son controles nuevos que no existían al escribir el
+      borrador; revisar si encajan en gobernanza del marco ICT (Art. 6) o gestión de terceros
+      (Art. 17).
+- [ ] Vincular con el registro de auditoría real del proyecto (`lab/audit/sessions/`, Session
+      Files) como evidencia de que el requisito de detección (Art. 10) ya tiene un mecanismo
+      concreto, no solo teórico.
+
+### 3.3 EU AI Act (Reglamento UE 2024/1689)
+- [ ] Verificar Art. 9 y 15 contra EUR-Lex.
+- [ ] Confirmar la clasificación de "alto riesgo" (Anexo III, 5.b) citada en la propuesta formal.
+- [ ] Estado verde/amarillo/rojo por requisito, con evidencia real de Fase 2: (A)/(B)/(D)
+      deterministas → verde; (C) probabilística, con límite reconocido y documentado → amarillo,
+      justificar por qué no es rojo (mitigación en profundidad, no defensa única).
+
+### 3.4 EBA Guidelines / PSD2
+- [ ] Investigar si aplica al canal documental de microcréditos/reclamaciones de VerdaBank
+      (servicio de pago vs. producto de crédito — aclarar el encaje exacto).
+- [ ] Documentar aplica/no aplica con justificación explícita — no dejarlo implícito.
+
+### 3.5 NIST AI RMF 1.0
+- [ ] Ampliar el mapeo GOVERN/MAP/MEASURE/MANAGE ya esbozado en `01-mapeo-taxonomico.md` §3,
+      incorporando datos reales de Fase 2 en MEASURE (99 llamadas automatizadas + 59 turnos
+      manuales, tasas de éxito por capa) — antes era una descripción de intención, ahora hay
+      métricas.
+
+### 3.6 ISO/IEC 27001
+- [ ] Evaluar controles del Anexo A aplicables (candidatos: A.8.28 codificación segura, A.5.23 uso
+      de servicios en la nube, A.8.16 monitorización — a confirmar cuáles aplican de verdad al
+      vector concreto, no una lista genérica).
+
+### 3.7 Impacto económico
+- [ ] Estimar multas potenciales (rangos oficiales: GDPR hasta 4%/20M€, AI Act hasta 7%/35M€ para
+      sistemas de alto riesgo) aplicados como orden de magnitud al escenario VerdaBank (banco
+      ficticio — dejar explícito que es una estimación ilustrativa, no una cifra real).
+
+### 3.8 Síntesis y redacción
+- [ ] Redactar el aporte a la sección **7** del índice del TFM (`CAPITULO.md`), reemplazando el
+      `[PENDIENTE — Fase 3]` — síntesis de obligaciones accionables, coherente con los resultados
+      reales de Fase 1/2, no una copia del borrador PRE-implementación.
+- [ ] Cierre de coherencia (regla 1.b): revisar todo el capítulo de principio a fin, actualizar la
+      tabla "Estado de redacción" al inicio de `CAPITULO.md`.
 
 ## Fase 4 — Consolidación
 

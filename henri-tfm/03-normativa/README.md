@@ -1,23 +1,21 @@
 # Fase 3 — Marco normativo
 
-> Ver checklist completo en `../ROADMAP.md` (sección "Fase 3 — Marco normativo"). Este archivo es
-> para la investigación normativa cruda, antes de consolidar el aporte a la sección 7 del índice
-> del TFM.
+> Ver checklist completo y detallado en `../ROADMAP.md` (sección "Fase 3 — Marco normativo",
+> subsecciones 3.1-3.8). Este archivo es para la investigación normativa cruda (citas verificadas,
+> notas de lectura), antes de consolidar el aporte a la sección 7 del índice del TFM.
 
-## Mini-checklist
+## Mini-checklist (ver detalle y justificación en ROADMAP.md §Fase 3)
 
-- [ ] GDPR: verificar contra fuente oficial (EUR-Lex) los artículos ya citados en el borrador de
-      referencia (`docs/ataques/.../05-cumplimiento-normativo.md`: Art. 5.1.c, 32, 33, 34) +
-      plantilla de notificación AEPD 72h.
-- [ ] DORA: verificar Art. 9 y 10 ya citados; evaluar si aplican otros artículos del repertorio
-      (6, 11, 17 quedaron descartados en el borrador — confirmar si sigue siendo así).
-- [ ] EU AI Act: verificar Art. 9 y 15 ya citados; estado verde/amarillo/rojo por requisito.
-- [ ] EBA guidelines / PSD2: evaluar si aplica a este vector concreto (canal documental de
-      microcréditos/reclamaciones).
-- [ ] NIST AI RMF: ya hay un primer mapeo GOVERN/MAP/MEASURE/MANAGE en
-      `01-mapeo-taxonomico.md` — ampliar si aplica.
-- [ ] ISO 27001: evaluar controles aplicables (si procede).
-- [ ] Multas potenciales estimadas para el escenario VerdaBank (orden de magnitud, justificado).
+- [ ] 3.1 GDPR — verificar Art. 5.1.c/32/33/34 + reevaluar obligación de notificación con las
+      defensas de Fase 2 puestas (no es el mismo análisis que PRE-implementación).
+- [ ] 3.2 DORA — verificar Art. 9/10 + revisar si (D)/guardia de salida cambian el encaje de los
+      Arts. 6/11/17 descartados en el borrador.
+- [ ] 3.3 EU AI Act — verificar Art. 9/15 + estado verde/amarillo/rojo por requisito con evidencia
+      real de Fase 2.
+- [ ] 3.4 EBA guidelines / PSD2 — aplica/no aplica, justificado explícitamente.
+- [ ] 3.5 NIST AI RMF — ampliar el mapeo GOVERN/MAP/MEASURE/MANAGE con métricas reales de Fase 2.
+- [ ] 3.6 ISO 27001 — controles del Anexo A realmente aplicables (no lista genérica).
+- [ ] 3.7 Impacto económico — multas potenciales, orden de magnitud, explícitamente ilustrativo.
 
 ## Fuentes oficiales a consultar
 
