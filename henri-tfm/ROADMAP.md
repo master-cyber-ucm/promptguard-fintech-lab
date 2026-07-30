@@ -317,6 +317,45 @@ automatizada, estudio de ablación, verificación manual capa por capa (con sus 
 Y arreglados, no solo documentados), y el experimento de (C) con resultado honesto (mejora, no
 solución completa). Ninguna defensa se declaró "robusta" sin evidencia empírica que lo respalde.
 
+## Fase 2.9 — Red teaming automatizado (aporte a §5 del índice del TFM) 🔄
+
+Pausada la Fase 3 a petición del usuario hasta cerrar esto — el índice del TFM (§00-INSTRUCCIONES,
+"Dónde encaja el trabajo de este capítulo") dice explícitamente: *"si el ataque se integra en la
+suite automatizada (`run_attack_suite.py`), aporta al capítulo de red teaming continuo"* — y
+todavía no se había hecho.
+
+**Diagnóstico:** `run_attack_suite.py` solo soporta los 3 endpoints JSON (`simple-prompt`,
+`complex-prompt`, `complex-with-context`); no adjunta archivos. Los fixtures existentes del
+ataque #7 (`atk_021_indirect_doc_es.yaml`, `atk_022_indirect_doc_en_claude.yaml`) simulan el
+ataque pegando texto como mensaje de chat — **nunca han ejercitado el endpoint real
+`complex-with-document`**, ni las técnicas de esteganografía, ni las defensas (A)/(B)/(C)/(D).
+`evaluate.py` y `report.py` sí son agnósticos al endpoint (parsean el mismo formato de Session
+File, `<!-- eval: --> `) — no deberían necesitar cambios.
+
+- [ ] **2.9.1** Extender `run_attack_suite.py` (o un runner paralelo que respete el mismo Run
+      Folder/Session File) para soportar fixtures con documento adjunto — nuevo campo en el
+      fixture (p. ej. `document: nomina_comprometida.pdf`) y envío multipart al endpoint
+      `complex-with-document`, reutilizando los payloads reales ya validados en
+      `henri-tfm/01-ataque/payloads/`.
+- [ ] **2.9.2** Decidir el diseño de fixtures: ¿nuevos fixtures dedicados a la subida real
+      (recomendado, para no romper compatibilidad con lo que ya usa `atk_021`/`atk_022` en el
+      resto de la suite), o adaptar los existentes? Si se crean nuevos, mantener el mismo
+      `evaluation:` (mismo IBAN objetivo, mismos criterios) para que sean comparables.
+- [ ] **2.9.3** Decidir si la suite también expone los toggles `defensa_*` (para poder correr el
+      estudio de ablación desde la infraestructura compartida) o si se documenta explícitamente
+      que `ejecutar_evidencia.py` sigue siendo el camino para eso y la suite compartida solo cubre
+      el caso por defecto (`ABCD`).
+- [ ] **2.9.4** Verificar que `evaluate.py` parsea correctamente ambas ramas de Session File de
+      `complex-with-document` (bloqueado por `BLOCKED_BY_*` antes del LLM, y no bloqueado) —
+      confirmar con una ejecución real antes de asumir compatibilidad.
+- [ ] **2.9.5** Ejecutar la suite integrada end-to-end (`run_attack_suite.py` → `evaluate.py` →
+      `report.py`) y verificar que el `run.json`/`run.md` resultante es coherente con los números
+      ya documentados en Fase 1/2.
+- [ ] **2.9.6** Redactar el aporte a la **sección 5** del índice del TFM en `CAPITULO.md` — qué
+      automatiza la suite y qué queda como validación manual/profunda (conectar con el TODO
+      compartido del equipo en `TODOs.md:89`, "Scope de Garak" — delimitar qué parte de este
+      trabajo responde a esa pregunta a nivel de todo el proyecto).
+
 ## Fase 3 — Marco normativo
 
 Punto de partida: `docs/ataques/LLM01-prompt-injection/indirecta-documento/05-cumplimiento-normativo.md`

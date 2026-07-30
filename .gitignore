@@ -35,3 +35,7 @@ htmlcov/
 
 # Audit session files (generated, not committed)
 lab/audit/
+
+# Documentos Word del TFM (edición local, fuera del repo)
+*.docx
+.~lock.*#
