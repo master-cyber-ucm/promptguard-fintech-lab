@@ -24,7 +24,20 @@
       "Bash(node -e ' *)",
       "Bash(../payloads/.venv/bin/python ejecutar_evidencia.py --defensas C --c-tool-framing --formato pdf --repeticiones 1)",
       "Bash(grep -n \"Experimento de \\(C\\)\\\\`\\\\|Ninguna defensa se declaró\" /home/henri/Projects/promptguard-fintech-lab/henri-tfm/ROADMAP.md)",
-      "Bash(awk '{print $6, $7, $8, $9}')"
+      "Bash(awk '{print $6, $7, $8, $9}')",
+      "Bash(sort -t_ -k2 -n -u)",
+      "Bash(python3 -c \"import httpx, yaml\")",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python -c \"import httpx, yaml; print\\('OK'\\)\")",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/pip install *)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python run_attack_suite.py --id atk_035 --repeat 1)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python evaluate.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_210803_qwen2.5-3b)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python report.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_210803_qwen2.5-3b)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python run_attack_suite.py --endpoint complex-with-document --type INDIRECT_INJECTION --repeat 3)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python evaluate.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_211155_qwen2.5-3b)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(curl -s -X POST http://localhost:11434/api/chat -d '{\"model\":\"qwen3.5:9b\",\"messages\":[{\"role\":\"user\",\"content\":\"hola\"}]}')",
+      "Bash(JUDGE_MODEL=qwen2.5:3b /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python evaluate.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_211155_qwen2.5-3b --force)",
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python report.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_211155_qwen2.5-3b)"
     ],
     "additionalDirectories": [
       "/home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory"

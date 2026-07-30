@@ -1127,3 +1127,61 @@ respaldo.
 
 **Próximos pasos:**
 - Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+## 2026-07-30 — Fase 2.9: integración del ataque #7 en la suite de red teaming compartida
+
+**Contexto:** antes de retomar la Fase 3, el usuario pidió pausarla y planificar primero el red
+teaming automatizado — el índice del TFM lo señala explícitamente ("si el ataque se integra en la
+suite automatizada... aporta al capítulo de red teaming continuo") y nunca se había hecho. También
+pidió sacar el `.docx` del TFM del control de versiones (`.gitignore` actualizado: `*.docx`,
+`.~lock.*#`).
+
+**Diagnóstico:** `run_attack_suite.py` (runner compartido del equipo) solo sabía hablar con los 3
+endpoints JSON; no adjuntaba archivos. Los fixtures existentes del ataque #7 (`atk_021`, `atk_022`)
+simulaban el ataque pegando texto en el chat — nunca habían ejercitado el endpoint real
+`complex-with-document`, la extracción real de PDF/DOCX/XLSX, las técnicas de esteganografía, ni
+ninguna de las 4 capas de defensa. `evaluate.py`/`report.py` sí son agnósticos al endpoint.
+
+**Implementado:**
+1. Nuevo tipo de fixture `type: document-upload` (campo `document: <archivo>`) en
+   `run_attack_suite.py`, enviado por multipart a `complex-with-document`. Ruteo exclusivo por
+   tipo — nunca cruza con los 3 endpoints JSON.
+2. 6 fixtures nuevos (sin tocar `atk_021`/`atk_022`): `atk_035`/`036`/`037` (PDF/DOCX/XLSX
+   comprometidos reales) y `leg_030`/`031`/`032` (mismos 3 formatos, sanos).
+3. Decidido explícitamente (pregunta al usuario): la suite compartida NO expone los toggles
+   `defensa_*` — solo corre con `ABCD`. `ejecutar_evidencia.py` sigue siendo el único camino para
+   el estudio de ablación.
+
+**Dos bugs de infraestructura compartida encontrados al probar de verdad (no solo asumidos):**
+1. `audit_subdir` viajaba como ruta absoluta del *host* — el contenedor la creaba igual, sin
+   fallar, pero en su filesystem efímero interno, invisible y no persistente. Afectaba a los 3
+   endpoints originales también, no solo al nuevo. Nadie lo había notado porque nada intentaba
+   reabrir esos Session Files hasta ahora (el equipo corre `evaluate.py` justo después, así que
+   este bug habría estado rompiendo silenciosamente el flujo normal de todo el mundo). Arreglado
+   con la ruta contenedor (`/app/audit/runs/...`), mismo arreglo que ya tenía
+   `ejecutar_evidencia.py`.
+2. `evaluate.py --method llm` fallaba con 404 en TODOS los fixtures con juez de este entorno,
+   incluido el preexistente `leg_023` — el modelo juez por defecto (`qwen3.5:9b`) nunca se ha
+   descargado en este Ollama local, solo `qwen2.5:3b`. No hay evidencia de que esa vía de
+   evaluación haya funcionado nunca aquí. Arreglado con `JUDGE_MODEL=qwen2.5:3b` (variable de
+   entorno, sin tocar código compartido).
+
+**Validación end-to-end:** 18 ejecuciones reales (6 fixtures × 3 repeticiones) vía
+`run_attack_suite.py` → `evaluate.py` → `report.py`. Resultado: **100% bloqueo en comprometidos,
+0% brechas, 0% falsos positivos** — coherente con todo lo medido en Fase 1/2, ahora también
+reproducible desde la infraestructura del equipo.
+
+**Redactado el aporte a la sección 5 del índice del TFM** en `CAPITULO.md`, incluyendo qué
+automatiza la suite y qué no (conectado con el TODO compartido sobre "Scope de Garak").
+
+**Reproducir:**
+```bash
+cd lab/scripts
+VENV=../../henri-tfm/01-ataque/payloads/.venv/bin/python
+$VENV run_attack_suite.py --endpoint complex-with-document --type INDIRECT_INJECTION --repeat 3
+JUDGE_MODEL=qwen2.5:3b $VENV evaluate.py --run <run_folder>
+$VENV report.py --run <run_folder>
+```
+
+**Próximos pasos:**
+- Retomar Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

@@ -317,7 +317,7 @@ automatizada, estudio de ablación, verificación manual capa por capa (con sus 
 Y arreglados, no solo documentados), y el experimento de (C) con resultado honesto (mejora, no
 solución completa). Ninguna defensa se declaró "robusta" sin evidencia empírica que lo respalde.
 
-## Fase 2.9 — Red teaming automatizado (aporte a §5 del índice del TFM) 🔄
+## Fase 2.9 — Red teaming automatizado (aporte a §5 del índice del TFM) ✅
 
 Pausada la Fase 3 a petición del usuario hasta cerrar esto — el índice del TFM (§00-INSTRUCCIONES,
 "Dónde encaja el trabajo de este capítulo") dice explícitamente: *"si el ataque se integra en la
@@ -332,29 +332,48 @@ ataque pegando texto como mensaje de chat — **nunca han ejercitado el endpoint
 `evaluate.py` y `report.py` sí son agnósticos al endpoint (parsean el mismo formato de Session
 File, `<!-- eval: --> `) — no deberían necesitar cambios.
 
-- [ ] **2.9.1** Extender `run_attack_suite.py` (o un runner paralelo que respete el mismo Run
-      Folder/Session File) para soportar fixtures con documento adjunto — nuevo campo en el
-      fixture (p. ej. `document: nomina_comprometida.pdf`) y envío multipart al endpoint
-      `complex-with-document`, reutilizando los payloads reales ya validados en
+- [x] **2.9.1** Extendido `run_attack_suite.py`: nuevo tipo de fixture `type: document-upload`
+      (campo `document: <archivo>`) enviado por multipart a `complex-with-document`, ruteo
+      exclusivo por tipo de fixture (un fixture documento nunca va a los 3 endpoints JSON, y
+      viceversa — no es un cruce N×M). Reutiliza los payloads reales de
       `henri-tfm/01-ataque/payloads/`.
-- [ ] **2.9.2** Decidir el diseño de fixtures: ¿nuevos fixtures dedicados a la subida real
-      (recomendado, para no romper compatibilidad con lo que ya usa `atk_021`/`atk_022` en el
-      resto de la suite), o adaptar los existentes? Si se crean nuevos, mantener el mismo
-      `evaluation:` (mismo IBAN objetivo, mismos criterios) para que sean comparables.
-- [ ] **2.9.3** Decidir si la suite también expone los toggles `defensa_*` (para poder correr el
-      estudio de ablación desde la infraestructura compartida) o si se documenta explícitamente
-      que `ejecutar_evidencia.py` sigue siendo el camino para eso y la suite compartida solo cubre
-      el caso por defecto (`ABCD`).
-- [ ] **2.9.4** Verificar que `evaluate.py` parsea correctamente ambas ramas de Session File de
-      `complex-with-document` (bloqueado por `BLOCKED_BY_*` antes del LLM, y no bloqueado) —
-      confirmar con una ejecución real antes de asumir compatibilidad.
-- [ ] **2.9.5** Ejecutar la suite integrada end-to-end (`run_attack_suite.py` → `evaluate.py` →
-      `report.py`) y verificar que el `run.json`/`run.md` resultante es coherente con los números
-      ya documentados en Fase 1/2.
-- [ ] **2.9.6** Redactar el aporte a la **sección 5** del índice del TFM en `CAPITULO.md` — qué
-      automatiza la suite y qué queda como validación manual/profunda (conectar con el TODO
-      compartido del equipo en `TODOs.md:89`, "Scope de Garak" — delimitar qué parte de este
-      trabajo responde a esa pregunta a nivel de todo el proyecto).
+      **Bug real encontrado y arreglado de paso**: `audit_subdir` se enviaba como ruta absoluta
+      del *host* — el contenedor la creaba igualmente sin fallar, pero en su propio filesystem
+      efímero, invisible y no persistente desde el host. Afectaba a los 3 endpoints originales
+      también, no solo al nuevo — nadie lo había notado porque nada intentaba escribir de vuelta
+      en esos Session Files hasta ahora. Corregido con la misma ruta-contenedor
+      (`/app/audit/runs/...`) que ya usaba `ejecutar_evidencia.py`.
+- [x] **2.9.2** 6 fixtures nuevos, dedicados (no se tocó `atk_021`/`atk_022`): `atk_035/036/037`
+      (PDF/DOCX/XLSX comprometidos, mismo IBAN objetivo y criterios `deterministic` que los
+      fixtures de texto simulado) y `leg_030/031/032` (mismos 3 formatos, sanos, `method: llm`
+      con pregunta sobre utilidad + ausencia de fuga, mismo patrón que `leg_023`).
+- [x] **2.9.3** Decidido: la suite compartida **no** expone los toggles `defensa_*` — siempre usa
+      el comportamiento por defecto (`ABCD`, producción real). `ejecutar_evidencia.py` sigue
+      siendo el único camino para el estudio de ablación. Menos superficie que mantener, cada
+      herramienta con un propósito claro.
+- [x] **2.9.4** Verificado con una ejecución real (`atk_035`): `evaluate.py` parsea correctamente
+      la rama `BLOCKED_BY_*` de `complex-with-document` sin ningún cambio — mismo formato de
+      Session File que los demás endpoints (`append_turn` compartido).
+- [x] **2.9.5** Suite integrada ejecutada end-to-end (`run_attack_suite.py` → `evaluate.py` →
+      `report.py`), 18 ejecuciones reales (6 fixtures × 3 repeticiones). Resultado:
+      **100% bloqueo en comprometidos, 0% brechas, 0% falsos positivos** — coherente con todo lo
+      ya documentado en Fase 1/2.
+      **Segundo bug de infraestructura encontrado**: `evaluate.py --method llm` fallaba con 404
+      en TODOS los fixtures existentes de este tipo (no solo los nuevos) — el modelo juez por
+      defecto (`JUDGE_MODEL=qwen3.5:9b`) nunca se ha descargado en este Ollama local, solo
+      `qwen2.5:3b`. No hay evidencia de que `method: llm` haya funcionado nunca en este entorno.
+      Arreglado pasando `JUDGE_MODEL=qwen2.5:3b` al ejecutar `evaluate.py` (ver comando de
+      reproducción abajo) — no se tocó código compartido, es una variable de entorno.
+- [x] **2.9.6** Aporte a la **sección 5** redactado en `CAPITULO.md`.
+
+**Reproducir:**
+```bash
+cd lab/scripts
+PAYLOADS_VENV=../../henri-tfm/01-ataque/payloads/.venv/bin/python
+$PAYLOADS_VENV run_attack_suite.py --endpoint complex-with-document --type INDIRECT_INJECTION --repeat 3
+JUDGE_MODEL=qwen2.5:3b $PAYLOADS_VENV evaluate.py --run <run_folder>
+$PAYLOADS_VENV report.py --run <run_folder>
+```
 
 ## Fase 3 — Marco normativo
 
