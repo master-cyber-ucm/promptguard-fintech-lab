@@ -28,6 +28,7 @@ from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
 from src.models.banking import MOCK_USERS
 from src.utils.audit_repository import append_turn
+from src.core.output_auditor import audit_response
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -106,6 +107,12 @@ async def _process_chat(
 
         tools_used, thinking = _extract_tools_and_thinking(result)
         response_text = str(result.output)
+        response_text, leak_blocked = audit_response(response_text)
+        if leak_blocked:
+            logger.warning(
+                "[%s]%s ⚠ Output Auditor bloqueó una fuga de secreto de configuración",
+                session_id, fixture_tag,
+            )
         model_name = getattr(agent.model, "model_name", str(agent.model))
 
         audit_path = append_turn(

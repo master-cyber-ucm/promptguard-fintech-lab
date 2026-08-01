@@ -197,7 +197,7 @@ async def main():
             _flush(SEP)
 
             for ep_name, ep_path in endpoints.items():
-                audit_subdir = str(run_folder / ep_name)
+                audit_subdir = f"/app/audit/runs/{run_folder.name}/{ep_name}"
                 print(f"  ↳ {ep_name:<26}", end="", flush=True)
                 t0 = time.time()
 
