@@ -35,6 +35,52 @@ def _get_user_accounts(user_id: str) -> list[str]:
     account_id = user.get("account_id")
     return [account_id] if account_id else []
 
+# ============================================================
+# [DEFENSA GATEKEEPER — agregado por Damaro, TFM PromptGuard]
+# NO modifica ninguna función existente. Es código nuevo en
+# paralelo para el escenario atk_008/atk_009 (Cross-Context
+# Leakage). Ver sección 7 de la memoria (ataque -> causa -> defensa).
+# ============================================================
+
+from dataclasses import dataclass
+
+
+@dataclass
+class ClaraDeps:
+    """[Damaro] Contenedor de dependencias inyectadas al agente
+    Gatekeeper. Lleva el user_id autenticado de forma ESTRUCTURAL
+    (vía pydantic-ai RunContext) en vez de solo como texto en el
+    prompt, que es la causa raíz de la vulnerabilidad original.
+    """
+    user_id: str
+
+
+def consulta_saldo_gatekeeper(ctx: RunContext[ClaraDeps], account_id: str) -> str:
+    """[Damaro] Versión CON DEFENSA de consulta_saldo.
+
+    Para qué sirve: valida que account_id pertenezca al user_id
+    autenticado (ctx.deps.user_id) ANTES de devolver el saldo.
+    Si no coincide, deniega el acceso.
+
+    IMPORTANTE: consulta_saldo() original (arriba) NO se toca.
+    Sigue existiendo para el modo vulnerable, usado en las pruebas
+    ya documentadas con capturas (atk_008/atk_009 SUCCESS).
+    Esta función solo se usa en el endpoint nuevo /chat/gatekeeper.
+    """
+    user_id = ctx.deps.user_id
+    cuentas_del_usuario = _get_user_accounts(user_id)
+
+    if account_id not in cuentas_del_usuario:
+        return json.dumps({
+            "status": "denied",
+            "reason": "La cuenta solicitada no pertenece al usuario autenticado.",
+        }, ensure_ascii=False)
+
+    return consulta_saldo(account_id)
+
+# ============================================================
+# [FIN bloque Damaro — Gatekeeper]
+# ============================================================
 
 # ============================================================
 # TOOLS — Todas son vulnerables por diseño

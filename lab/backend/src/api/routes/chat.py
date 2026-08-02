@@ -25,6 +25,8 @@ from pydantic import BaseModel, Field
 from pydantic_ai.messages import ThinkingPart
 
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
+from src.agents.clara_complex import get_clara_agent_gatekeeper, reset_clara_agent_gatekeeper  # [Damaro] Gatekeeper
+from src.agents.tools import ClaraDeps  # [Damaro] deps con user_id autenticado
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
 from src.models.banking import MOCK_USERS
 from src.utils.audit_repository import append_turn
@@ -80,6 +82,7 @@ async def _process_chat(
     agent,
     reset_fn: Callable,
     inject_context: bool,
+    use_deps: bool = False,  # [Damaro] activa Gatekeeper: pasa user_id vía RunContext, no como texto
 ) -> ChatResponse:
     start_time = time.time()
 
@@ -101,7 +104,12 @@ async def _process_chat(
     logger.info("[%s]%s → %s (usuario=%s)", session_id, fixture_tag, endpoint_name, request.user_id)
 
     try:
-        result = await agent.run(full_message)
+        # [Damaro] Gatekeeper: si use_deps=True, pasa el user_id de forma
+        # estructural (RunContext) en vez de solo texto libre en el prompt.
+        if use_deps:
+            result = await agent.run(full_message, deps=ClaraDeps(user_id=request.user_id))
+        else:
+            result = await agent.run(full_message)
         latency_ms = (time.time() - start_time) * 1000
 
         tools_used, thinking = _extract_tools_and_thinking(result)
@@ -208,4 +216,23 @@ async def chat_complex_with_context(request: ChatRequest):
         request, "complex-with-context",
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
+    )
+
+# ============================================================
+# [DEFENSA GATEKEEPER — agregado por Damaro, TFM PromptGuard]
+# Mismo patrón que chat_complex_with_context, pero con el agente
+# Gatekeeper (consulta_saldo_gatekeeper) y use_deps=True para que
+# el user_id llegue de forma estructural, no como texto inyectable.
+# Sirve para volver a correr atk_008/atk_009 contra esta defensa
+# y confirmar BLOCKED (sección 7 de la memoria).
+# ============================================================
+
+@router.post("/chat/gatekeeper", response_model=ChatResponse)
+async def chat_gatekeeper(request: ChatRequest):
+    """System prompt completo + contexto + Tool Gatekeeper activo (valida propiedad de cuenta)."""
+    return await _process_chat(
+        request, "gatekeeper",
+        get_clara_agent_gatekeeper(), reset_clara_agent_gatekeeper,
+        inject_context=True,
+        use_deps=True,
     )
