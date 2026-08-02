@@ -14,7 +14,7 @@
 
 | Sección del índice | Sub-tema | Estado |
 |---|---|---|
-| 2.1–2.3 (Estado del arte) | Ejemplo de vector aportado por este ataque | `[PENDIENTE]` |
+| 2.1–2.3 (Estado del arte) | Ejemplo de vector aportado por este ataque | ✅ |
 | 4.2 (Vectores evaluados) | Descripción del vector | ✅ Borrador inicial |
 | 4.2 | Diseño del payload (Fase 1.1) | ✅ Borrador inicial |
 | 4.2 | Implementación del canal (Fase 1.2) | ✅ Borrador inicial |
@@ -294,6 +294,17 @@ backend, sin ningún falso positivo nuevo sobre los documentos sanos ya establec
 mutación no solo generó variantes automáticamente: sirvió como arnés de regresión para validar su
 propio arreglo, cerrando el ciclo completo detección→hallazgo→mitigación→verificación dentro de
 esta misma automatización.
+
+Esta mitigación se cerró, igual que el resto de piezas de la fase de defensa, con una verificación
+manual real vía Playground antes de darla por buena — 4 turnos contra el backend en ejecución,
+capturas en `henri-tfm/01-ataque/evidencia/screenshots/defensa/post-auto-redteaming/`. Con solo la
+capa (B) activa, ambas técnicas del motor de mutación (`zero_width` y `homoglyph`) quedan
+bloqueadas con la regla correcta (`unicode_invisible_char` / `homoglyph_mixed_script`); con la pila
+`ABCD` completa, incluida la variante tool_framing de (C), el mismo payload sigue bloqueado; y el
+documento sano de control (`nomina_sana.pdf`) pasa sin ningún error, confirmando que el arreglo no
+introdujo ningún falso positivo nuevo. Coincide exactamente con los números ya reportados por la
+validación automática — la verificación manual no añade cobertura nueva aquí, pero sí cierra el
+mismo gate de confirmación humana que se ha exigido para cada pieza de esta fase.
 
 Lo que sigue siendo trabajo manual, y no es una limitación de esta automatización sino de la
 naturaleza del problema, es identificar la **primera instancia** de una técnica de ocultación
@@ -765,4 +776,55 @@ estudio de ablación resultante en **§6.1**.
 
 ## Aporte a 2.1–2.3 (Estado del arte)
 
-`[PENDIENTE — se redacta al final, seleccionando qué de este capítulo sirve como ejemplo ilustrativo]`
+### 2.1 — Taxonomía OWASP/ATLAS: la inyección indirecta como caso ilustrativo
+
+Este capítulo aporta a §2.1 un ejemplo end-to-end, con implementación y evidencia empírica propia,
+de una categoría que la literatura suele tratar de forma teórica: **OWASP LLM01:2025 (Prompt
+Injection)** en su variante *indirecta*, mapeada a **MITRE ATLAS AML.T0051.001** dentro de la
+táctica **TA0043 (Initial Access)** (§"Descripción del vector" más arriba). La contribución
+concreta al estado del arte no es la taxonomía en sí —ya está bien documentada por Greshake et al.
+(2023) y por el propio catálogo OWASP/ATLAS— sino la **instanciación reproducible** en un dominio
+regulado (banca), con tres formatos documentales distintos (PDF/DOCX/XLSX), tasas de éxito medidas
+antes y después de cada capa de defensa, y un incidente ficticio pero realista (`INC-2025-0089`)
+que ancla el ejemplo a una consecuencia de negocio concreta (fuga de datos de un tercero), no solo
+a una descripción abstracta del mecanismo de fallo.
+
+### 2.2 — Defensas y red teaming automatizado: qué añade este capítulo frente a Garak
+
+La literatura sobre red teaming automatizado de LLMs (Garak y herramientas equivalentes) se centra
+en general en la **ejecución** de un catálogo de técnicas conocidas contra el modelo directamente,
+no en la defensa aplicada ni en la generación programática de variantes de un vector ya
+identificado. Este capítulo aporta ambas piezas con evidencia propia:
+
+- Una **defensa en profundidad de cuatro capas independientes** —(A) firmas estructurales de
+  ocultación, (B) sanitización de contenido por reglas de lenguaje, (C) separación semántica
+  dato/instrucción en el prompt, (D) un Tool Gatekeeper con RBAC determinista fuera del LLM—, con
+  el efecto de **cada capa medido de forma aislada** (estudio de ablación, §6.1) en vez de
+  reportado solo en conjunto: (A) y (B) bloquean el 100% de los documentos comprometidos por
+  separado, (C) reduce pero no elimina el éxito del ataque (67-89% según el criterio de éxito), y
+  (D) —una capa ortogonal, que no intenta evitar que el LLM sea engañado sino que verifica la
+  autorización en el punto de ejecución de la tool— reduce el éxito real a 0% con un mecanismo
+  completamente distinto al de las otras tres.
+- Un **motor de mutación propio** (§5) que automatiza la generación de variantes de técnicas de
+  ocultación ya conocidas (Unicode invisible, homoglifos) sobre el catálogo de payloads existente,
+  y que encontró una evasión real de la capa (B) antes de que se corrigiera. Esto ilustra, con un
+  caso concreto y no solo en teoría, la distinción que motiva el TODO compartido del equipo sobre
+  el "Scope de Garak" (`TODOs.md:89`): automatizar la generación de variantes de lo ya conocido es
+  tratable y se resuelve aquí; automatizar el descubrimiento de técnicas genuinamente nuevas no lo
+  es, tampoco en las herramientas de referencia del sector.
+
+### 2.3 — Vectores de ataque: por qué el canal documental es distinto del chat directo
+
+Frente a los vectores de inyección directa ya cubiertos por el resto del catálogo del proyecto
+(`docs/anexo-catalogo-ataques-llm.md`), este capítulo aporta a §2.3 la caracterización empírica de
+por qué un canal de **datos aportados por el usuario pero no escritos directamente en el chat**
+—documentos adjuntos— requiere una superficie de defensa distinta: ninguna defensa pensada solo
+para el texto del mensaje (p. ej. un filtro sobre el prompt visible) cubre un payload oculto dentro
+de un PDF con texto blanco sobre blanco o una fila oculta de Excel, porque el contenido problemático
+nunca aparece en el campo que esa defensa inspecciona. La evidencia de la Fase 1 (85-100% de éxito
+del ataque sin defensa, en los tres formatos) y el hallazgo del motor de mutación (dos técnicas de
+ofuscación a nivel de carácter que evaden una regla de contenido pero no una firma estructural)
+refuerzan el mismo punto desde dos ángulos distintos: ocultación a nivel de documento y ofuscación
+a nivel de carácter son problemas relacionados pero no idénticos, y ninguna defensa aislada de
+este capítulo los cubre ambos — de ahí la necesidad, verificada con datos y no solo argumentada,
+de una defensa en profundidad real.
