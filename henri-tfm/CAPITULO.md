@@ -265,16 +265,49 @@ Fase 2— y duplicar el mismo parámetro en ambas habría añadido superficie si
 en Fase 1/2, ahora también reproducible desde la infraestructura de red teaming continuo del
 equipo, no solo desde herramientas ad-hoc de este capítulo individual.
 
-### Qué queda fuera (alcance, no automatización total)
+### Qué cubre esta integración, y qué sigue siendo trabajo manual por naturaleza
 
-Esta integración cubre la ejecución determinista del ataque conocido y sus variantes de formato —
-exactamente lo que responde al TODO compartido del equipo sobre el "Scope de Garak"
-(`TODOs.md:89`): la automatización cubre repetir payloads conocidos contra el sistema real y
-verificar el veredicto esperado, no la generación de variantes nuevas ni el fuzzing exploratorio
-de técnicas de ocultación no catalogadas — eso sigue siendo trabajo de análisis manual en
-profundidad, como el que produjo las 5 técnicas de (A) en primer lugar (Fase 2, catálogo parcial
-documentado como tal, con la misma filosofía de un antivirus: firmas conocidas, no detección
-genérica).
+Esta integración cubre dos niveles de automatización, no solo uno. El primero es la ejecución
+determinista del ataque conocido y sus variantes de formato: repetir payloads ya caracterizados
+contra el sistema real y verificar el veredicto esperado en cada nueva ejecución — regresión
+continua sobre un catálogo fijo. El segundo, añadido después, es la **generación programática de
+variantes de técnicas ya identificadas**: un catálogo de funciones de ofuscación
+(`henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py`) que se pueden aplicar automáticamente a
+cualquier payload para producir nuevas variantes, sin escribir cada una a mano. Se implementaron
+dos —inserción de caracteres Unicode invisibles y sustitución por homoglifos cirílicos, ambas ya
+documentadas como técnicas conocidas en el análisis de viabilidad de (A) (§4.1)— y ambas
+**evadieron por completo la capa (B)** al probarlas contra el sanitizer real
+(`document_sanitizer.py`): ninguna de las tres reglas relevantes de
+`injection_signatures.yaml` coincidió con el texto ofuscado. La capa (A) las siguió detectando
+igual —analiza propiedades estructurales del documento (color, tamaño, posición), no el
+contenido textual—, confirmando con datos reales, no solo en teoría, por qué las dos capas juntas
+aportan más que la suma de sus partes.
+
+El hallazgo no se dejó solo documentado: se implementó la mitigación. `document_sanitizer.py`
+incorpora ahora dos comprobaciones adicionales que no miran qué dice el texto sino cómo está
+construido a nivel de carácter —presencia de caracteres de ancho cero o del bloque Unicode
+"Tags", y palabras que mezclan alfabeto latino y cirílico dentro de sí mismas—, sin depender de
+ninguna palabra clave concreta. Tras el arreglo, las dos técnicas del motor de mutación pasan de
+evadir (B) a ser bloqueadas por ella directamente (`unicode_invisible_char` /
+`homoglyph_mixed_script`), verificado de nuevo contra el sanitizer real y end-to-end contra el
+backend, sin ningún falso positivo nuevo sobre los documentos sanos ya establecidos. El motor de
+mutación no solo generó variantes automáticamente: sirvió como arnés de regresión para validar su
+propio arreglo, cerrando el ciclo completo detección→hallazgo→mitigación→verificación dentro de
+esta misma automatización.
+
+Lo que sigue siendo trabajo manual, y no es una limitación de esta automatización sino de la
+naturaleza del problema, es identificar la **primera instancia** de una técnica de ocultación
+nunca vista — ninguna herramienta de red teaming automatizado, Garak incluido, inventa categorías
+de ataque nuevas por sí sola: todas ejecutan (de forma más o menos sofisticada) un catálogo de
+técnicas conocidas, curado por investigación humana. Ese es exactamente el proceso que ya produjo
+las cinco técnicas que cubre hoy (A) en primer lugar (Fase 2, catálogo parcial documentado como
+tal, con la misma filosofía de una base de firmas: cobertura de lo conocido, ampliable, no
+detección genérica) — y el mismo proceso que identificó las dos técnicas adicionales
+—Unicode invisible y homoglifos— que ahora sí están cubiertas por el motor de mutación. Responde
+también al TODO compartido del equipo sobre el "Scope de Garak" (`TODOs.md:89`): automatizar la
+generación de variantes de lo ya conocido es una pieza tratable y ya resuelta aquí; automatizar el
+descubrimiento de lo desconocido no lo es, y no lo es en ninguna herramienta real del sector,
+tampoco en Garak.
 
 ---
 

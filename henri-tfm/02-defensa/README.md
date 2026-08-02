@@ -90,6 +90,76 @@ ocultación posible.
 **(D) y (E)** quedan absorbidas por (A)/(B) o marcadas como no aplicables todavía (nuestro
 extractor no lee metadatos en ningún formato).
 
+## Validación empírica de una técnica no catalogada (post-cierre de Fase 2.9)
+
+El análisis de arriba afirmaba, en teoría, que "cualquier técnica nueva o no contemplada evade
+(A) por diseño". Se validó esto empíricamente con dos de las técnicas de la lista de arriba, en
+vez de dejarlo como afirmación sin comprobar.
+
+**Motor de mutación** (`henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py` +
+`generar_pdf_mutado.py`): catálogo de funciones que aplican una técnica de ofuscación conocida a
+las palabras clave que buscan las reglas de `injection_signatures.yaml`, generando variantes de
+payload automáticamente en vez de escribirlas a mano una por una. Dos técnicas implementadas:
+
+- **`zero_width`** — inserta `ZERO WIDTH SPACE` (U+200B) entre cada letra de la palabra.
+  Invisible al renderizar, rompe cualquier `\s`/`\b` de un regex que busque la palabra literal.
+- **`homoglyph`** — sustituye letras por su homoglifo cirílico visualmente idéntico
+  (`a→а, e→е, o→о, p→р...`). Misma idea, distinto mecanismo: ya no es la misma secuencia de
+  puntos de código, aunque se vea casi igual.
+
+**Hallazgo de implementación no trivial**: con la fuente Helvetica estándar que usaba el resto de
+payloads del proyecto, el carácter Unicode invisible se corrompía en un glifo de reemplazo visible
+(`■`) durante la extracción — reportlab necesita una fuente TrueType con soporte Unicode real
+(DejaVu Sans) para que sobreviva intacto al ciclo generación→extracción. Con la fuente "por
+defecto" el ataque ni siquiera sería invisible.
+
+**Resultado inicial, contra el código real** (`document_sanitizer.py` +
+`document_structural_detector.py`, sin LLM — determinista, sin latencia de red — y confirmado
+además end-to-end contra el backend real con "solo (B)" para ambas técnicas):
+
+| Técnica | (B) sanitizer (antes del arreglo) | (A) structural |
+|---|---|---|
+| `zero_width` | **evadida** (`action: ALLOW`, ninguna regla coincide) | detecta igual (3 hallazgos estructurales) |
+| `homoglyph` | **evadida** (`action: ALLOW`, ninguna regla coincide) | detecta igual (3 hallazgos estructurales) |
+
+**Confirma la hipótesis teórica con datos reales**: (B) era evadible por ambas técnicas —2/2—,
+exactamente como predecía el análisis de "no es una lista cerrada". (A) seguía capturando ambas
+—2/2— porque analiza propiedades estructurales (color, tamaño, posición), indiferentes al
+contenido textual — prueba empírica de por qué las dos capas juntas aportan más que la suma de
+sus partes: un atacante que quiera evadir (B) con estas técnicas sigue necesitando ocultar el
+texto de un revisor humano por algún medio, y ahí (A) lo capturaba igual.
+
+### Arreglo — detección de ofuscación a nivel de carácter en (B)
+
+A petición explícita del usuario, no se dejó como límite documentado: se implementó la
+mitigación. `document_sanitizer.py` incorpora ahora dos comprobaciones nuevas, complementarias a
+las reglas de lenguaje YAML, que no miran QUÉ dice el texto sino CÓMO está construido a nivel de
+carácter:
+
+- **`_detect_invisible_chars`** — cualquier carácter de ancho cero (`ZERO WIDTH SPACE`,
+  `ZERO WIDTH NON-JOINER`, `ZERO WIDTH JOINER`, `ZERO WIDTH NO-BREAK SPACE`/BOM) o del bloque
+  Unicode "Tags" (`U+E0000`–`U+E007F`, el otro vector documentado en el análisis de viabilidad,
+  cubierto sin coste adicional aunque no se había probado en un payload real todavía).
+- **`_detect_mixed_script_word`** — cualquier palabra que mezcle alfabeto latino y cirílico
+  dentro de sí misma (firma de sustitución por homoglifos) — un documento financiero legítimo en
+  español no tiene motivo para mezclar alfabetos dentro de una palabra.
+
+**Resultado tras el arreglo** (mismos payloads, mismo pipeline, verificado de nuevo end-to-end):
+
+| Técnica | (B) sanitizer (después del arreglo) |
+|---|---|
+| `zero_width` | ✅ **BLOCK** (`unicode_invisible_char`) |
+| `homoglyph` | ✅ **BLOCK** (`homoglyph_mixed_script`) |
+
+**Sin falsos positivos**: verificado contra los 6 documentos ya establecidos (3 sanos + 3
+comprometidos originales, en los 3 formatos) — ningún cambio de comportamiento en ninguno de
+ellos. 4 tests nuevos en `test_document_sanitizer.py` (las dos técnicas del motor de mutación
+reproducidas como texto, el bloque Unicode Tags, y un control negativo explícito sobre los 3
+documentos sanos). Suite completa del backend: **63/63**.
+
+Evidencia completa (scripts + JSON crudo, antes y después del arreglo) en
+`henri-tfm/01-ataque/evidencia/motor_mutacion/`.
+
 ## Implementación (2.2)
 
 ### (B) Sanitización — `lab/backend/src/core/document_sanitizer.py`

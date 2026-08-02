@@ -1185,3 +1185,107 @@ $VENV report.py --run <run_folder>
 
 **Próximos pasos:**
 - Retomar Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+## 2026-07-31 — Motor de mutación: cierra "generación de variantes nuevas" de §5
+
+**Contexto:** revisando el párrafo de CAPITULO.md §5 sobre qué queda fuera de la integración de
+red teaming, el usuario preguntó si "generación de variantes nuevas / fuzzing exploratorio" se
+podía completar de verdad, o si eso ya no cuenta como "red teaming automatizado". Aclaré la
+distinción: (1) regresión sobre catálogo conocido —ya lo teníamos—, (2) mutación programática de
+técnicas YA identificadas por un humano —sí es automatizable, es lo que hacen herramientas reales
+como Garak por dentro—, (3) descubrir técnicas nunca vistas —eso no lo automatiza nadie, tampoco
+Garak, es investigación humana por naturaleza. El usuario pidió cerrar (2) y dejar (3) como está
+(ya documentado, aceptado explícitamente).
+
+**Antes de construir nada**, hice el experimento a mano una vez para confirmar que la idea
+funcionaba: tomé una técnica ya documentada (caracteres Unicode invisibles, de la lista de
+"Análisis de viabilidad de (A)" que nunca se había convertido en payload real) y la probé contra
+el sanitizer real. Confirmé que evade las 3 reglas relevantes de `injection_signatures.yaml` —y
+de paso descubrí que con la fuente Helvetica estándar (la de siempre) el carácter invisible se
+corrompe en un glifo visible al extraerlo; hace falta una fuente TrueType con soporte Unicode
+real (DejaVu Sans) para que el truco funcione de verdad.
+
+**Con la idea validada, construí el motor de mutación reutilizable:**
+1. `henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py` — catálogo de funciones de ofuscación:
+   `zero_width` (la ya validada) + `homoglyph` (sustitución por letras cirílicas visualmente
+   idénticas, también de la misma lista de investigación previa, nunca antes probada).
+2. `generar_pdf_mutado.py <tecnica>` — generador genérico que aplica cualquier técnica del
+   catálogo a las palabras clave relevantes y produce un PDF real. Añadir una técnica nueva al
+   catálogo no toca este generador.
+3. `evidencia/motor_mutacion/probar_mutaciones.py` — prueba ambas variantes contra el código real
+   de (B) y (A) (sin LLM, determinista) y guarda el resultado en JSON.
+
+**Resultado**: (B) evadida por **2/2** técnicas (`action: ALLOW`, ninguna de las 3 reglas
+coincide); (A) sigue detectando **2/2** (analiza estructura, no contenido). Confirmado además
+end-to-end contra el backend real con "solo (B)" para ambas técnicas — el LLM fue engañado en los
+dos casos, solo (D) evitó la fuga real.
+
+**Documentado:** `02-defensa/README.md` (nueva sección "Validación empírica de una técnica no
+catalogada"), `CAPITULO.md` §5 (reemplazada la afirmación teórica por el resultado real, dejando
+claro qué sigue siendo manual y por qué eso no es una limitación de esta automatización), y
+`ROADMAP.md` §2.9.7.
+
+**Decisión pendiente, no tomada todavía**: si además de documentar el hallazgo, se implementa una
+regla nueva en (B) o (A) que detecte "densidad anómala de caracteres Unicode invisibles/homoglifos"
+en el texto extraído — cerraría también el hueco de defensa, no solo el de detección/reporting.
+El usuario no lo pidió explícitamente esta vez; queda como decisión abierta para la próxima sesión.
+
+**Reproducir:**
+```bash
+cd henri-tfm/01-ataque/payloads
+.venv/bin/python generar_pdf_mutado.py --all
+docker cp nomina_comprometida_zero_width.pdf promptguard-backend:/app/tests/
+docker cp nomina_comprometida_homoglyph.pdf promptguard-backend:/app/tests/
+docker cp ../evidencia/motor_mutacion/probar_mutaciones.py promptguard-backend:/app/tests/
+docker compose -f ../../../lab/docker-compose.yml exec backend python tests/probar_mutaciones.py
+```
+
+**Próximos pasos:**
+- Decidir si se implementa una regla de defensa para esta técnica, o se deja documentada como límite conocido.
+- Retomar Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).
+
+## 2026-07-31 (continuación) — Mitigación implementada: (B) ya no es evadible por las 2 técnicas encontradas
+
+El usuario pidió cerrar la decisión abierta de la entrada anterior: implementar la mitigación, no
+dejarla solo documentada.
+
+**Arreglo en `document_sanitizer.py`**: dos comprobaciones nuevas, independientes de las reglas
+YAML de lenguaje — `_detect_invisible_chars` (caracteres de ancho cero: ZWS/ZWNJ/ZWJ/BOM, más el
+bloque Unicode "Tags" `U+E0000`-`U+E007F`, este último cubierto sin coste aunque no se había
+probado en un payload real) y `_detect_mixed_script_word` (palabra que mezcla letras latinas y
+cirílicas dentro de sí misma). No buscan una palabra concreta — detectan la TÉCNICA de
+ofuscación a nivel de carácter, no el contenido, así que cubren cualquier palabra que se decida
+ofuscar en el futuro, no solo las que probé.
+
+**Verificación exhaustiva antes de dar el arreglo por bueno:**
+1. Las 2 técnicas del motor de mutación (`zero_width`, `homoglyph`) pasan de `ALLOW` a `BLOCK`,
+   contra el sanitizer real — `zero_width` → regla `unicode_invisible_char`; `homoglyph` → regla
+   `homoglyph_mixed_script`.
+2. Confirmado además end-to-end contra el backend real con "solo (B)" para ambas técnicas
+   (antes: el LLM era engañado y solo (D) evitaba la fuga; ahora: bloqueado antes de llegar al
+   LLM, coherente con el resto de la pila).
+3. **Cero falsos positivos**: reverifiqué los 6 documentos ya establecidos (3 sanos + 3
+   comprometidos originales de siempre, PDF/DOCX/XLSX) contra el sanitizer real — ningún cambio
+   de comportamiento en ninguno.
+4. 4 tests nuevos en `test_document_sanitizer.py` (las 2 técnicas reproducidas como texto, el
+   bloque Unicode Tags con un texto aislado para no confundirlo con otra regla — el primer
+   intento de este test falló porque el texto de prueba también disparaba
+   `indirect_doc_cross_account_request` por casualidad, lo corregí con un texto más neutro—, y un
+   control negativo explícito sobre los 3 documentos sanos). Suite completa: **63/63**.
+5. Re-ejecuté `probar_mutaciones.py` para dejar actualizado el JSON de evidencia con el resultado
+   "después" junto al "antes" (mismo fichero, mismo script — el motor de mutación sirvió también
+   de arnés de regresión para su propio arreglo).
+
+**Documentado**: `02-defensa/README.md` (sección "Arreglo — detección de ofuscación a nivel de
+carácter en (B)"), `CAPITULO.md` §5 (párrafo nuevo cerrando el ciclo
+detección→hallazgo→mitigación→verificación), `ROADMAP.md` §2.9.8.
+
+**Reproducir:**
+```bash
+docker compose exec backend python -m pytest tests/test_document_sanitizer.py -v   # 14/14
+docker compose exec backend python -m pytest tests/ -q                              # 63/63
+```
+
+**Próximos pasos:**
+- Dar instrucciones de prueba manual al usuario (Playground) para esta mitigación.
+- Retomar Fase 3: Marco normativo (GDPR, DORA, AI Act, valorar NIST/ISO 27001).

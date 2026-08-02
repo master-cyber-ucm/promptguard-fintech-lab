@@ -375,6 +375,65 @@ JUDGE_MODEL=qwen2.5:3b $PAYLOADS_VENV evaluate.py --run <run_folder>
 $PAYLOADS_VENV report.py --run <run_folder>
 ```
 
+### 2.9.7 Motor de mutación — cierra "generación de variantes nuevas" (a petición del usuario) ✅
+
+El usuario pidió explícitamente cerrar la parte de "generación de variantes" que §2.9.6 dejaba
+como limitación (dejando fuera, con acuerdo explícito, el "descubrimiento de técnicas nunca
+vistas" — eso no lo automatiza ninguna herramienta real, tampoco Garak).
+
+- [x] Catálogo de técnicas de ofuscación conocidas
+      (`henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py`): `zero_width` (ZWS entre letras) y
+      `homoglyph` (sustitución cirílica) — ambas ya documentadas en el análisis de viabilidad de
+      (A), nunca antes convertidas en payloads reales.
+- [x] Generador genérico (`generar_pdf_mutado.py <tecnica>`) que aplica cualquier técnica del
+      catálogo a las palabras clave relevantes y produce un PDF real — añadir una técnica nueva al
+      catálogo no requiere tocar el generador.
+- [x] **Hallazgo de implementación**: con la fuente Helvetica estándar (la que usaban el resto de
+      payloads), el carácter Unicode invisible se corrompía en un glifo visible (`■`) al
+      extraerlo — hace falta una fuente TrueType con soporte Unicode real (DejaVu Sans) para que
+      sobreviva el ciclo completo. Con la fuente "de siempre" el ataque no habría sido invisible.
+- [x] **Resultado, contra el código real (determinista, sin LLM) + confirmado end-to-end**: (B)
+      evadida por **2/2** técnicas (`action: ALLOW`, ninguna regla coincide); (A) sigue
+      detectando **2/2** (indiferente al contenido textual). Prueba empírica de por qué las dos
+      capas juntas valen más que la suma de sus partes.
+- [x] Script de prueba reproducible + resultados en
+      `henri-tfm/01-ataque/evidencia/motor_mutacion/`.
+- [x] `CAPITULO.md` §5 actualizado: la limitación pasa de afirmación teórica ("no cubre
+      generación de variantes") a validación empírica con datos reales — dejando claro, con la
+      misma honestidad de siempre, qué sigue siendo manual (identificar la primera instancia de
+      una técnica nunca vista) y por qué eso no es un hueco de esta automatización sino de la
+      naturaleza del problema.
+
+**Reproducir:**
+```bash
+cd henri-tfm/01-ataque/payloads
+.venv/bin/python generar_pdf_mutado.py --all
+docker cp nomina_comprometida_zero_width.pdf promptguard-backend:/app/tests/
+docker cp nomina_comprometida_homoglyph.pdf promptguard-backend:/app/tests/
+docker cp ../evidencia/motor_mutacion/probar_mutaciones.py promptguard-backend:/app/tests/
+docker compose -f ../../../lab/docker-compose.yml exec backend python tests/probar_mutaciones.py
+```
+
+### 2.9.8 Mitigación de la ofuscación a nivel de carácter — arreglado, no solo documentado ✅
+
+El usuario pidió explícitamente implementar la mitigación para el hallazgo de 2.9.7, no dejarlo
+como límite conocido.
+
+- [x] `document_sanitizer.py`: dos comprobaciones nuevas, complementarias a las reglas YAML —
+      `_detect_invisible_chars` (caracteres de ancho cero + bloque Unicode "Tags") y
+      `_detect_mixed_script_word` (palabras que mezclan alfabeto latino y cirílico). Detectan
+      CÓMO está construido el texto, no QUÉ dice — no dependen de ninguna palabra clave.
+- [x] **Resultado tras el arreglo**: las 2 técnicas del motor de mutación pasan de evadir (B)
+      (`action: ALLOW`) a ser bloqueadas directamente por ella (`unicode_invisible_char` /
+      `homoglyph_mixed_script`) — verificado de nuevo contra el sanitizer real y end-to-end
+      contra el backend con "solo (B)".
+- [x] **0 falsos positivos**: reverificados los 6 documentos ya establecidos (3 sanos + 3
+      comprometidos originales, los 3 formatos) — sin ningún cambio de comportamiento.
+- [x] 4 tests nuevos en `test_document_sanitizer.py`. Suite completa del backend: **63/63**.
+- [x] `02-defensa/README.md` y `CAPITULO.md` §5 actualizados con el resultado antes/después del
+      arreglo — el motor de mutación no solo generó las variantes, sirvió también de arnés de
+      regresión para validar su propio arreglo.
+
 ## Fase 3 — Marco normativo
 
 Punto de partida: `docs/ataques/LLM01-prompt-injection/indirecta-documento/05-cumplimiento-normativo.md`

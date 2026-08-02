@@ -37,7 +37,17 @@
       "Bash(curl -s http://localhost:11434/api/tags)",
       "Bash(curl -s -X POST http://localhost:11434/api/chat -d '{\"model\":\"qwen3.5:9b\",\"messages\":[{\"role\":\"user\",\"content\":\"hola\"}]}')",
       "Bash(JUDGE_MODEL=qwen2.5:3b /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python evaluate.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_211155_qwen2.5-3b --force)",
-      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python report.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_211155_qwen2.5-3b)"
+      "Bash(/home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/.venv/bin/python report.py --run /home/henri/Projects/promptguard-fintech-lab/lab/audit/runs/20260730_211155_qwen2.5-3b)",
+      "Bash(fc-list)",
+      "Bash(grep -i \"dejavu.*sans.ttf\\\\|DejaVuSans.ttf$\")",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python generar_pdf_unicode.py)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('error:', d['error']\\); print\\('tools:', d['tools_used']\\); print\\('resp:', d['response'][:200]\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('error:', d['error'][:200] if d['error'] else None\\)\")",
+      "Bash(rm /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/generar_pdf_unicode.py)",
+      "Bash(rm -f /home/henri/Projects/promptguard-fintech-lab/henri-tfm/01-ataque/payloads/nomina_comprometida_unicode.pdf)",
+      "Bash(.venv/bin/python generar_pdf_mutado.py --all)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('error:', d['error']\\); print\\('tools:', d['tools_used']\\)\")"
     ],
     "additionalDirectories": [
       "/home/henri/.claude/projects/-home-henri-Projects-promptguard-fintech-lab/memory"
