@@ -449,63 +449,116 @@ demostraron realmente** (tasas de éxito de ataque medidas, 4 capas de defensa i
 validadas con datos reales, 2 fallos de (D) encontrados y corregidos) — no es el mismo análisis de
 riesgo antes que después de tener evidencia empírica.
 
-### 3.1 GDPR (Reglamento UE 2016/679)
-- [ ] Verificar contra EUR-Lex el texto exacto de Art. 5.1.c, 32, 33, 34 (el borrador de
-      referencia los cita; confirmar redacción y numerar bien cualquier apartado).
-- [ ] Reevaluar la obligación de notificación (Art. 33/34) a la luz de Fase 2: con `ABCD` activo
-      el bloqueo es 100% en los documentos comprometidos probados — ¿sigue siendo "brecha de alto
-      riesgo" con las defensas puestas, o el riesgo residual ya no cruza el umbral de notificación
-      obligatoria? Justificar con las tasas reales medidas, no con la situación PRE-defensa.
-- [ ] Esbozar la plantilla de notificación AEPD 72h (si se concluye que sigue aplicando).
+### 3.1 GDPR (Reglamento UE 2016/679) ✅
+- [x] Verificado contra fuentes oficiales/cruzadas (EUR-Lex + `privacy-regulation.eu`/`gdpr-text.com`
+      por limitaciones de acceso al texto articulado íntegro directamente vía EUR-Lex) el texto
+      exacto de Art. 5.1.c, 32.1/32.2, 33.1, 34.1 y 34.3 — el borrador de referencia no citaba las
+      excepciones del 34.3, relevantes para la reevaluación.
+- [x] Reevaluada la obligación de notificación (Art. 33/34) con datos reales de Fase 1/2: la
+      obligación sigue siendo condicional a que se produzca una violación (no desaparece por tener
+      defensas activas), pero el riesgo residual medido baja de 89% de éxito real (sin defensa) a
+      0% (con `ABCD`) — con la salvedad explícita de que 0% es una tasa medida sobre el catálogo de
+      técnicas conocidas, no una garantía estructural (ver hallazgo del motor de mutación, 2.9.7).
+- [ ] Esbozar la plantilla de notificación AEPD 72h — no se hizo: dado que el riesgo residual
+      medido es 0% con la defensa completa, no hay un incidente concreto que dé pie a redactar una
+      plantilla de notificación real sin inventar un escenario. Se deja fuera de alcance,
+      justificado explícitamente (no es una omisión).
 
-### 3.2 DORA (Reglamento UE 2022/2554)
-- [ ] Verificar Art. 9 y 10 contra EUR-Lex.
-- [ ] Confirmar si Arts. 6, 11, 17 (descartados en el borrador) siguen fuera de alcance — el Tool
-      Gatekeeper (D) y la guardia de salida son controles nuevos que no existían al escribir el
-      borrador; revisar si encajan en gobernanza del marco ICT (Art. 6) o gestión de terceros
-      (Art. 17).
-- [ ] Vincular con el registro de auditoría real del proyecto (`lab/audit/sessions/`, Session
-      Files) como evidencia de que el requisito de detección (Art. 10) ya tiene un mecanismo
-      concreto, no solo teórico.
+### 3.2 DORA (Reglamento UE 2022/2554) ✅
+- [x] Verificado Art. 9.2/9.4.c y 10.1/10.2 contra fuentes oficiales/cruzadas (EUR-Lex + BOE
+      DOUE-L-2022-81962, con las mismas limitaciones de acceso al texto articulado).
+- [x] Confirmado el encaje de Arts. 6, 11, 17 a la luz de (D) y la guardia de salida: Art. 6 y 17
+      se mantienen fuera de alcance directo (gobernanza institucional / proceso organizativo, no
+      una pieza de código de este vector), ahora con justificación explícita en vez de omisión
+      implícita; Art. 10 (detección) sí cambia de forma sustantiva — antes solo había intención
+      declarada, ahora hay mecanismos reales y verificables (bloqueo de (A)/(B), denegación de (D)).
+- [x] Vinculado con el registro de auditoría real (`lab/audit/sessions/`, Session Files con
+      `defensas_activas`/`latencia_defensa_ms` desde Fase 2.7) como evidencia de que el requisito
+      de detección del Art. 10 ya tiene un mecanismo concreto, no solo teórico.
 
-### 3.3 EU AI Act (Reglamento UE 2024/1689)
-- [ ] Verificar Art. 9 y 15 contra EUR-Lex.
-- [ ] Confirmar la clasificación de "alto riesgo" (Anexo III, 5.b) citada en la propuesta formal.
-- [ ] Estado verde/amarillo/rojo por requisito, con evidencia real de Fase 2: (A)/(B)/(D)
-      deterministas → verde; (C) probabilística, con límite reconocido y documentado → amarillo,
-      justificar por qué no es rojo (mitigación en profundidad, no defensa única).
+### 3.3 EU AI Act (Reglamento UE 2024/1689) ✅
+- [x] Verificado Art. 9.1/9.2 y 15.1/15.4-15.5 contra fuentes oficiales/cruzadas (EUR-Lex + BOE
+      DOUE-L-2024-81079) — el Art. 15.5 nombra explícitamente "información de entrada diseñada para
+      hacer que el modelo de IA cometa un error" (ejemplos adversarios/evasión de modelos) como
+      categoría de ataque cubierta, dato que el borrador PRE-implementación no tenía.
+- [x] Confirmada la clasificación de "alto riesgo" (Anexo III, 5.b — evaluación de solvencia
+      crediticia) citada en la propuesta formal, sin contradicción al verificar el supuesto.
+- [x] Semáforo por requisito con evidencia real de Fase 2, en `03-normativa/README.md`: (A)/(B)/(D)
+      🟢 verde (deterministas, 0-100% medido según el caso, sin margen de indeterminación); (C) 🟡
+      amarillo (probabilística, 67-89% de éxito real en solitario, respaldada por capas
+      deterministas en la pila completa); guardia de salida 🟡 amarillo (cobertura específica al
+      patrón IBAN, límite reconocido). Ningún componente 🟡 opera sin respaldo determinista en la
+      ruta real (`ABCD` = 0/9 de éxito real).
 
-### 3.4 EBA Guidelines / PSD2
-- [ ] Investigar si aplica al canal documental de microcréditos/reclamaciones de VerdaBank
-      (servicio de pago vs. producto de crédito — aclarar el encaje exacto).
-- [ ] Documentar aplica/no aplica con justificación explícita — no dejarlo implícito.
+### 3.4 EBA Guidelines / PSD2 ✅
+- [x] Investigado si aplica al canal documental de microcréditos/reclamaciones de VerdaBank —
+      ni evaluación de microcrédito ni reclamación son "servicios de pago" del Anexo I de PSD2
+      (concesión de crédito y atención al cliente, fuera de su ámbito material); el "servicio de
+      información sobre cuentas" de PSD2 regula a terceros AISP con acceso XS2A, no a un banco
+      consultando sus propias cuentas para su propio cliente autenticado.
+- [x] EBA/GL/2019/04 verificada como subsumida en DORA desde el 17/01/2025 (la propia EBA redujo
+      su alcance vía `EBA/GL/2025/02`) — no aporta obligación independiente de la ya cubierta en
+      3.2.
+- [x] Documentado "no aplica" con justificación explícita para ambos casos, no dejado implícito.
 
-### 3.5 NIST AI RMF 1.0
-- [ ] Ampliar el mapeo GOVERN/MAP/MEASURE/MANAGE ya esbozado en `01-mapeo-taxonomico.md` §3,
-      incorporando datos reales de Fase 2 en MEASURE (99 llamadas automatizadas + 59 turnos
-      manuales, tasas de éxito por capa) — antes era una descripción de intención, ahora hay
-      métricas.
+### 3.5 NIST AI RMF 1.0 ✅
+- [x] Ampliado el mapeo GOVERN/MAP/MEASURE/MANAGE ya esbozado en `01-mapeo-taxonomico.md` §3, con
+      datos reales de Fase 1/2 en las 4 funciones (no solo en MEASURE): GOVERN ahora es código
+      verificable, no política declarada; MAP creció de 5 a 7 técnicas catalogadas (motor de
+      mutación); MEASURE tiene cifras concretas (85-100%→0%, 90 llamadas + 33 turnos manuales);
+      MANAGE es un ciclo real de hallazgo→mitigación→verificación repetido varias veces en Fase 2.
 
-### 3.6 ISO/IEC 27001
-- [ ] Evaluar controles del Anexo A aplicables (candidatos: A.8.28 codificación segura, A.5.23 uso
-      de servicios en la nube, A.8.16 monitorización — a confirmar cuáles aplican de verdad al
-      vector concreto, no una lista genérica).
+### 3.6 ISO/IEC 27001 ✅
+- [x] Evaluados los controles candidatos del Anexo A: A.8.28 (codificación segura) y A.8.16
+      (monitorización) aplican directamente con evidencia concreta; A.8.9 (gestión de
+      configuración) aplica parcialmente (selector de defensas de Fase 2.7); A.8.23 (filtrado web)
+      y A.5.23 (servicios en la nube) se descartan explícitamente para este vector — no todos los
+      candidatos genéricos de la propuesta formal aplican de verdad.
 
-### 3.7 Impacto económico
-- [ ] Estimar multas potenciales (rangos oficiales: GDPR hasta 4%/20M€, AI Act hasta 7%/35M€ para
-      sistemas de alto riesgo) aplicados como orden de magnitud al escenario VerdaBank (banco
-      ficticio — dejar explícito que es una estimación ilustrativa, no una cifra real).
+### 3.7 Impacto económico ✅
+- [x] Estimadas multas potenciales ilustrativas (GDPR hasta 4%/20M€, AI Act hasta 3%/15M€ para
+      sistemas de alto riesgo — el régimen aplicable a Clara, no el 7%/35M€ de prácticas
+      prohibidas) aplicadas como orden de magnitud al escenario VerdaBank, con la salvedad
+      explícita de que DORA no fija una cifra armonizada europea (remite a regímenes sancionadores
+      nacionales, Art. 50) — no se inventó un número para rellenar la fila.
 
-### 3.8 Síntesis y redacción
-- [ ] Redactar el aporte a la sección **7** del índice del TFM (`CAPITULO.md`), reemplazando el
-      `[PENDIENTE — Fase 3]` — síntesis de obligaciones accionables, coherente con los resultados
-      reales de Fase 1/2, no una copia del borrador PRE-implementación.
-- [ ] Cierre de coherencia (regla 1.b): revisar todo el capítulo de principio a fin, actualizar la
-      tabla "Estado de redacción" al inicio de `CAPITULO.md`.
+### 3.8 Síntesis y redacción ✅
+- [x] Redactado el aporte a la sección **7** del índice del TFM (`CAPITULO.md`), reemplazando el
+      `[PENDIENTE — Fase 3]` — síntesis de obligaciones accionables por marco (GDPR/DORA/AI
+      Act/EBA-PSD2/NIST/ISO/impacto económico), coherente con los resultados reales de Fase 1/2,
+      no una copia del borrador PRE-implementación.
+- [x] Cierre de coherencia (regla 1.b): revisado el capítulo de principio a fin (sin `[PENDIENTE]`
+      reales restantes), tabla "Estado de redacción" al inicio de `CAPITULO.md` actualizada — las
+      10 filas en ✅.
+
+**Resumen de cierre de Fase 3**: las 3 obligaciones normativas verificadas contra fuente oficial
+(GDPR, DORA, AI Act) mantienen su aplicabilidad tal como las citaba el borrador PRE-implementación,
+pero reevaluadas con datos reales de Fase 1/2 en vez de solo en teoría; EBA/PSD2 se descartó
+explícitamente, no por omisión; NIST e ISO 27001 pasaron de listas de intención/candidatos
+genéricos a mapeos con evidencia concreta; el impacto económico se estimó como orden de magnitud
+ilustrativo, con la salvedad explícita de que DORA no tiene una cifra armonizada europea. Todo el
+detalle de investigación (citas, fuentes, tablas) en `03-normativa/README.md`; la síntesis en
+prosa para el TFM en `CAPITULO.md` §7.
 
 ## Fase 4 — Consolidación
 
-- [ ] Ensamblar el capítulo individual completo siguiendo el índice oficial del TFM.
-- [ ] Revisar trazabilidad/reproducibilidad de principio a fin (cada afirmación con su evidencia
-      y su comando de reproducción).
-- [ ] Checklist final de entregable — nada pendiente sin marcar o justificado como trabajo futuro.
+- [x] Ensamblado `CAPITULO.md` en el orden físico del índice oficial del TFM (antes estaba en
+      orden cronológico de redacción): 2.1–2.3 → 4.1 → 4.2 → 5 → 6.1 → 6.2 → 7. Verificado que el
+      contenido íntegro se preservó en el reordenamiento (comparación de recuento de palabras y de
+      ocurrencias de cadenas distintivas antes/después, sin pérdidas). El archivo original
+      cronológico no se pierde — es recuperable vía `git log` si hiciera falta consultarlo.
+- [x] Revisada trazabilidad/reproducibilidad de principio a fin: verificada la existencia real de
+      todos los archivos, directorios y patrones glob citados en `CAPITULO.md` (`02-defensa/`,
+      `03-normativa/`, `bitacora/`, todos los módulos de `lab/backend/src/core/`,
+      `run_attack_suite.py`, evidencia de motor de mutación, Session Files, capturas de pantalla,
+      JSON de ablación) — sin referencias rotas. Re-ejecutada la suite de tests del backend
+      (`docker compose exec backend python -m pytest tests/ -q`): **63/63**, coherente con la
+      cifra citada en el capítulo.
+- [x] Checklist final de entregable: revisado todo `henri-tfm/*.md` y `henri-tfm/*/README.md` en
+      busca de casillas `- [ ]` sin marcar — encontradas y corregidas 3 casillas obsoletas en
+      `01-ataque/README.md` (1.2/1.3/1.4, nunca actualizadas pese a estar la fase cerrada desde
+      hace tiempo). Las únicas casillas que quedan sin marcar en todo el capítulo están
+      explícitamente justificadas como decisión consciente, no como trabajo olvidado: la
+      actualización del material de referencia compartido (§2.5, pendiente de decisión de equipo,
+      fuera del alcance individual) y la plantilla de notificación AEPD (§3.1, no redactada porque
+      el riesgo residual medido con la defensa completa es 0%, sin incidente real que la motive).

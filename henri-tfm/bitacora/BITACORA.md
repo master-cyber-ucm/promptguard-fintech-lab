@@ -1362,3 +1362,120 @@ normativo, que es exactamente la Fase 3 que sigue).
 **Próximos pasos:** Fase 3 — Marco normativo, siguiendo el plan ya esbozado en `ROADMAP.md`
 §3.1–3.8 (pausado desde el 2026-07-30 a petición del usuario, para completar antes el red teaming
 automatizado).
+
+## 2026-08-02 (continuación 2) — Fase 3 completa: Marco normativo (3.1–3.8)
+
+El usuario confirmó que Ataque y Defensa estaban cerrados y pidió continuar — retomé el plan ya
+esbozado en `ROADMAP.md` §3.1–3.8, trabajando cada subsección con verificación real contra fuente
+oficial (no citando de memoria), dado que es un TFM y una cita legal incorrecta es un error serio.
+
+**Método**: para cada marco con texto legal verificable (GDPR, DORA, AI Act), usé WebSearch/WebFetch
+contra EUR-Lex y fuentes cruzadas (BOE/DOUE, `privacy-regulation.eu`, `gdpr-text.com`) — EUR-Lex en
+sí mismo devolvía con frecuencia solo el preámbulo/considerandos al hacer fetch directo, no el
+articulado, así que crucé con al menos una fuente adicional por artículo. Encontré y corregí un
+error propio a medio escribir: había citado el Art. 15.5 del AI Act con la frase "manipulación de
+las entradas", que no es el texto real — la frase verificada es "información de entrada diseñada
+para hacer que el modelo de IA cometa un error" (ejemplos adversarios/evasión de modelos). Lo
+corregí antes de dejarlo escrito en ningún sitio definitivo.
+
+**3.1 GDPR**: verificados Art. 5.1.c/32.1/32.2/33.1/34.1/34.3 (el borrador PRE-implementación no
+citaba las excepciones del 34.3). Reevalué la obligación de notificación con los datos reales de
+Fase 1/2: no desaparece por tener defensas activas —es condicional a que se produzca una
+violación—, pero el riesgo residual medido baja de 89% (sin defensa) a 0% (con `ABCD`), con la
+salvedad explícita de que 0% es una tasa sobre el catálogo conocido, no una garantía estructural
+(cito el propio hallazgo del motor de mutación como prueba de esa distinción).
+
+**3.2 DORA**: verificados Art. 9.2/9.4.c/10.1/10.2. El cambio real frente al borrador es el Art. 10
+(detección): antes solo había intención declarada, ahora hay Session Files reales con
+`defensas_activas`/`latencia_defensa_ms`. Arts. 6/11/17 se mantienen fuera de alcance, ahora
+justificado explícitamente en vez de omitido.
+
+**3.3 EU AI Act**: verificados Art. 9.1/9.2/15.1/15.4-15.5. Confirmada la clasificación de alto
+riesgo (Anexo III 5.b) sin matices. Construí un semáforo por capa con los datos reales del estudio
+de ablación: (A)/(B)/(D) verde, (C) y la guardia de salida amarillo pero siempre respaldados por
+una capa determinista en la pila completa (`ABCD` = 0/9).
+
+**3.4 EBA/PSD2**: no investigado en el borrador. Encontré que la propia EBA recortó el alcance de
+`EBA/GL/2019/04` mediante `EBA/GL/2025/02` porque DORA la vuelve obsoleta en sustancia desde
+17/01/2025 — queda subsumida en 3.2, no aporta obligación independiente. PSD2 no aplica al canal
+documental de este vector: ni microcrédito ni reclamación son "servicios de pago" del Anexo I, y el
+objetivo del ataque (`consulta_saldo`) toca el "servicio de información sobre cuentas" solo en
+apariencia — ese régimen de PSD2 regula a terceros AISP con acceso XS2A, no a un banco consultando
+sus propias cuentas para su propio cliente autenticado. El vector ataca autorización, no
+autenticación — el dominio de (D), no de PSD2/SCA.
+
+**3.5 NIST AI RMF**: no requiere verificación contra fuente legal (marco voluntario). Reescribí las
+4 funciones GOVERN/MAP/MEASURE/MANAGE del mapeo PRE-implementación con evidencia real de Fase 1/2
+en cada una, no solo en MEASURE como haría un mapeo superficial.
+
+**3.6 ISO/IEC 27001**: evalué los controles candidatos de la propuesta formal uno por uno en vez de
+asumir que aplican todos — A.8.28 y A.8.16 aplican con evidencia directa; A.8.9 parcialmente
+(selector de defensas); A.8.23 y A.5.23 se descartan explícitamente (el lab corre en Docker local,
+no en un servicio cloud gestionado).
+
+**3.7 Impacto económico**: verifiqué las cifras exactas del Art. 99 AI Act por búsqueda (35M€/7%
+prácticas prohibidas, 15M€/3% el régimen que aplica a Clara — no mezclé ambos). Para DORA confirmé
+que NO fija una cifra armonizada europea (remite a régimen sancionador nacional, Art. 50) — decidí
+dejarlo explícitamente sin cuantificar en vez de inventar un número para rellenar la tabla, tras
+una búsqueda que devolvía una cifra inconsistente con el resto de fuentes sobre DORA.
+
+**3.8 Síntesis**: redacté `CAPITULO.md` §7 completo, reemplazando `[PENDIENTE — Fase 3]` —
+organizado por marco (igual que 03-normativa/README.md) más una tabla final de "obligaciones
+accionables" actualizada frente a la del borrador. Cierre de coherencia: repasé el capítulo
+completo, no quedan `[PENDIENTE]` reales, la tabla "Estado de redacción" tiene sus 10 filas en ✅.
+Resolví además una referencia adelantada que había quedado suelta desde Fase 2 (§4.1 prometía
+retomar la verbosidad de los errores "en el marco normativo" — añadí el párrafo correspondiente en
+§7 bajo AI Act Art. 15, en vez de dejar la referencia sin resolver).
+
+**Documentado**: `03-normativa/README.md` (investigación cruda completa, con tablas de texto legal
+verificado por marco), `CAPITULO.md` §7 + tabla de estado, `ROADMAP.md` §3.1–3.8 + cierre de Fase 3.
+
+**Próximos pasos:** Fase 4 — Consolidación (ensamblar el capítulo individual completo siguiendo el
+índice oficial del TFM, revisar trazabilidad/reproducibilidad de principio a fin, checklist final
+de entregable). Sin plan detallado todavía — no se ha pedido crearlo.
+
+## 2026-08-02 (continuación 3) — Fase 4 completa: Consolidación
+
+El usuario confirmó continuar tras cerrar Fase 3 — sin plan previo detallado para Fase 4, los 3
+ítems ya esbozados en `ROADMAP.md` eran suficientemente concretos para ejecutar directamente.
+
+**Ensamblado en orden oficial**: `CAPITULO.md` se había redactado en orden cronológico
+(4.2 → 5 → 6.1 → 6.2 → 4.1 → 7 → Aporte 2.1-2.3), no en el orden del índice oficial del TFM
+(`00-INSTRUCCIONES.md §2`). Extraje cada bloque de sección por rango de líneas (`sed`), los
+reensamblé en el orden correcto (2.1–2.3 → 4.1 → 4.2 → 5 → 6.1 → 6.2 → 7), y verifiqué que no se
+perdió contenido: comparé recuento de palabras antes/después (diferencia de 41 palabras, explicada
+por una frase nueva en la cabecera y el renombrado de un título) y confirmé que 6 cadenas
+distintivas ("Tool Gatekeeper", "consulta_saldo", etc.) aparecen el mismo número de veces en ambas
+versiones. Renombré `## Aporte a 2.1–2.3 (Estado del arte)` a
+`## 2.1–2.3 — Estado del arte...` para que seguir el mismo patrón de título que el resto de
+secciones, y reordené también las filas de la tabla "Estado de redacción" para que coincida con el
+nuevo orden físico del archivo.
+
+**Trazabilidad/reproducibilidad**: extraje por regex todas las rutas de archivo citadas entre
+backticks en `CAPITULO.md` (28 rutas distintas) y verifiqué su existencia real una por una —todas
+correctas, salvo una mención informal (`injection_signatures.yaml` sin el prefijo de carpeta, usado
+como nombre corto en prosa, no como ruta reclamada). Verifiqué también que los directorios y
+patrones glob de evidencia citados (Session Files, capturas de pantalla, JSON de ablación, motor de
+mutación) resuelven a contenido real, no a promesas vacías. Reejecuté la suite de tests del backend
+para confirmar que la cifra "63/63" citada varias veces en el capítulo sigue siendo cierta hoy, no
+solo en el momento en que se escribió.
+
+**Checklist final de entregable**: barrido de todas las casillas `- [ ]` sin marcar en
+`henri-tfm/*.md` y `henri-tfm/*/README.md`. Encontré 3 en `01-ataque/README.md` (1.2/1.3/1.4) que
+nunca se habían actualizado pese a que Fase 1 lleva cerrada desde hace semanas — las corregí. Las
+únicas casillas sin marcar que quedan en todo el capítulo tienen una justificación explícita
+inline, no son trabajo olvidado: la actualización del material de referencia compartido (decisión
+de equipo, fuera de mi alcance individual) y la plantilla de notificación AEPD (no redactada porque
+no hay ningún incidente real que la motive, dado el riesgo residual medido en 0%).
+
+**Con esto, el capítulo individual de Henri sobre el ataque #7 (Ataque + Defensa + Marco normativo
++ Consolidación) queda completo**, con evidencia doble (automatizada y manual) en cada pieza,
+citas legales verificadas contra fuente oficial, y trazabilidad confirmada de principio a fin.
+
+**Documentado**: `CAPITULO.md` reordenado, `henri-tfm/01-ataque/README.md` (checklist corregido),
+`ROADMAP.md` (Fase 4 completa).
+
+**Próximos pasos**: ninguno pendiente dentro del alcance ya planificado. Posibles siguientes
+conversaciones: revisión del usuario sobre el documento ensamblado, decisión de equipo sobre tocar
+el material de referencia compartido, o el commit de todo este trabajo (todavía no solicitado
+explícitamente).

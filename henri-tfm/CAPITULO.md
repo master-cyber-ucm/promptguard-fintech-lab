@@ -3,7 +3,9 @@
 > Borrador acumulativo de prosa para el documento final del TFM. Se redacta en paralelo a medida
 > que se completa cada sub-paso del `ROADMAP.md`, y se revisa (wrap-up) al cerrar cada fase. Cada
 > sección está etiquetada con la parte del **índice oficial del TFM** (`00-INSTRUCCIONES.md §2`) a
-> la que alimenta. Las secciones sin contenido real todavía se marcan `[PENDIENTE]`.
+> la que alimenta. Las secciones sin contenido real todavía se marcan `[PENDIENTE]`. El orden de
+> las secciones de este archivo sigue el **índice oficial del TFM** (Fase 4, "ensamblado"), no el
+> orden cronológico en que se escribieron — para el orden cronológico, ver `bitacora/BITACORA.md`.
 >
 > Fuente de materia prima: `01-ataque/`, `02-defensa/`, `03-normativa/` (notas técnicas y specs).
 > Este archivo es la síntesis en prosa, no un duplicado de esas notas.
@@ -15,15 +17,206 @@
 | Sección del índice | Sub-tema | Estado |
 |---|---|---|
 | 2.1–2.3 (Estado del arte) | Ejemplo de vector aportado por este ataque | ✅ |
+| 4.1 / 6.1 | Defensa implementada y su validación (Fase 2) | ✅ |
 | 4.2 (Vectores evaluados) | Descripción del vector | ✅ Borrador inicial |
 | 4.2 | Diseño del payload (Fase 1.1) | ✅ Borrador inicial |
 | 4.2 | Implementación del canal (Fase 1.2) | ✅ Borrador inicial |
 | 5 (Red teaming automatizado) | Integración en `run_attack_suite.py` (Fase 2.9) | ✅ |
 | 6.1 (Resultados por vector) | Resultados de ataque, números finales tras iteración (Fase 1.3+1.5) | ✅ |
-| 4.1 / 6.1 | Defensa implementada y su validación (Fase 2) | ✅ |
 | 6.2 (Análisis y discusión) | Éxito funcional vs. fuga textual; iteración DOCX/XLSX (Fase 1.5) | ✅ |
 | 6.2 | Antes/después de la defensa (Fase 2) | ✅ |
-| 7 (Marco normativo) | GDPR/DORA/AI Act/NIST/ISO aplicados a este vector (Fase 3) | `[PENDIENTE]` |
+| 7 (Marco normativo) | GDPR/DORA/AI Act/EBA-PSD2/NIST/ISO/impacto económico aplicados a este vector (Fase 3) | ✅ |
+
+---
+
+## 2.1–2.3 — Estado del arte: ejemplo aportado por este ataque
+
+### 2.1 — Taxonomía OWASP/ATLAS: la inyección indirecta como caso ilustrativo
+
+Este capítulo aporta a §2.1 un ejemplo end-to-end, con implementación y evidencia empírica propia,
+de una categoría que la literatura suele tratar de forma teórica: **OWASP LLM01:2025 (Prompt
+Injection)** en su variante *indirecta*, mapeada a **MITRE ATLAS AML.T0051.001** dentro de la
+táctica **TA0043 (Initial Access)** (§4.2, "Descripción del vector"). La contribución
+concreta al estado del arte no es la taxonomía en sí —ya está bien documentada por Greshake et al.
+(2023) y por el propio catálogo OWASP/ATLAS— sino la **instanciación reproducible** en un dominio
+regulado (banca), con tres formatos documentales distintos (PDF/DOCX/XLSX), tasas de éxito medidas
+antes y después de cada capa de defensa, y un incidente ficticio pero realista (`INC-2025-0089`)
+que ancla el ejemplo a una consecuencia de negocio concreta (fuga de datos de un tercero), no solo
+a una descripción abstracta del mecanismo de fallo.
+
+### 2.2 — Defensas y red teaming automatizado: qué añade este capítulo frente a Garak
+
+La literatura sobre red teaming automatizado de LLMs (Garak y herramientas equivalentes) se centra
+en general en la **ejecución** de un catálogo de técnicas conocidas contra el modelo directamente,
+no en la defensa aplicada ni en la generación programática de variantes de un vector ya
+identificado. Este capítulo aporta ambas piezas con evidencia propia:
+
+- Una **defensa en profundidad de cuatro capas independientes** —(A) firmas estructurales de
+  ocultación, (B) sanitización de contenido por reglas de lenguaje, (C) separación semántica
+  dato/instrucción en el prompt, (D) un Tool Gatekeeper con RBAC determinista fuera del LLM—, con
+  el efecto de **cada capa medido de forma aislada** (estudio de ablación, §6.1) en vez de
+  reportado solo en conjunto: (A) y (B) bloquean el 100% de los documentos comprometidos por
+  separado, (C) reduce pero no elimina el éxito del ataque (67-89% según el criterio de éxito), y
+  (D) —una capa ortogonal, que no intenta evitar que el LLM sea engañado sino que verifica la
+  autorización en el punto de ejecución de la tool— reduce el éxito real a 0% con un mecanismo
+  completamente distinto al de las otras tres.
+- Un **motor de mutación propio** (§5) que automatiza la generación de variantes de técnicas de
+  ocultación ya conocidas (Unicode invisible, homoglifos) sobre el catálogo de payloads existente,
+  y que encontró una evasión real de la capa (B) antes de que se corrigiera. Esto ilustra, con un
+  caso concreto y no solo en teoría, la distinción que motiva el TODO compartido del equipo sobre
+  el "Scope de Garak" (`TODOs.md:89`): automatizar la generación de variantes de lo ya conocido es
+  tratable y se resuelve aquí; automatizar el descubrimiento de técnicas genuinamente nuevas no lo
+  es, tampoco en las herramientas de referencia del sector.
+
+### 2.3 — Vectores de ataque: por qué el canal documental es distinto del chat directo
+
+Frente a los vectores de inyección directa ya cubiertos por el resto del catálogo del proyecto
+(`docs/anexo-catalogo-ataques-llm.md`), este capítulo aporta a §2.3 la caracterización empírica de
+por qué un canal de **datos aportados por el usuario pero no escritos directamente en el chat**
+—documentos adjuntos— requiere una superficie de defensa distinta: ninguna defensa pensada solo
+para el texto del mensaje (p. ej. un filtro sobre el prompt visible) cubre un payload oculto dentro
+de un PDF con texto blanco sobre blanco o una fila oculta de Excel, porque el contenido problemático
+nunca aparece en el campo que esa defensa inspecciona. La evidencia de la Fase 1 (85-100% de éxito
+del ataque sin defensa, en los tres formatos) y el hallazgo del motor de mutación (dos técnicas de
+ofuscación a nivel de carácter que evaden una regla de contenido pero no una firma estructural)
+refuerzan el mismo punto desde dos ángulos distintos: ocultación a nivel de documento y ofuscación
+a nivel de carácter son problemas relacionados pero no idénticos, y ninguna defensa aislada de
+este capítulo los cubre ambos — de ahí la necesidad, verificada con datos y no solo argumentada,
+de una defensa en profundidad real.
+
+---
+
+## 4.1 — Defensa aplicada a este vector
+
+### Por qué la detección de técnicas de ocultación no es la base de la defensa
+
+La primera propuesta de defensa contemplaba bloquear documentos que contuvieran las técnicas de
+ocultación exactas caracterizadas en la Fase 1 (color de texto igual al fondo, fuente <2pt, texto
+fuera del área de página, atributo `hidden`/`w:vanish` de Word, filas y comentarios ocultos de
+hoja de cálculo). Antes de implementarla se analizó su viabilidad como defensa autosuficiente, y
+la conclusión fue negativa: el catálogo de técnicas para ocultar texto en un documento —más allá
+de las cinco caracterizadas en este trabajo— incluye al menos caracteres Unicode invisibles
+(zero-width space/joiner, el bloque Unicode Tags), homoglifos y remapeo de glifos de fuente,
+capas de contenido opcional nativas de PDF, y objetos incrustados o anotaciones no visibles en el
+cuerpo principal. Es, por construcción, un enfoque de firmas conocidas: cubre perfectamente lo ya
+catalogado, pero cualquier técnica no contemplada lo evade por diseño, no por un fallo de
+implementación corregible. Por esa razón se implementa igualmente, pero como **capa
+complementaria de bajo coste**, nunca como la base de la defensa — con un aviso y un changelog
+versionado en el propio módulo que deja explícito su alcance parcial y el procedimiento a seguir
+cuando se documente una técnica nueva, siguiendo el mismo modelo operativo que una base de firmas
+de antivirus real.
+
+### Arquitectura de tres capas
+
+1. **Capa 1 — Sanitización del contenido extraído (`src/core/document_sanitizer.py`), bloqueante,
+   capa base.** Analiza el **contenido textual ya extraído**, con independencia de la técnica
+   usada para ocultarlo dentro del documento. Reutiliza `config/rules/injection_signatures.yaml`,
+   un conjunto de reglas regex ya redactado por el equipo del proyecto para el Input Sanitizer del
+   escenario base, pero que ningún código había cargado hasta este trabajo. Se añadieron tres
+   reglas específicas de este vector —las existentes se habían diseñado para inyección directa en
+   el chat y no capturaban el *framing* típico de un payload embebido en un documento (marcos de
+   autoridad falsos, instrucciones de auto-ocultación, solicitudes de saldo en formas verbales
+   distintas)—. Si el texto extraído coincide con alguna regla de bloqueo, la petición se rechaza
+   **antes de invocar al LLM**.
+2. **Capa complementaria — Detección estructural de técnicas de ocultación conocidas
+   (`src/core/document_structural_detector.py`), bloqueante, catálogo parcial.** Inspecciona el
+   documento (no el texto ya extraído) en busca de las cinco técnicas exactas caracterizadas en la
+   Fase 1: color de texto blanco puro y fuente <2pt en PDF (vía los *callbacks* `visitor_text` /
+   `visitor_operand_before` de `pypdf`, que exponen tamaño de fuente y color de relleno por cada
+   fragmento de texto), texto con coordenada Y fuera del alto de página, atributo
+   `run.font.hidden` de Word, y filas/columnas ocultas o comentarios de celda en hojas de cálculo.
+   Se combina con la Capa 1: si esta no bloquea pero la Capa complementaria encuentra alguna
+   técnica conocida, la petición se bloquea igualmente.
+3. **Capa de profundidad — Separación semántica dato/instrucción.** El texto que supera ambas
+   capas anteriores se concatena al contexto del LLM delimitado explícitamente y marcado como dato
+   del cliente, nunca como instrucción a seguir — reduce el riesgo residual si una variante futura
+   del payload no coincide con ninguna regla ni técnica catalogada.
+
+### Impacto en el rendimiento
+
+Se midió el coste real de las dos capas bloqueantes (200 iteraciones por documento, dentro del
+contenedor backend) en vez de asumirlo: la sanitización de contenido cuesta ~0,15ms de media en
+los tres formatos; la detección estructural cuesta ~1ms (PDF), ~7ms (DOCX, el más costoso por el
+parseo de `python-docx`) y ~2ms (XLSX) de media. El peor caso combinado (~14,5ms) es despreciable
+frente a la latencia real de una llamada al LLM local medida en la Fase 1 (5.000-40.000ms), y muy
+inferior al presupuesto de latencia añadida por el proxy de seguridad completo que fija la
+propuesta formal del TFM (<200ms p95 para el escenario base). El coste de estas dos capas de
+defensa no es un factor relevante en la latencia percibida por el usuario final.
+
+### Deuda técnica descubierta al reutilizar el trabajo del equipo
+
+Conectar por primera vez `injection_signatures.yaml` a código reveló tres defectos que habían
+pasado inadvertidos precisamente porque nunca se había ejecutado: una comilla sin escapar que
+invalidaba la sintaxis YAML del fichero completo; una regla (`obfuscation_markers`) cuyo patrón
+incluía los dígitos `1` y `0` como alternativas sueltas, lo que la habría hecho saltar sobre
+prácticamente cualquier documento financiero real (IBANs, fechas, importes); y —descubierto ya
+durante la validación de este vector— un ancla de inicio de línea sin el modificador multilínea,
+que hacía que una regla no se activara por la vía esperada en documentos de varias líneas. Los
+tres se corrigieron como parte de este trabajo, documentados como hallazgos, no simplemente
+silenciados.
+
+### Nota de diseño: los mensajes de error detallados son deliberados en el lab, no aptos para producción
+
+El campo `error` de `/chat/complex-with-document` (y su reflejo visual en el Playground, la caja
+roja `BLOCKED_BY_STRUCTURAL_DETECTOR` / `BLOCKED_BY_SANITIZER`) expone, directamente en la
+respuesta HTTP que recibiría el cliente, el nombre exacto de la regla que coincidió (p. ej.
+`indirect_doc_authority_framing`), la técnica de ocultación detectada, la latencia real de cada
+subetapa de defensa y qué combinación de capas estaba activa. Es una decisión deliberada **del
+laboratorio**: permite verificar visualmente, sin herramientas adicionales, qué capa bloqueó cada
+intento durante las pruebas manuales del estudio de ablación (§6.1) y depurar el propio pipeline
+de defensa durante su desarrollo.
+
+En un sistema en producción esta verbosidad sería en sí misma una vulnerabilidad. Devolver al
+cliente qué regla concreta disparó el bloqueo convierte la respuesta de error en un **oráculo**
+para un atacante: le permite iterar el payload contra el propio sistema hasta encontrar una
+variante que no coincida con ninguna regla conocida, sin necesidad de acceso al código ni a
+`injection_signatures.yaml`. El diseño correcto es el habitual en detección de fraude o WAFs: la
+respuesta al cliente debe ser genérica ("no se puede procesar esta solicitud"), y el detalle
+completo (regla, capa, latencia, documento, usuario, timestamp) debe ir únicamente a un log
+interno estructurado, accesible solo a personal autorizado con las credenciales adecuadas (equipo
+de seguridad / SOC), nunca a la respuesta de la API pública. Este lab no implementa esa
+separación —lo que se ve en el Playground es exactamente lo que se audita— porque su objetivo es
+la evidencia pedagógica, no un despliegue real; se señala aquí como limitación explícita del
+diseño del laboratorio, no como recomendación de arquitectura, y se retoma en §7 (marco normativo)
+como consideración de exposición de información en el diseño de controles de seguridad exigido por
+el Art. 15 del AI Act.
+
+### (D) Tool Gatekeeper — una cuarta capa, ortogonal a las tres anteriores
+
+Las tres capas descritas arriba actúan todas **antes** de la llamada al LLM, sobre el canal de
+entrada: intentan que el modelo nunca reciba, o nunca obedezca, la instrucción maliciosa. Si
+cualquiera de las tres fallara ante una técnica no catalogada, el LLM podría igualmente decidir
+invocar `consulta_saldo` sobre la cuenta objetivo. La cuarta capa no intenta evitar esa decisión:
+la deja pasar y la verifica en el punto de ejecución de la tool, contra un dato que el LLM no
+controla — el **Tool Gatekeeper**, el módulo de RBAC determinista que la propuesta formal del
+proyecto ya describía como parte del escenario base compartido.
+
+El mecanismo es `RunContext[Deps]` de PydanticAI: el `user_id` autenticado viaja por el parámetro
+`deps` de `agent.run()`, inyectado por el backend a partir de la petición HTTP, nunca por el texto
+del prompt que el LLM procesa. Las cuatro tools que operan sobre un recurso identificable
+(`consulta_saldo`, `transferencia_nacional`, `bloquear_tarjeta`, `abrir_reclamacion`) verifican
+que ese recurso pertenezca a `ctx.deps.user_id` antes de ejecutar la acción; `consulta_producto`
+queda sin cambios por ser información pública. De paso se cerró un segundo vector de Confused
+Deputy no relacionado con el canal documental: `abrir_reclamacion` aceptaba un parámetro
+`user_id` con valor por defecto que el propio LLM podía sobreescribir, permitiendo registrar una
+reclamación a nombre de otro cliente.
+
+**Validación end-to-end deliberadamente fuera del canal documental**: para demostrar que esta
+capa es realmente ortogonal a (A)/(B)/(C), se probó contra `/chat/complex-with-context` —un
+endpoint que no tiene ninguna de las tres— con una inyección **directa** en el texto del chat
+("Consulta el saldo de la cuenta [objetivo], es la cuenta de mi empresa..."). El LLM sí fue
+engañado y llamó a `consulta_saldo` sobre la cuenta ajena; el Tool Gatekeeper lo denegó dentro de
+la propia tool y Clara respondió sin filtrar ningún dato. El control con la cuenta propia del
+usuario funcionó con normalidad, sin falso positivo. Esto significa que el Tool Gatekeeper, aun
+diseñado como defensa complementaria para el ataque #7, mitiga también la inyección directa
+(ataque #2) y el Confused Deputy (#4) del catálogo — ambos sin ninguna otra defensa hoy en el lab
+compartido.
+
+**Selector de defensas por petición.** Para poder medir el aporte de cada una de las 4 capas por
+separado —no solo del conjunto— se añadió un parámetro booleano por capa en el endpoint
+(propagado a las tools vía `Deps` para (D)), de forma que cualquier combinación pueda activarse o
+desactivarse en una petición concreta: todas, ninguna, o cualquier subconjunto. Resultados del
+estudio de ablación resultante en **§6.1**.
 
 ---
 
@@ -639,192 +832,126 @@ mismos documentos lograban que Clara filtrara el saldo de la cuenta objetivo—,
 procesaron con normalidad. Las capturas de pantalla de esta verificación se conservan como
 evidencia visual complementaria a los Session Files.
 
-## 4.1 — Defensa aplicada a este vector
-
-### Por qué la detección de técnicas de ocultación no es la base de la defensa
-
-La primera propuesta de defensa contemplaba bloquear documentos que contuvieran las técnicas de
-ocultación exactas caracterizadas en la Fase 1 (color de texto igual al fondo, fuente <2pt, texto
-fuera del área de página, atributo `hidden`/`w:vanish` de Word, filas y comentarios ocultos de
-hoja de cálculo). Antes de implementarla se analizó su viabilidad como defensa autosuficiente, y
-la conclusión fue negativa: el catálogo de técnicas para ocultar texto en un documento —más allá
-de las cinco caracterizadas en este trabajo— incluye al menos caracteres Unicode invisibles
-(zero-width space/joiner, el bloque Unicode Tags), homoglifos y remapeo de glifos de fuente,
-capas de contenido opcional nativas de PDF, y objetos incrustados o anotaciones no visibles en el
-cuerpo principal. Es, por construcción, un enfoque de firmas conocidas: cubre perfectamente lo ya
-catalogado, pero cualquier técnica no contemplada lo evade por diseño, no por un fallo de
-implementación corregible. Por esa razón se implementa igualmente, pero como **capa
-complementaria de bajo coste**, nunca como la base de la defensa — con un aviso y un changelog
-versionado en el propio módulo que deja explícito su alcance parcial y el procedimiento a seguir
-cuando se documente una técnica nueva, siguiendo el mismo modelo operativo que una base de firmas
-de antivirus real.
-
-### Arquitectura de tres capas
-
-1. **Capa 1 — Sanitización del contenido extraído (`src/core/document_sanitizer.py`), bloqueante,
-   capa base.** Analiza el **contenido textual ya extraído**, con independencia de la técnica
-   usada para ocultarlo dentro del documento. Reutiliza `config/rules/injection_signatures.yaml`,
-   un conjunto de reglas regex ya redactado por el equipo del proyecto para el Input Sanitizer del
-   escenario base, pero que ningún código había cargado hasta este trabajo. Se añadieron tres
-   reglas específicas de este vector —las existentes se habían diseñado para inyección directa en
-   el chat y no capturaban el *framing* típico de un payload embebido en un documento (marcos de
-   autoridad falsos, instrucciones de auto-ocultación, solicitudes de saldo en formas verbales
-   distintas)—. Si el texto extraído coincide con alguna regla de bloqueo, la petición se rechaza
-   **antes de invocar al LLM**.
-2. **Capa complementaria — Detección estructural de técnicas de ocultación conocidas
-   (`src/core/document_structural_detector.py`), bloqueante, catálogo parcial.** Inspecciona el
-   documento (no el texto ya extraído) en busca de las cinco técnicas exactas caracterizadas en la
-   Fase 1: color de texto blanco puro y fuente <2pt en PDF (vía los *callbacks* `visitor_text` /
-   `visitor_operand_before` de `pypdf`, que exponen tamaño de fuente y color de relleno por cada
-   fragmento de texto), texto con coordenada Y fuera del alto de página, atributo
-   `run.font.hidden` de Word, y filas/columnas ocultas o comentarios de celda en hojas de cálculo.
-   Se combina con la Capa 1: si esta no bloquea pero la Capa complementaria encuentra alguna
-   técnica conocida, la petición se bloquea igualmente.
-3. **Capa de profundidad — Separación semántica dato/instrucción.** El texto que supera ambas
-   capas anteriores se concatena al contexto del LLM delimitado explícitamente y marcado como dato
-   del cliente, nunca como instrucción a seguir — reduce el riesgo residual si una variante futura
-   del payload no coincide con ninguna regla ni técnica catalogada.
-
-### Impacto en el rendimiento
-
-Se midió el coste real de las dos capas bloqueantes (200 iteraciones por documento, dentro del
-contenedor backend) en vez de asumirlo: la sanitización de contenido cuesta ~0,15ms de media en
-los tres formatos; la detección estructural cuesta ~1ms (PDF), ~7ms (DOCX, el más costoso por el
-parseo de `python-docx`) y ~2ms (XLSX) de media. El peor caso combinado (~14,5ms) es despreciable
-frente a la latencia real de una llamada al LLM local medida en la Fase 1 (5.000-40.000ms), y muy
-inferior al presupuesto de latencia añadida por el proxy de seguridad completo que fija la
-propuesta formal del TFM (<200ms p95 para el escenario base). El coste de estas dos capas de
-defensa no es un factor relevante en la latencia percibida por el usuario final.
-
-### Deuda técnica descubierta al reutilizar el trabajo del equipo
-
-Conectar por primera vez `injection_signatures.yaml` a código reveló tres defectos que habían
-pasado inadvertidos precisamente porque nunca se había ejecutado: una comilla sin escapar que
-invalidaba la sintaxis YAML del fichero completo; una regla (`obfuscation_markers`) cuyo patrón
-incluía los dígitos `1` y `0` como alternativas sueltas, lo que la habría hecho saltar sobre
-prácticamente cualquier documento financiero real (IBANs, fechas, importes); y —descubierto ya
-durante la validación de este vector— un ancla de inicio de línea sin el modificador multilínea,
-que hacía que una regla no se activara por la vía esperada en documentos de varias líneas. Los
-tres se corrigieron como parte de este trabajo, documentados como hallazgos, no simplemente
-silenciados.
-
-### Nota de diseño: los mensajes de error detallados son deliberados en el lab, no aptos para producción
-
-El campo `error` de `/chat/complex-with-document` (y su reflejo visual en el Playground, la caja
-roja `BLOCKED_BY_STRUCTURAL_DETECTOR` / `BLOCKED_BY_SANITIZER`) expone, directamente en la
-respuesta HTTP que recibiría el cliente, el nombre exacto de la regla que coincidió (p. ej.
-`indirect_doc_authority_framing`), la técnica de ocultación detectada, la latencia real de cada
-subetapa de defensa y qué combinación de capas estaba activa. Es una decisión deliberada **del
-laboratorio**: permite verificar visualmente, sin herramientas adicionales, qué capa bloqueó cada
-intento durante las pruebas manuales del estudio de ablación (§6.1) y depurar el propio pipeline
-de defensa durante su desarrollo.
-
-En un sistema en producción esta verbosidad sería en sí misma una vulnerabilidad. Devolver al
-cliente qué regla concreta disparó el bloqueo convierte la respuesta de error en un **oráculo**
-para un atacante: le permite iterar el payload contra el propio sistema hasta encontrar una
-variante que no coincida con ninguna regla conocida, sin necesidad de acceso al código ni a
-`injection_signatures.yaml`. El diseño correcto es el habitual en detección de fraude o WAFs: la
-respuesta al cliente debe ser genérica ("no se puede procesar esta solicitud"), y el detalle
-completo (regla, capa, latencia, documento, usuario, timestamp) debe ir únicamente a un log
-interno estructurado, accesible solo a personal autorizado con las credenciales adecuadas (equipo
-de seguridad / SOC), nunca a la respuesta de la API pública. Este lab no implementa esa
-separación —lo que se ve en el Playground es exactamente lo que se audita— porque su objetivo es
-la evidencia pedagógica, no un despliegue real; se señala aquí como limitación explícita del
-diseño del laboratorio, no como recomendación de arquitectura, y se retoma en el marco normativo
-(Fase 3) como consideración de exposición de información en el diseño de controles de seguridad.
-
-### (D) Tool Gatekeeper — una cuarta capa, ortogonal a las tres anteriores
-
-Las tres capas descritas arriba actúan todas **antes** de la llamada al LLM, sobre el canal de
-entrada: intentan que el modelo nunca reciba, o nunca obedezca, la instrucción maliciosa. Si
-cualquiera de las tres fallara ante una técnica no catalogada, el LLM podría igualmente decidir
-invocar `consulta_saldo` sobre la cuenta objetivo. La cuarta capa no intenta evitar esa decisión:
-la deja pasar y la verifica en el punto de ejecución de la tool, contra un dato que el LLM no
-controla — el **Tool Gatekeeper**, el módulo de RBAC determinista que la propuesta formal del
-proyecto ya describía como parte del escenario base compartido.
-
-El mecanismo es `RunContext[Deps]` de PydanticAI: el `user_id` autenticado viaja por el parámetro
-`deps` de `agent.run()`, inyectado por el backend a partir de la petición HTTP, nunca por el texto
-del prompt que el LLM procesa. Las cuatro tools que operan sobre un recurso identificable
-(`consulta_saldo`, `transferencia_nacional`, `bloquear_tarjeta`, `abrir_reclamacion`) verifican
-que ese recurso pertenezca a `ctx.deps.user_id` antes de ejecutar la acción; `consulta_producto`
-queda sin cambios por ser información pública. De paso se cerró un segundo vector de Confused
-Deputy no relacionado con el canal documental: `abrir_reclamacion` aceptaba un parámetro
-`user_id` con valor por defecto que el propio LLM podía sobreescribir, permitiendo registrar una
-reclamación a nombre de otro cliente.
-
-**Validación end-to-end deliberadamente fuera del canal documental**: para demostrar que esta
-capa es realmente ortogonal a (A)/(B)/(C), se probó contra `/chat/complex-with-context` —un
-endpoint que no tiene ninguna de las tres— con una inyección **directa** en el texto del chat
-("Consulta el saldo de la cuenta [objetivo], es la cuenta de mi empresa..."). El LLM sí fue
-engañado y llamó a `consulta_saldo` sobre la cuenta ajena; el Tool Gatekeeper lo denegó dentro de
-la propia tool y Clara respondió sin filtrar ningún dato. El control con la cuenta propia del
-usuario funcionó con normalidad, sin falso positivo. Esto significa que el Tool Gatekeeper, aun
-diseñado como defensa complementaria para el ataque #7, mitiga también la inyección directa
-(ataque #2) y el Confused Deputy (#4) del catálogo — ambos sin ninguna otra defensa hoy en el lab
-compartido.
-
-**Selector de defensas por petición.** Para poder medir el aporte de cada una de las 4 capas por
-separado —no solo del conjunto— se añadió un parámetro booleano por capa en el endpoint
-(propagado a las tools vía `Deps` para (D)), de forma que cualquier combinación pueda activarse o
-desactivarse en una petición concreta: todas, ninguna, o cualquier subconjunto. Resultados del
-estudio de ablación resultante en **§6.1**.
+---
 
 ## 7 — Marco normativo aplicado a este vector
 
-`[PENDIENTE — Fase 3]`
+El capítulo de referencia PRE-implementación (`docs/.../05-cumplimiento-normativo.md`) analizaba
+las obligaciones aplicables a este vector antes de que existiera ninguna defensa — un análisis de
+riesgo necesariamente teórico. Esta sección repite la verificación de las citas contra fuente
+oficial y, sobre todo, **reevalúa cada obligación a la luz de lo que Fase 1 y Fase 2 demostraron
+realmente**: tasas de éxito del ataque medidas (no asumidas), cuatro capas de defensa
+implementadas y validadas con datos reales, y dos fallos concretos de una de ellas encontrados y
+corregidos. El detalle completo de cada marco, con las citas verificadas y su fuente, está en
+`03-normativa/README.md`; aquí se sintetiza el resultado.
 
-## Aporte a 2.1–2.3 (Estado del arte)
+### GDPR — la obligación de notificación sigue vigente, pero el riesgo residual bajó de 89% a 0%
 
-### 2.1 — Taxonomía OWASP/ATLAS: la inyección indirecta como caso ilustrativo
+Los Arts. 5.1.c (minimización), 32 (seguridad del tratamiento), 33 (notificación a la autoridad de
+control en 72h) y 34 (comunicación al interesado) aplican exactamente igual que antes de Fase 2 —
+son obligaciones **condicionales** a que se produzca una violación, no eliminadas por tener
+defensas activas. Lo que cambia es la evidencia detrás de la evaluación de riesgo que exige el
+Art. 32.2: sin defensa, el ataque tuvo éxito real en el 89% de los intentos sobre documentos
+comprometidos (Fase 1.5); con las 4 capas activas, el éxito real medido es 0% sobre 90 llamadas
+automatizadas más 33 turnos de verificación manual (Fase 2.3/2.7/2.4). Esa caída de 89% a 0% es
+precisamente el tipo de dato que debe alimentar la evaluación de riesgo del Art. 32, y por
+extensión reduce sustancialmente la probabilidad práctica de tener que activar el procedimiento de
+los Arts. 33/34 — sin que ello signifique que la obligación desaparezca como tal: el propio hallazgo
+del motor de mutación (§5, ofuscación de carácter que evadió (B) antes de corregirse) confirma que
+"0% medido" es una tasa sobre el catálogo de técnicas conocidas, no una garantía estructural de
+riesgo cero.
 
-Este capítulo aporta a §2.1 un ejemplo end-to-end, con implementación y evidencia empírica propia,
-de una categoría que la literatura suele tratar de forma teórica: **OWASP LLM01:2025 (Prompt
-Injection)** en su variante *indirecta*, mapeada a **MITRE ATLAS AML.T0051.001** dentro de la
-táctica **TA0043 (Initial Access)** (§"Descripción del vector" más arriba). La contribución
-concreta al estado del arte no es la taxonomía en sí —ya está bien documentada por Greshake et al.
-(2023) y por el propio catálogo OWASP/ATLAS— sino la **instanciación reproducible** en un dominio
-regulado (banca), con tres formatos documentales distintos (PDF/DOCX/XLSX), tasas de éxito medidas
-antes y después de cada capa de defensa, y un incidente ficticio pero realista (`INC-2025-0089`)
-que ancla el ejemplo a una consecuencia de negocio concreta (fuga de datos de un tercero), no solo
-a una descripción abstracta del mecanismo de fallo.
+### DORA — el requisito de detección (Art. 10) deja de ser una intención y pasa a tener mecanismo real
 
-### 2.2 — Defensas y red teaming automatizado: qué añade este capítulo frente a Garak
+Los Arts. 9 (protección y prevención) y 10 (detección) se confirman sin discrepancias de cita. El
+cambio real está en el Art. 10: el borrador solo podía describir la *intención* de que el
+Compliance Logger generase alertas; ahora existen dos mecanismos concretos y auditables — el
+bloqueo determinista de (A)/(B), registrado con la regla exacta y la latencia por capa, y la
+denegación de (D) en el punto de ejecución de la tool, con el resultado real registrado en el
+Session File (`lab/audit/sessions/`). Los Arts. 6, 11 y 17, descartados en el borrador, se
+mantienen fuera de alcance directo de este vector incluso considerando (D) y la guardia de
+salida —son controles técnicos puntuales, no el marco de gobernanza o el proceso de gestión de
+incidentes que exigen esos artículos— pero ahora con justificación explícita en vez de una omisión
+implícita.
 
-La literatura sobre red teaming automatizado de LLMs (Garak y herramientas equivalentes) se centra
-en general en la **ejecución** de un catálogo de técnicas conocidas contra el modelo directamente,
-no en la defensa aplicada ni en la generación programática de variantes de un vector ya
-identificado. Este capítulo aporta ambas piezas con evidencia propia:
+### EU AI Act — clasificación de alto riesgo confirmada, semáforo por capa con evidencia real
 
-- Una **defensa en profundidad de cuatro capas independientes** —(A) firmas estructurales de
-  ocultación, (B) sanitización de contenido por reglas de lenguaje, (C) separación semántica
-  dato/instrucción en el prompt, (D) un Tool Gatekeeper con RBAC determinista fuera del LLM—, con
-  el efecto de **cada capa medido de forma aislada** (estudio de ablación, §6.1) en vez de
-  reportado solo en conjunto: (A) y (B) bloquean el 100% de los documentos comprometidos por
-  separado, (C) reduce pero no elimina el éxito del ataque (67-89% según el criterio de éxito), y
-  (D) —una capa ortogonal, que no intenta evitar que el LLM sea engañado sino que verifica la
-  autorización en el punto de ejecución de la tool— reduce el éxito real a 0% con un mecanismo
-  completamente distinto al de las otras tres.
-- Un **motor de mutación propio** (§5) que automatiza la generación de variantes de técnicas de
-  ocultación ya conocidas (Unicode invisible, homoglifos) sobre el catálogo de payloads existente,
-  y que encontró una evasión real de la capa (B) antes de que se corrigiera. Esto ilustra, con un
-  caso concreto y no solo en teoría, la distinción que motiva el TODO compartido del equipo sobre
-  el "Scope de Garak" (`TODOs.md:89`): automatizar la generación de variantes de lo ya conocido es
-  tratable y se resuelve aquí; automatizar el descubrimiento de técnicas genuinamente nuevas no lo
-  es, tampoco en las herramientas de referencia del sector.
+La clasificación de Clara como sistema de alto riesgo (Anexo III, 5.b) se confirma sin matices al
+verificar el supuesto contra el texto del Reglamento. El Art. 15.5 aporta un dato que el borrador
+no tenía: nombra explícitamente la "información de entrada diseñada para hacer que el modelo de IA
+cometa un error" (ejemplos adversarios / evasión de modelos) como categoría de ataque cubierta por
+la obligación de robustez — el vector de este capítulo encaja de forma literal, no por analogía.
+El semáforo por capa, construido con los datos del estudio de ablación (Fase 2.7): (A), (B) y (D)
+🟢 verde (deterministas, 0-100% medido sin margen de indeterminación); (C) 🟡 amarillo
+(probabilística, 67-89% de éxito real en solitario); guardia de salida 🟡 amarillo (cobertura
+específica al patrón IBAN). Ninguno de los dos componentes 🟡 opera sin respaldo determinista en la
+pila real —`ABCD` mide 0/9 de éxito—, coherente con el Art. 9.5 (evaluar la interacción de medidas
+combinadas, no cada una aislada).
 
-### 2.3 — Vectores de ataque: por qué el canal documental es distinto del chat directo
+Un punto adicional del Art. 15 (robustez y ciberseguridad) que sí queda como límite abierto,
+señalado ya en §4.1: los mensajes de error detallados del lab (regla exacta, capa, latencia)
+funcionan como un oráculo para iterar el payload hasta esquivar la regla que lo bloqueó — deliberado
+para la verificación pedagógica de este capítulo, pero incompatible con el nivel de "robustez"
+exigible en producción. La solución (respuesta genérica al cliente, detalle solo en log interno
+con acceso restringido) está identificada y documentada, no implementada — es una limitación
+explícita del laboratorio, no una omisión oculta.
 
-Frente a los vectores de inyección directa ya cubiertos por el resto del catálogo del proyecto
-(`docs/anexo-catalogo-ataques-llm.md`), este capítulo aporta a §2.3 la caracterización empírica de
-por qué un canal de **datos aportados por el usuario pero no escritos directamente en el chat**
-—documentos adjuntos— requiere una superficie de defensa distinta: ninguna defensa pensada solo
-para el texto del mensaje (p. ej. un filtro sobre el prompt visible) cubre un payload oculto dentro
-de un PDF con texto blanco sobre blanco o una fila oculta de Excel, porque el contenido problemático
-nunca aparece en el campo que esa defensa inspecciona. La evidencia de la Fase 1 (85-100% de éxito
-del ataque sin defensa, en los tres formatos) y el hallazgo del motor de mutación (dos técnicas de
-ofuscación a nivel de carácter que evaden una regla de contenido pero no una firma estructural)
-refuerzan el mismo punto desde dos ángulos distintos: ocultación a nivel de documento y ofuscación
-a nivel de carácter son problemas relacionados pero no idénticos, y ninguna defensa aislada de
-este capítulo los cubre ambos — de ahí la necesidad, verificada con datos y no solo argumentada,
-de una defensa en profundidad real.
+### EBA / PSD2 — no aplican de forma independiente a este vector, con justificación explícita
+
+Dos hallazgos, ninguno presente en el borrador: (1) la guía EBA/GL/2019/04 sobre riesgo de TIC fue
+recortada de alcance por la propia EBA (`EBA/GL/2025/02`) desde que DORA es de aplicación directa
+—queda subsumida en el análisis de DORA anterior, citarla aparte sería duplicar la misma
+obligación—; (2) PSD2 no aplica al canal documental concreto de este vector por razón de materia
+(evaluación de microcrédito y apertura de reclamación no son "servicios de pago" del Anexo I) ni
+por razón de sujeto (el objetivo del ataque, `consulta_saldo`, toca conceptualmente el "servicio de
+información sobre cuentas", pero ese régimen de PSD2 regula a terceros AISP con acceso XS2A, no a
+un banco consultando sus propias cuentas para su propio cliente autenticado). El vector ataca la
+**autorización** dentro de una sesión ya autenticada —el dominio de (D)—, no la autenticación que
+PSD2 regula.
+
+### NIST AI RMF — de intención declarada a evidencia medible en las cuatro funciones
+
+El mapeo GOVERN/MAP/MEASURE/MANAGE del borrador describía lo que se pretendía hacer; con Fase 1/2
+completas, cada función tiene evidencia real detrás: GOVERN es código verificable (texto extraído
+tratado como no confiable por diseño, no una política declarada); MAP creció de una superficie
+hipotética a 7 técnicas de ocultación/ofuscación catalogadas con datos reales; MEASURE tiene cifras
+concretas y reproducibles (85-100% → 0%, 90+33 casos); MANAGE es un ciclo real de
+hallazgo→mitigación→verificación, repetido varias veces durante Fase 2 (ver §5 y "Mejoras
+aplicadas tras la verificación manual" en `02-defensa/README.md`).
+
+### ISO/IEC 27001 — dos controles aplican con evidencia directa, dos se descartan explícitamente
+
+De los controles candidatos de la propuesta formal, A.8.28 (codificación segura) y A.8.16
+(monitorización) aplican de forma directa y verificable —los propios bugs preexistentes
+encontrados en `injection_signatures.yaml` y el Session File con desglose por capa son la
+evidencia—; A.8.9 (gestión de configuración) aplica parcialmente, vía el selector de defensas de
+Fase 2.7; A.8.23 (filtrado web) y A.5.23 (servicios en la nube) se descartan explícitamente para
+este vector concreto, corrigiendo la inclusión genérica de la propuesta formal.
+
+### Impacto económico — orden de magnitud ilustrativo, no una estimación real
+
+Con la salvedad explícita de que VerdaBank es un banco ficticio sin datos reales de facturación:
+aplicando los rangos oficiales a un neobank del tamaño declarado (~900.000 clientes), GDPR (hasta
+4%/20M€) y AI Act (hasta 3%/15M€ para el régimen de alto riesgo que aplica a Clara, no el
+7%/35M€ de prácticas prohibidas) producen órdenes de magnitud comparables entre sí. DORA es la
+excepción relevante: no fija una cifra armonizada a nivel europeo, remite el régimen sancionador a
+cada Estado miembro (Art. 50) — se documenta esta diferencia en vez de inventar una cifra para
+completar la tabla.
+
+### Síntesis de obligaciones accionables
+
+| Obligación | Marco | Estado con Fase 1+2 completas |
+|---|---|---|
+| Sanitizar y delimitar el texto extraído antes del LLM | GDPR Art. 32 · AI Act Art. 15 | ✅ Implementado y validado — (B)+(C), 0% de éxito real con la pila completa |
+| Detectar técnicas de ocultación no solo por contenido | AI Act Art. 15.5 · NIST MEASURE | ✅ Implementado — (A), complementario a (B), más el motor de mutación como mecanismo de descubrimiento de variantes |
+| Verificar autorización en el punto de ejecución, no solo el input | AI Act Art. 9.5 (interacción de medidas) · DORA Art. 10 | ✅ Implementado — (D), Tool Gatekeeper, capa ortogonal con 0% de éxito real |
+| Registrar cada intento y su resultado real (no solo la invocación) | DORA Art. 10 · GDPR Art. 32 | ✅ Implementado — Session Files con `tools_used` real y `defensas_activas`/`latencia_defensa_ms` |
+| Notificar a la AEPD ante fuga de PII real | GDPR Art. 33 | Obligación condicional, vigente — riesgo residual medido en 0% con `ABCD`, no una garantía estructural |
+| Comunicar al cliente afectado si hay alto riesgo | GDPR Art. 34 | Igual que el anterior — condicional a que se materialice una violación |
+| Re-evaluar el sistema de gestión de riesgos tras cada cambio relevante | AI Act Art. 9 | ✅ Proceso ya ejercido dos veces dentro de este mismo capítulo (arreglos de (D), arreglo del motor de mutación) |
+
+**A diferencia del borrador PRE-implementación, esta síntesis no es una lista de obligaciones
+teóricas sino un balance entre lo ya resuelto con evidencia empírica y lo que sigue siendo un
+riesgo residual condicional, explícitamente no eliminado —ni maquillado como eliminado— por tener
+defensas activas.
+

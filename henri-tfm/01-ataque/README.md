@@ -6,9 +6,9 @@
 ## Mini-checklist
 
 - [x] 1.1 Diseño del payload (documento sano + documento comprometido) — 3 formatos
-- [ ] 1.2 Canal de subida de documentos implementado en el backend
-- [ ] 1.3 Ejecución y evidencia capturada
-- [ ] 1.4 Borrador del capítulo de ataque (secciones 4.2 y 6.1 parcial del índice del TFM)
+- [x] 1.2 Canal de subida de documentos implementado en el backend
+- [x] 1.3 Ejecución y evidencia capturada
+- [x] 1.4 Borrador del capítulo de ataque (secciones 4.2 y 6.1 parcial del índice del TFM)
 
 ## Especificación del payload (1.1)
 
