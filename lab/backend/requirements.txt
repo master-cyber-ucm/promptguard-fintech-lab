@@ -4,6 +4,7 @@
 # Web framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
+python-multipart>=0.0.12  # requerido por FastAPI para Form()/UploadFile (subida de documentos)
 
 # AI framework
 # Pinado: PydanticAI 2.x elimina OpenAIModel de pydantic_ai.models.openai.
@@ -22,6 +23,14 @@ pyyaml>=6.0
 # PII redaction (más adelante, para PromptGuard)
 # presidio>=2.2.0
 # spacy>=3.7.0
+
+# Extracción de texto de documentos adjuntos — ataque #7 (LLM01:2025 indirect / AML.T0051.001)
+# Ver src/core/document_extractor.py. Extracción deliberadamente ingenua (modo vulnerable):
+# no distingue texto visible de oculto, no sanitiza.
+pypdf>=5.0.0
+python-docx>=1.1.0
+openpyxl>=3.1.0
+reportlab>=4.0.0  # Test-only: generación de documentos de prueba en test_document_extractor.py
 
 # Logging
 structlog>=24.0.0

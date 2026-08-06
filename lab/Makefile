@@ -27,7 +27,7 @@ MODELS_FILE   ?= models.txt
         logs logs-backend run suite \
         evaluate report eval-all-steps \
         eval eval-all eval-local eval-all-local \
-        smoke help
+        smoke test help
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Infraestructura
@@ -234,7 +234,12 @@ eval-all-local:
 # ──────────────────────────────────────────────────────────────────────────────
 
 smoke:
-	$(COMPOSE) exec backend python scripts/smoke_test.py
+	$(COMPOSE) exec \
+		-e FIXTURES_DIR=$(FIXTURES) \
+		backend python scripts/smoke_test.py
+
+test:
+	$(COMPOSE) exec backend python -m pytest tests/ -v
 
 help:
 	@echo ""

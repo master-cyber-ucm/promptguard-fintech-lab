@@ -32,6 +32,40 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
         });
     };
 
+    window.VB.API.sendMessageWithDocument = function(userId, sessionId, message, file, fixtureMetadata, defensas) {
+        var formData = new FormData();
+        formData.append('user_id', userId);
+        formData.append('session_id', sessionId);
+        formData.append('message', message);
+        formData.append('document', file, file.name);
+        if (fixtureMetadata) {
+            if (fixtureMetadata.fixture_id) formData.append('fixture_id', fixtureMetadata.fixture_id);
+            if (fixtureMetadata.fixture_kind) formData.append('fixture_kind', fixtureMetadata.fixture_kind);
+            if (fixtureMetadata.fixture_expected_result) formData.append('fixture_expected_result', fixtureMetadata.fixture_expected_result);
+        }
+        // Estudio de ablación (Fase 2, ataque #7): por defecto las 4 capas van activas si no se
+        // especifica `defensas` — el backend también asume `True` por defecto en cada parámetro.
+        if (defensas) {
+            formData.append('defensa_estructural', String(!!defensas.estructural));
+            formData.append('defensa_sanitizer', String(!!defensas.sanitizer));
+            formData.append('defensa_separacion_semantica', String(!!defensas.separacionSemantica));
+            // Variante experimental (Fase 2.8): solo tiene efecto si defensa_separacion_semantica
+            // también es true. Por defecto false — no cambia el comportamiento ya validado de (C).
+            formData.append('defensa_separacion_tool_framing', String(!!defensas.separacionToolFraming));
+            formData.append('defensa_tool_gatekeeper', String(!!defensas.toolGatekeeper));
+        }
+        return fetch(API_BASE + '/api/v1/chat/complex-with-document', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(function(resp) {
+            if (!resp.ok) {
+                return resp.json().then(function(e) { throw new Error(e.detail || 'HTTP ' + resp.status); });
+            }
+            return resp.json();
+        });
+    };
+
     window.VB.API.getAccounts = function() {
         return fetch(API_BASE + '/api/v1/accounts').then(function(r) { return r.json(); });
     };

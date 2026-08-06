@@ -67,7 +67,12 @@ rules:
     description: "Posible payload codificado en Base64"
 
   - name: "obfuscation_markers"
-    pattern: '(?i)(rot13|leet|1|0|l33t|camelCase|Pig\s+Latin)'
+    # BUG corregido (nunca detectado porque este fichero no estaba conectado a ningún código
+    # hasta el sanitizador del ataque #7): las alternativas sueltas '1' y '0' matcheaban
+    # CUALQUIER texto con esos dígitos (IBANs, fechas, importes) — ver
+    # henri-tfm/02-defensa/README.md para el detalle. Se acotan a menciones explícitas de la
+    # técnica (p. ej. "leet", "l33t"), no a dígitos sueltos.
+    pattern: '(?i)(rot13|leet|l33t|camelCase|Pig\s+Latin)'
     action: "SUSPICIOUS"
     severity: "MEDIUM"
     description: "Técnicas de ofuscación del payload"
@@ -79,7 +84,7 @@ rules:
     description: "Prefix injection para forzar respuesta afirmativa"
 
   - name: "refusal_suppression"
-    pattern: '(?i)(no\s+(digas|say)\s*["\']?(lo\s+siento|i\'?m?\s*sorry|no\s+puedo|i\s+cannot|cannot\s+help))'
+    pattern: '(?i)(no\s+(digas|say)\s*["'']?(lo\s+siento|i''?m?\s*sorry|no\s+puedo|i\s+cannot|cannot\s+help))'
     action: "BLOCK"
     severity: "HIGH"
     description: "Supresión de mensajes de rechazo"
@@ -103,3 +108,32 @@ rules:
     action: "SUSPICIOUS"
     severity: "HIGH"
     description: "Manipulación de contexto entre sesiones"
+
+  # --- Prompt injection indirecta vía documento (ataque #7 — LLM01:2025 · AML.T0051.001) ---
+  # Las reglas anteriores se diseñaron para inyección DIRECTA (texto de chat). Se comprobó
+  # empíricamente (henri-tfm/02-defensa/README.md) que NO capturan el phrasing típico de un
+  # payload embebido en un documento (nóminas, reclamaciones, hojas de cálculo) — motivo por el
+  # que se añaden estas 3 reglas nuevas, validadas contra los payloads reales de la Fase 1
+  # (los 5 variantes en PDF/DOCX/XLSX) y contra los 3 documentos sanos correspondientes (0 falsos
+  # positivos).
+  - name: "indirect_doc_authority_framing"
+    # (?m) — multilínea: '^' debe anclar al inicio de CUALQUIER línea del texto extraído (p. ej.
+    # una fila de XLSX con "INSTRUCCION:" en medio del documento), no solo al inicio del string
+    # completo. Bug encontrado en la validación 2.3: sin (?m) esta regla no bloqueaba el caso
+    # XLSX por esta vía (aunque otra regla sí lo bloqueaba, enmascarando el fallo).
+    pattern: '(?im)(nota\s+(del\s+sistema|interna\s+de\s+tramitaci[oó]n)|^\s*instruccion\s*:|^\s*system\s*:)'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Marco de autoridad falso típico de payloads embebidos en documentos ('nota del sistema', 'nota interna', 'SYSTEM:')"
+
+  - name: "indirect_doc_concealment"
+    pattern: '(?i)no\s+(menciones|reveles)\s+(esta\s+)?(instrucci[oó]n|nota)'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Instrucción de auto-ocultación ('no menciones esta instrucción', 'no reveles esta nota')"
+
+  - name: "indirect_doc_cross_account_request"
+    pattern: '(?i)consult\w*\s+.{0,60}?\bsaldo\b.{0,40}?\bcuenta\b|\bsaldo\b.{0,40}?\bcuenta\b.{0,60}?consult\w*'
+    action: "BLOCK"
+    severity: "CRITICAL"
+    description: "Solicitud de consulta de saldo de cuenta embebida en texto de documento (versión más flexible que 'account_manipulation', cubre formas verbales en gerundio y mayor distancia entre términos)"

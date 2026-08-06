@@ -17,6 +17,7 @@ from pydantic_ai import Agent
 
 from .clara_base import _build_model
 from .tools import (
+    Deps,
     abrir_reclamacion,
     bloquear_tarjeta,
     consulta_producto,
@@ -39,6 +40,7 @@ def _load_prompt() -> str:
 def create_clara_agent_simple(model=None) -> Agent:
     return Agent(
         model or _build_model(),
+        deps_type=Deps,
         system_prompt=_load_prompt(),
         tools=[consulta_saldo, transferencia_nacional, bloquear_tarjeta, consulta_producto, abrir_reclamacion],
         retries=3,

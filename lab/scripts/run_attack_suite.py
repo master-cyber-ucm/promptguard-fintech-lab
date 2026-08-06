@@ -8,14 +8,26 @@ No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pas
   ├── simple-prompt/          ← Session Files de este endpoint
   ├── complex-prompt/
   ├── complex-with-context/
-  └── (run.md y run.json los genera `analyze.py` después)
+  ├── complex-with-document/  ← fixtures `type: document-upload` (ataque #7, Fase 2.9)
+  └── (run.md y run.json los genera `evaluate.py` + `report.py` después)
+
+Fixtures `type: document-upload` (campo `document: <archivo>` apuntando a
+henri-tfm/01-ataque/payloads/) se envían SIEMPRE a `complex-with-document` vía
+multipart, nunca a los 3 endpoints JSON — y viceversa, los fixtures normales
+(`steps`) nunca se envían a `complex-with-document`. No es un cruce N×M como
+con los otros 3 endpoints: cada fixture tiene un único endpoint válido según
+su tipo. Las 4 capas de defensa (A/B/C/D) van con su valor por defecto
+(`True`, comportamiento seguro) — no hay todavía soporte para los toggles
+`defensa_*` desde la suite (ver henri-tfm/ROADMAP.md §2.9.3); para eso sigue
+existiendo `henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py`.
 
 Uso:
   python run_attack_suite.py                           # todos los endpoints y kinds
   python run_attack_suite.py --endpoint simple-prompt  # solo un endpoint
+  python run_attack_suite.py --endpoint complex-with-document  # solo el ataque #7 real
   python run_attack_suite.py --kind attack-prompts     # solo ataques
-  python run_attack_suite.py --type DIRECT_INJECTION
-  python run_attack_suite.py --id atk_001
+  python run_attack_suite.py --type INDIRECT_INJECTION
+  python run_attack_suite.py --id atk_035
   python run_attack_suite.py --repeat 5                # 5 repeticiones por fixture
   python run_attack_suite.py --user usr_002
 """
@@ -37,19 +49,87 @@ sys.path.insert(0, str(HERE))
 from fixture_loader import load_prompts
 
 RUNS_DIR = HERE.parent / "audit" / "runs"
+# henri-tfm/ vive fuera de lab/ — HERE = lab/scripts, .parent.parent = raíz del repo.
+PAYLOADS_DIR = HERE.parent.parent / "henri-tfm" / "01-ataque" / "payloads"
+
+# El backend corre en un contenedor con ./audit:/app/audit montado (lab/docker-compose.yml).
+# `audit_subdir` viaja en la petición y lo usa `append_turn()` DENTRO del contenedor — tiene que
+# ser la ruta tal como la ve el contenedor, no la ruta host de este script. Bug real encontrado
+# en Fase 2.9: antes se enviaba la ruta host (`str(run_folder / ep_name)`); el contenedor la creaba
+# igualmente sin fallar, pero en su propio filesystem efímero — invisible y no persistente desde
+# el host. Mismo bug (y mismo arreglo) que ya se había aplicado en
+# henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py.
+AUDIT_RUNS_DIR_CONTAINER = "/app/audit/runs"
 
 ALL_KINDS = ["attack-prompts", "legitimate-prompts", "navi-prompts"]
+
+DOCUMENT_ENDPOINT_NAME = "complex-with-document"
 
 CHAT_ENDPOINTS: dict[str, str] = {
     "simple-prompt":        "/api/v1/chat/simple-prompt",
     "complex-prompt":       "/api/v1/chat/complex-prompt",
     "complex-with-context": "/api/v1/chat/complex-with-context",
+    DOCUMENT_ENDPOINT_NAME: "/api/v1/chat/complex-with-document",
+}
+
+DOCUMENT_CONTENT_TYPES: dict[str, str] = {
+    ".pdf":  "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 
 
 # ---------------------------------------------------------------------------
 # Single fixture execution
 # ---------------------------------------------------------------------------
+
+async def _run_document_fixture(
+    client: httpx.AsyncClient,
+    fixture: dict,
+    user_id: str,
+    api_base: str,
+    endpoint_path: str,
+    audit_subdir: str,
+    *,
+    repeat: int = 1,
+) -> tuple[str, str | None]:
+    """Envía un fixture `type: document-upload` vía multipart, adjuntando el archivo real de
+    `henri-tfm/01-ataque/payloads/`. Devuelve (última respuesta, último error)."""
+    doc_name = fixture["document"]
+    doc_path = PAYLOADS_DIR / doc_name
+    if not doc_path.is_file():
+        return "", f"Documento no encontrado: {doc_path}"
+    content_type = DOCUMENT_CONTENT_TYPES.get(doc_path.suffix.lower(), "application/octet-stream")
+
+    session_id = f"suite_{fixture['id']}_{int(time.time())}"
+    last_response = ""
+    error: str | None = None
+
+    for _ in range(repeat):
+        try:
+            with open(doc_path, "rb") as f:
+                resp = await client.post(
+                    f"{api_base}{endpoint_path}",
+                    data={
+                        "user_id": user_id,
+                        "session_id": session_id,
+                        "message": fixture.get("message", ""),
+                        "fixture_id": fixture.get("id"),
+                        "fixture_kind": fixture.get("kind"),
+                        "fixture_expected_result": fixture.get("expected_result"),
+                        "audit_subdir": audit_subdir,
+                    },
+                    files={"document": (doc_path.name, f, content_type)},
+                    timeout=90.0,
+                )
+            data = resp.json()
+            last_response = data.get("response", "")
+            error = data.get("error") or None
+        except Exception as exc:
+            error = str(exc)
+
+    return last_response, error
+
 
 async def _run_fixture(
     client: httpx.AsyncClient,
@@ -66,26 +146,31 @@ async def _run_fixture(
     error: str | None = None
     last_response = ""
 
-    for _ in range(repeat):
-        try:
-            for step in fixture.get("rendered_steps", []):
-                body = {
-                    "user_id": user_id,
-                    "session_id": session_id,
-                    "message": step.get("content", ""),
-                    "fixture_id": fixture.get("id"),
-                    "fixture_kind": fixture.get("kind"),
-                    "fixture_expected_result": fixture.get("expected_result"),
-                    "audit_subdir": audit_subdir,
-                }
-                resp = await client.post(
-                    f"{api_base}{endpoint_path}", json=body, timeout=90.0
-                )
-                data = resp.json()
-                last_response = data.get("response", "")
-                error = data.get("error") or None
-        except Exception as exc:
-            error = str(exc)
+    if fixture.get("document"):
+        last_response, error = await _run_document_fixture(
+            client, fixture, user_id, api_base, endpoint_path, audit_subdir, repeat=repeat,
+        )
+    else:
+        for _ in range(repeat):
+            try:
+                for step in fixture.get("rendered_steps", []):
+                    body = {
+                        "user_id": user_id,
+                        "session_id": session_id,
+                        "message": step.get("content", ""),
+                        "fixture_id": fixture.get("id"),
+                        "fixture_kind": fixture.get("kind"),
+                        "fixture_expected_result": fixture.get("expected_result"),
+                        "audit_subdir": audit_subdir,
+                    }
+                    resp = await client.post(
+                        f"{api_base}{endpoint_path}", json=body, timeout=90.0
+                    )
+                    data = resp.json()
+                    last_response = data.get("response", "")
+                    error = data.get("error") or None
+            except Exception as exc:
+                error = str(exc)
 
     latency_ms = (time.time() - start) * 1000
     return {
@@ -169,7 +254,13 @@ async def main():
     for ep_name in endpoints:
         (run_folder / ep_name).mkdir(parents=True, exist_ok=True)
 
-    total = len(fixtures) * len(endpoints) * args.repeat
+    def _valid_endpoints_for(fixture: dict) -> int:
+        # Cada fixture solo tiene UN endpoint válido: document-upload -> complex-with-document,
+        # el resto -> los 3 endpoints JSON (nunca se cruzan, ver docstring del módulo).
+        is_doc = bool(fixture.get("document"))
+        return sum(1 for name in endpoints if (name == DOCUMENT_ENDPOINT_NAME) == is_doc)
+
+    total = sum(_valid_endpoints_for(f) for f in fixtures) * args.repeat
 
     _flush(SEP2)
     _flush(f"  🎯 PromptGuard Suite Run · {run_ts}")
@@ -196,8 +287,15 @@ async def main():
             _flush(f"          kind={fkind}  severity={fsev}")
             _flush(SEP)
 
+            is_document_fixture = bool(fixture.get("document"))
+
             for ep_name, ep_path in endpoints.items():
-                audit_subdir = f"/app/audit/runs/{run_folder.name}/{ep_name}"
+                # Cada fixture solo va a su endpoint válido: document-upload -> siempre
+                # complex-with-document; el resto -> nunca complex-with-document.
+                if is_document_fixture != (ep_name == DOCUMENT_ENDPOINT_NAME):
+                    continue
+
+                audit_subdir = f"{AUDIT_RUNS_DIR_CONTAINER}/{ts_file}/{ep_name}"
                 print(f"  ↳ {ep_name:<26}", end="", flush=True)
                 t0 = time.time()
 
@@ -219,7 +317,7 @@ async def main():
     _flush(SEP2)
     _flush(f"  SUITE COMPLETADA — {sent} enviados · {errors} errores")
     _flush(f"  Run Folder : {run_folder.relative_to(HERE.parent.parent)}")
-    _flush(f"  Siguiente  : python scripts/analyze.py --run {run_folder}")
+    _flush(f"  Siguiente  : python scripts/evaluate.py --run {run_folder}")
     _flush(SEP2)
 
 

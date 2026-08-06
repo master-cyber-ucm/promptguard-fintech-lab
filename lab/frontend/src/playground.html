@@ -13,10 +13,7 @@
       <header class="header">
         <div class="header-left">
           <h1>🏦 VerdaBank</h1>
-          <!-- [Damaro] id agregado para poder actualizar el texto/color del banner según el modo elegido -->
-          <span id="mode-banner" class="badge badge-danger"
-            >⚠️ VULNERABLE — Sin defensas</span
-          >
+          <span class="badge badge-danger">⚠️ VULNERABLE — Sin defensas</span>
         </div>
         <div class="header-right">
           <label for="mode-select">Modo:</label>
@@ -26,8 +23,9 @@
             <option value="complex-with-context" selected>
               complex-with-context
             </option>
-            <!-- [Damaro] Modo con defensa Tool Gatekeeper (valida propiedad de cuenta) -->
-            <option value="gatekeeper">gatekeeper (defensa)</option>
+            <option value="complex-with-document">
+              complex-with-document (adjuntar archivo)
+            </option>
           </select>
           <label for="user-select">Usuario:</label>
           <select id="user-select">
@@ -62,6 +60,25 @@
                 protecciones de seguridad.
               </p>
             </div>
+          </div>
+
+          <!-- Adjuntar documento (solo visible en modo complex-with-document) -->
+          <div id="document-attach" class="document-attach" style="display:none">
+            <label for="document-input">📎 Documento a adjuntar (PDF / DOCX / XLSX):</label>
+            <input type="file" id="document-input" accept=".pdf,.docx,.xlsx">
+            <span id="document-filename" class="text-muted" style="font-size:0.85em"></span>
+          </div>
+
+          <!-- Estudio de ablación: toggles por capa de defensa (solo modo complex-with-document) -->
+          <div id="defensas-panel" class="defensas-panel" style="display:none">
+            <span class="text-muted" style="font-size:0.85em">🛡️ Defensas activas:</span>
+            <label><input type="checkbox" id="defensa-estructural" checked> A · estructural</label>
+            <label><input type="checkbox" id="defensa-sanitizer" checked> B · sanitizer</label>
+            <label><input type="checkbox" id="defensa-separacion-semantica" checked> C · separación semántica</label>
+            <label title="Experimento Fase 2.8: presenta el documento como resultado de una tool en vez de texto delimitado — reduce el éxito real de ataque de ~78% a 22% (aislado de D), sin eliminarlo. Solo tiene efecto si C también está activa.">
+              <input type="checkbox" id="defensa-separacion-tool-framing"> C · variante tool_framing 🧪
+            </label>
+            <label><input type="checkbox" id="defensa-tool-gatekeeper" checked> D · tool gatekeeper</label>
           </div>
 
           <!-- Input -->

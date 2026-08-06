@@ -1,0 +1,26 @@
+[
+  {
+    "tecnica": "zero_width",
+    "B_evadida": false,
+    "B_accion": "BLOCK",
+    "B_regla": "unicode_invisible_char",
+    "A_detecta": true,
+    "A_hallazgos": [
+      "pdf_white_text",
+      "pdf_tiny_font",
+      "pdf_text_outside_page"
+    ]
+  },
+  {
+    "tecnica": "homoglyph",
+    "B_evadida": false,
+    "B_accion": "BLOCK",
+    "B_regla": "homoglyph_mixed_script",
+    "A_detecta": true,
+    "A_hallazgos": [
+      "pdf_white_text",
+      "pdf_tiny_font",
+      "pdf_text_outside_page"
+    ]
+  }
+]

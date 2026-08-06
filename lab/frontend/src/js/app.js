@@ -27,6 +27,18 @@ const btnSend = document.getElementById("btn-send");
 const btnClear = document.getElementById("btn-clear");
 const btnSaveFixture = document.getElementById("btn-save-fixture");
 const userSelect = document.getElementById("user-select");
+const modeSelectEl = document.getElementById("mode-select");
+const documentAttach = document.getElementById("document-attach");
+const documentInput = document.getElementById("document-input");
+const documentName = document.getElementById("document-filename");
+const defensasPanel = document.getElementById("defensas-panel");
+const defensaCheckboxes = {
+  estructural: document.getElementById("defensa-estructural"),
+  sanitizer: document.getElementById("defensa-sanitizer"),
+  separacionSemantica: document.getElementById("defensa-separacion-semantica"),
+  separacionToolFraming: document.getElementById("defensa-separacion-tool-framing"),
+  toolGatekeeper: document.getElementById("defensa-tool-gatekeeper"),
+};
 
 // --- Init ---
 function init() {
@@ -41,6 +53,17 @@ function init() {
     }
   });
 
+  if (modeSelectEl) {
+    modeSelectEl.addEventListener("change", updateDocumentAttachVisibility);
+    updateDocumentAttachVisibility();
+  }
+  if (documentInput) {
+    documentInput.addEventListener("change", () => {
+      const f = documentInput.files[0];
+      documentName.textContent = f ? f.name : "";
+    });
+  }
+
   initFixtureBrowser({
     container: document.getElementById("fixture-list"),
     onLoadStep: (content) => {
@@ -49,31 +72,22 @@ function init() {
       chatInput.scrollTop = chatInput.scrollHeight;
     },
   });
+}
 
-  // [Damaro] Actualiza el banner del header según el modo elegido.
-  // Objetivo: que la demo visual no diga "VULNERABLE" cuando en
-  // realidad está activo el modo con defensa (Tool Gatekeeper).
-  // No modifica el comportamiento de los modos existentes (simple-prompt,
-  // complex-prompt, complex-with-context) — solo cambia el texto/color
-  // del banner informativo, sin tocar la lógica de envío de mensajes.
-  const modeSelectEl = document.getElementById("mode-select");
-  const modeBanner = document.getElementById("mode-banner");
+function updateDocumentAttachVisibility() {
+  if (!documentAttach || !modeSelectEl) return;
+  const isDocumentMode = modeSelectEl.value === "complex-with-document";
+  documentAttach.style.display = isDocumentMode ? "flex" : "none";
+  if (defensasPanel) defensasPanel.style.display = isDocumentMode ? "flex" : "none";
+}
 
-  function updateModeBanner() {
-    if (!modeSelectEl || !modeBanner) return;
-    if (modeSelectEl.value === "gatekeeper") {
-      modeBanner.textContent = "🛡️ DEFENSA ACTIVA — Tool Gatekeeper";
-      modeBanner.className = "badge badge-success";
-    } else {
-      modeBanner.textContent = "⚠️ VULNERABLE — Sin defensas";
-      modeBanner.className = "badge badge-danger";
-    }
+function getDefensasFromUI() {
+  const d = {};
+  for (const key in defensaCheckboxes) {
+    const el = defensaCheckboxes[key];
+    d[key] = el ? el.checked : true;
   }
-
-  if (modeSelectEl) {
-    modeSelectEl.addEventListener("change", updateModeBanner);
-    updateModeBanner(); // fija el estado correcto al cargar la página
-  }
+  return d;
 }
 
 // --- Send message ---
@@ -83,10 +97,20 @@ async function handleSend() {
   const message = chatInput.value.trim();
   if (!message) return;
 
+  const endpoint = modeSelectEl ? modeSelectEl.value : null;
+  const isDocumentMode = endpoint === "complex-with-document";
+
+  const documentFile = isDocumentMode && documentInput ? documentInput.files[0] : null;
+  if (isDocumentMode && !documentFile) {
+    alert("Selecciona un documento (PDF/DOCX/XLSX) para adjuntar antes de enviar.");
+    return;
+  }
+
   const userId = userSelect.value;
   const userName = userSelect.options[userSelect.selectedIndex].text;
 
-  addMessage("user", message, { userName });
+  const userMessageDisplay = documentFile ? `${message}\n📎 ${documentFile.name}` : message;
+  addMessage("user", userMessageDisplay, { userName });
   _capturedSteps.push({ content: message });
   chatInput.value = "";
   chatInput.style.height = "auto";
@@ -97,15 +121,11 @@ async function handleSend() {
     isSending = true;
     btnSend.disabled = true;
 
-    const modeSelect = document.getElementById("mode-select");
-    const endpoint = modeSelect ? modeSelect.value : null;
-    const response = await window.VB.API.sendMessage(
-      userId,
-      SESSION_ID,
-      message,
-      getActiveFixtureMeta(),
-      endpoint,
-    );
+    const response = documentFile
+      ? await window.VB.API.sendMessageWithDocument(userId, SESSION_ID, message, documentFile, getActiveFixtureMeta(), getDefensasFromUI())
+      : await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta(), endpoint);
+
+    if (documentInput) { documentInput.value = ""; documentName.textContent = ""; }
 
     loadingEl.remove();
 

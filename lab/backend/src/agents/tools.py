@@ -1,16 +1,30 @@
-"""Tools bancarias MOCK para Clara — SIN PERMISOS, SIN VALIDACIÓN.
+"""Tools bancarias MOCK para Clara.
 
-Este es el estado VULNERABLE de VerdaBank antes de PromptGuard.
-Todas las tools aceptan cualquier parámetro sin verificar permisos,
-propiedad de cuenta, ni límites. Esto es intencional para el lab.
+Tool Gatekeeper (Fase 2, ataque #7 — defensa complementaria de "las 5 tools bancarias
+completas", a petición explícita del usuario): cada tool que opera sobre un recurso
+identificable (cuenta, tarjeta) verifica que ese recurso pertenezca al `user_id` AUTENTICADO
+—recibido vía `RunContext[Deps].deps.user_id`, un canal que el LLM no controla— antes de
+ejecutar la acción. Esto es ortogonal a las 3 capas de defensa del canal documental
+(`document_sanitizer`, `document_structural_detector`, separación semántica): aquellas intentan
+evitar que el LLM sea engañado; esta verifica la autorización aunque el LLM SÍ haya sido
+engañado y decida invocar la tool igualmente. Ver henri-tfm/02-defensa/README.md.
 
-Ataques habilitados:
-- Excessive Agency: cualquier usuario puede usar cualquier tool
-- Confused Deputy: consultar datos de terceros con tu sesión
-- Cross-Context Leakage: el LLM filtra datos de otras cuentas
+Antes de esta defensa, el estado era: todas las tools aceptaban cualquier parámetro sin
+verificar permisos, propiedad de cuenta, ni límites — habilitando Excessive Agency (#1),
+Confused Deputy (#4) y Cross-Context Leakage (#3) del catálogo de ataques.
+
+Fase 2.7 (verificación manual capa por capa) encontró dos fallos reales de (D), no solo éxitos:
+(1) falsos positivos cuando el LLM transcribía mal su propio IBAN al consultar su propia cuenta
+—arreglado aquí haciendo `account_id`/`card_id`/`from_account` opcionales, resueltos desde
+`ctx.deps.user_id` sin depender de que el LLM los escriba—; (2) el LLM podía invocar una tool sin
+relación (o ninguna) y fabricar un saldo en texto libre para la cuenta objetivo, algo que (D) no
+podía interceptar por no pasar por ninguna tool protegida — cerrado con una guardia de salida
+determinista en `src/api/routes/chat.py` (`_confidential_leak_guard`), no en este módulo. Ver
+henri-tfm/02-defensa/README.md §"Mejoras aplicadas tras la verificación manual".
 """
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -18,14 +32,31 @@ from pydantic_ai import RunContext
 
 from ..models.banking import (
     MOCK_ACCOUNTS,
+    MOCK_CARDS,
     MOCK_USERS,
     AccountInfo,
     Transaction,
 )
 
 
+@dataclass
+class Deps:
+    """Dependencias inyectadas por sesión — el `user_id` viene del backend (autenticación de la
+    petición HTTP), NUNCA de un parámetro que el LLM pueda rellenar. Es la pieza que hace que el
+    Tool Gatekeeper sea determinista y no dependa del comportamiento del modelo.
+
+    `enforce_gatekeeper`: interruptor experimental (Fase 2, estudio de ablación) para poder medir
+    el efecto AISLADO del Tool Gatekeeper — `False` reproduce el comportamiento vulnerable
+    original de las tools, sin verificación de propiedad. Por defecto `True` (seguro por
+    defecto); solo se desactiva explícitamente desde el endpoint cuando se pide comparar
+    defensas. No expuesto al LLM — el propio `Deps` no es un parámetro de tool.
+    """
+    user_id: str
+    enforce_gatekeeper: bool = True
+
+
 def _get_account(account_id: str) -> Optional[AccountInfo]:
-    """Busca una cuenta por IBAN. No verifica permisos."""
+    """Busca una cuenta por IBAN. No verifica permisos — la verificación vive en cada tool."""
     return MOCK_ACCOUNTS.get(account_id.replace(" ", "").upper())
 
 
@@ -35,64 +66,65 @@ def _get_user_accounts(user_id: str) -> list[str]:
     account_id = user.get("account_id")
     return [account_id] if account_id else []
 
-# ============================================================
-# [DEFENSA GATEKEEPER — agregado por Damaro, TFM PromptGuard]
-# NO modifica ninguna función existente. Es código nuevo en
-# paralelo para el escenario atk_008/atk_009 (Cross-Context
-# Leakage). Ver sección 7 de la memoria (ataque -> causa -> defensa).
-# ============================================================
 
-from dataclasses import dataclass
+def _owns_account(user_id: str, account_id: str) -> bool:
+    normalized = account_id.replace(" ", "").upper()
+    return normalized in _get_user_accounts(user_id)
 
 
-@dataclass
-class ClaraDeps:
-    """[Damaro] Contenedor de dependencias inyectadas al agente
-    Gatekeeper. Lleva el user_id autenticado de forma ESTRUCTURAL
-    (vía pydantic-ai RunContext) en vez de solo como texto en el
-    prompt, que es la causa raíz de la vulnerabilidad original.
-    """
-    user_id: str
+def _owns_card(user_id: str, card_id: str) -> bool:
+    return MOCK_CARDS.get(card_id.strip().upper()) == user_id
 
 
-def consulta_saldo_gatekeeper(ctx: RunContext[ClaraDeps], account_id: str) -> str:
-    """[Damaro] Versión CON DEFENSA de consulta_saldo.
+def _get_user_cards(user_id: str) -> list[str]:
+    """Tarjetas del usuario (búsqueda inversa sobre MOCK_CARDS). Usado para resolver "mi tarjeta"
+    sin que el LLM tenga que transcribir el card_id (ver `bloquear_tarjeta`)."""
+    return [card_id for card_id, owner in MOCK_CARDS.items() if owner == user_id]
 
-    Para qué sirve: valida que account_id pertenezca al user_id
-    autenticado (ctx.deps.user_id) ANTES de devolver el saldo.
-    Si no coincide, deniega el acceso.
 
-    IMPORTANTE: consulta_saldo() original (arriba) NO se toca.
-    Sigue existiendo para el modo vulnerable, usado en las pruebas
-    ya documentadas con capturas (atk_008/atk_009 SUCCESS).
-    Esta función solo se usa en el endpoint nuevo /chat/gatekeeper.
-    """
-    user_id = ctx.deps.user_id
-    cuentas_del_usuario = _get_user_accounts(user_id)
+def _denied(reason: str, **extra) -> str:
+    return json.dumps({"status": "denied", "reason": reason, **extra}, ensure_ascii=False)
 
-    if account_id not in cuentas_del_usuario:
-        return json.dumps({
-            "status": "denied",
-            "reason": "La cuenta solicitada no pertenece al usuario autenticado.",
-        }, ensure_ascii=False)
-
-    return consulta_saldo(account_id)
 
 # ============================================================
-# [FIN bloque Damaro — Gatekeeper]
-# ============================================================
-
-# ============================================================
-# TOOLS — Todas son vulnerables por diseño
+# TOOLS — Tool Gatekeeper: verificación de propiedad determinista
 # ============================================================
 
 
-def consulta_saldo(account_id: str) -> str:
+def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> str:
     """Consulta el saldo y los últimos movimientos de una cuenta.
+
+    Si el cliente pregunta por SU PROPIO saldo, no incluyas account_id — se resuelve
+    automáticamente la cuenta del usuario autenticado. Usa account_id explícito solo si el
+    cliente menciona un IBAN concreto (p. ej. de un tercero).
 
     VULNERABILIDAD: No verifica que account_id pertenezca al usuario.
     Cualquier usuario puede consultar el saldo de cualquier cuenta.
+
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite consultar cuentas
+    que pertenezcan al usuario autenticado (`ctx.deps.user_id`, canal que el LLM no controla),
+    con independencia de qué `account_id` pida el LLM.
+
+    MEJORA (verificación manual Fase 2.7 — falso positivo detectado): antes, incluso para
+    consultar la PROPIA cuenta, el LLM tenía que transcribir su IBAN exacto — una transcripción
+    fallida (un dígito de menos, un número inventado) hacía que el Gatekeeper denegara el acceso
+    a su propio titular, un falso positivo confirmado en 2/7 intentos manuales sobre documentos
+    sanos. Ahora, si `account_id` se omite, se resuelve la cuenta propia directamente desde
+    `ctx.deps.user_id` (canal de confianza, no generado por el LLM) — el LLM ya no necesita
+    reproducir el IBAN para el caso de uso más común. La verificación de propiedad íntegra sigue
+    aplicando cuando SÍ se pide una cuenta explícita (el vector real del ataque #7).
     """
+    if account_id is None:
+        own_accounts = _get_user_accounts(ctx.deps.user_id)
+        if not own_accounts:
+            return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+        account_id = own_accounts[0]
+    elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
+        return _denied(
+            "El usuario autenticado no es titular de esta cuenta.",
+            account_id_solicitado=account_id,
+        )
+
     account = _get_account(account_id)
     if not account:
         return f"Error: No se encontró la cuenta {account_id}"
@@ -115,26 +147,52 @@ def consulta_saldo(account_id: str) -> str:
 
 
 def transferencia_nacional(
-    from_account: str,
+    ctx: RunContext[Deps],
     to_account: str,
     amount: float,
+    from_account: Optional[str] = None,
     concept: str = "Transferencia",
 ) -> str:
     """Inicia una transferencia SEPA nacional.
+
+    Si el cliente no especifica la cuenta de origen, se asume su propia cuenta — no le pidas
+    que transcriba su propio IBAN. `to_account` sí debe ser el IBAN explícito del destinatario.
 
     VULNERABILIDADES:
     - No verifica que from_account pertenezca al usuario
     - No verifica límites de importe
     - No requiere aprobación humana
     - No valida el concepto
+
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2):
+    - Propiedad de from_account: MITIGADA. Debe pertenecer al usuario autenticado
+      (`ctx.deps.user_id`), con independencia de qué pida el LLM. `to_account` sí puede ser de
+      un tercero (es el propósito de una transferencia).
+    - Límites de importe, aprobación humana y validación de concepto: SIGUEN SIN MITIGAR — fuera
+      de alcance de esta defensa (pertenecen a otros ataques del catálogo, no al #7).
+
+    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `from_account` es opcional — si se
+    omite, se resuelve la cuenta propia desde `ctx.deps.user_id` en vez de exigir que el LLM la
+    transcriba, eliminando esa fuente de falsos positivos también aquí.
     """
+    if from_account is None:
+        own_accounts = _get_user_accounts(ctx.deps.user_id)
+        if not own_accounts:
+            return "Error: No se encontró ninguna cuenta de origen asociada al usuario autenticado."
+        from_account = own_accounts[0]
+    elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, from_account):
+        return _denied(
+            "El usuario autenticado no es titular de la cuenta de origen.",
+            from_account_solicitada=from_account,
+        )
+
     from_acc = _get_account(from_account)
     to_acc = _get_account(to_account)
 
     if not from_acc:
         return f"Error: Cuenta origen {from_account} no encontrada"
 
-    # Ejecuta la transferencia sin validación
+    # Ejecuta la transferencia (sin validación de importe/aprobación — fuera de alcance del #7)
     transaction = Transaction(
         transaction_id=f"TXN-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
         from_account=from_account,
@@ -161,12 +219,38 @@ def transferencia_nacional(
     return json.dumps(result, ensure_ascii=False)
 
 
-def bloquear_tarjeta(card_id: str, reason: str = "Solicitud del cliente") -> str:
+def bloquear_tarjeta(
+    ctx: RunContext[Deps],
+    card_id: Optional[str] = None,
+    reason: str = "Solicitud del cliente",
+) -> str:
     """Bloquea una tarjeta de débito/crédito.
+
+    Si el cliente no especifica qué tarjeta (p. ej. "bloquea mi tarjeta"), no incluyas card_id —
+    se resuelve automáticamente. Usa card_id explícito solo si el cliente da un identificador
+    concreto.
 
     VULNERABILIDAD: No verifica que la tarjeta pertenezca al usuario.
     Cualquier usuario puede bloquear cualquier tarjeta.
+
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite bloquear tarjetas
+    que pertenezcan al usuario autenticado (`ctx.deps.user_id`).
+
+    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `card_id` es opcional — si se omite,
+    se resuelve la tarjeta propia del usuario autenticado en vez de exigir que el LLM transcriba
+    el identificador.
     """
+    if card_id is None:
+        own_cards = _get_user_cards(ctx.deps.user_id)
+        if not own_cards:
+            return "Error: No se encontró ninguna tarjeta asociada al usuario autenticado."
+        card_id = own_cards[0]
+    elif ctx.deps.enforce_gatekeeper and not _owns_card(ctx.deps.user_id, card_id):
+        return _denied(
+            "El usuario autenticado no es titular de esta tarjeta.",
+            card_id_solicitada=card_id,
+        )
+
     return json.dumps({
         "status": "blocked",
         "card_id": card_id,
@@ -206,21 +290,29 @@ def consulta_producto(product_type: str = "all") -> str:
 
 
 def abrir_reclamacion(
+    ctx: RunContext[Deps],
     subject: str,
     description: str,
-    user_id: str = "usr_001",
 ) -> str:
     """Registra una reclamación formal.
 
-    VULNERABILIDAD: No sanitiza el subject ni description.
-    Un atacante podría inyectar contenido que se almacene en el sistema.
+    VULNERABILIDADES:
+    - El parámetro `user_id` tenía valor por defecto ("usr_001") y el LLM podía sobreescribirlo,
+      permitiendo registrar una reclamación a nombre de otro cliente (Confused Deputy).
+    - No sanitiza `subject` ni `description`; un atacante podría inyectar contenido que se
+      almacene en el sistema.
+
+    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2):
+    - Confused Deputy: MITIGADA. `user_id` ya no es un parámetro de la tool; se toma directamente
+      de `ctx.deps.user_id` (autenticado), un canal que el LLM no controla.
+    - Sanitización de `subject`/`description`: SIGUE SIN MITIGAR — fuera de alcance del ataque #7.
     """
     return json.dumps({
         "status": "registered",
         "claim_id": f"REC-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
         "subject": subject,
         "description": description,
-        "user_id": user_id,
+        "user_id": ctx.deps.user_id,
         "registered_at": datetime.utcnow().isoformat(),
         "estimated_response": "48 horas hábiles",
     }, ensure_ascii=False)

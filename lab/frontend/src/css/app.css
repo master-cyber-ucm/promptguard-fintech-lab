@@ -103,6 +103,39 @@ body {
   border-top: 1px solid var(--border);
 }
 
+.document-attach {
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.document-attach input[type="file"] {
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+.defensas-panel {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 8px 16px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+
+.defensas-panel label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text);
+    cursor: pointer;
+}
+
 .chat-input textarea {
   flex: 1;
   background: var(--bg-input);
