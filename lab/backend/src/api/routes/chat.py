@@ -29,11 +29,18 @@ Progresión de menor a mayor defensa:
            explícita (delimitado y marcado como dato no confiable).
       Ver src/core/document_extractor.py, document_sanitizer.py, document_structural_detector.py.
       Análisis completo de la defensa en henri-tfm/02-defensa/README.md.
+
+  POST /api/v1/chat/proxy
+      Pipeline PromptGuard completo: Input Sanitizer (esqueleto no-op) -> PII Shield
+      (esqueleto no-op) -> Clara + Tool Gatekeeper (real) -> Output Auditor (real) ->
+      Compliance Logger (firma HMAC). `SHADOW_MODE=true` en el entorno decide pero no
+      bloquea. Ver src/core/base.py y el epic "Implementación de proxy base".
 """
 
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -50,13 +57,21 @@ from pydantic_ai.messages import (
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
 from src.agents.tools import Deps
+from src.core.base import StageContext, shadow_mode
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.core.document_sanitizer import sanitize_document_text
 from src.core.document_structural_detector import detect_hiding_techniques
+from src.core.input_sanitizer import InputSanitizerStage
+from src.core.pii_shield import PIIShieldStage
 from src.models.banking import MOCK_USERS
 from src.models.interaction import PromptDecision
-from src.utils.audit_repository import append_turn
+from src.utils.audit_repository import append_turn, sign_turn
 from src.core.output_auditor import audit_response
+
+# Pipeline del proxy (Input Sanitizer -> PII Shield): instancias reusadas entre
+# requests, las stages no guardan estado por turno (ver src/core/base.py).
+_INPUT_SANITIZER = InputSanitizerStage()
+_PII_SHIELD = PIIShieldStage()
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -166,12 +181,16 @@ async def _process_chat(
     defensa_separacion_semantica: bool = True,
     defensa_separacion_tool_framing: bool = False,
     defensa_tool_gatekeeper: bool = True,
+    proxy_enabled: bool = False,
 ) -> ChatResponse:
     start_time = time.time()
 
     user = MOCK_USERS.get(request.user_id)
     if not user:
         raise HTTPException(status_code=404, detail=f"Usuario {request.user_id} no encontrado")
+
+    session_id = request.session_id or f"ses_{int(time.time())}"
+    fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
 
     if inject_context:
         user_context = (
@@ -181,6 +200,43 @@ async def _process_chat(
         full_message = f"{user_context}\n\nMensaje del cliente: {request.message}"
     else:
         full_message = request.message
+
+    # --- Pipeline del proxy: Input Sanitizer -> PII Shield (esqueleto no-op, ver
+    # src/core/input_sanitizer.py y pii_shield.py) — solo corre en /chat/proxy.
+    # SHADOW_MODE=true: decide pero no bloquea (ver src/core/base.py).
+    if proxy_enabled:
+        stage_ctx = StageContext(text=full_message, user_id=request.user_id, session_id=session_id)
+        for stage in (_INPUT_SANITIZER, _PII_SHIELD):
+            decision = stage.evaluate(stage_ctx)
+            if decision.action != "BLOCK":
+                continue
+            if shadow_mode():
+                logger.warning(
+                    "[%s]%s ⚠ shadow mode: %s habría bloqueado (%s) — turno continúa sin bloquear",
+                    session_id, fixture_tag, stage.name, decision.reason,
+                )
+                continue
+            latency_ms = (time.time() - start_time) * 1000
+            logger.info(
+                "[%s]%s ✗ BLOQUEADO por %s: %s",
+                session_id, fixture_tag, stage.name, decision.reason,
+            )
+            audit_path = append_turn(
+                session_id=session_id, user_id=request.user_id, model=f"proxy-{stage.name}",
+                prompt=full_message, thinking=None, tools=[],
+                response=f"[BLOCKED_BY_{stage.name.upper()}] {decision.reason}",
+                latency_ms=latency_ms,
+                fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
+                fixture_expected_result=request.fixture_expected_result,
+                audit_subdir=request.audit_subdir,
+            )
+            return ChatResponse(
+                user_id=request.user_id, message=request.message, response="",
+                model=f"proxy-{stage.name}", latency_ms=round(latency_ms, 1),
+                session_id=session_id, tools_used=[], endpoint=endpoint_name,
+                audit_file=audit_path.name,
+                error=f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}",
+            )
 
     message_history: Optional[list] = None
     prompt_for_audit = full_message
@@ -239,8 +295,6 @@ async def _process_chat(
             full_message = f"{full_message}\n\nDocumento adjunto por el cliente:\n{document_text}"
             prompt_for_audit = full_message
 
-    session_id = request.session_id or f"ses_{int(time.time())}"
-    fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
     logger.info("[%s]%s → %s (usuario=%s)", session_id, fixture_tag, endpoint_name, request.user_id)
 
     try:
@@ -248,8 +302,12 @@ async def _process_chat(
         # controla — las tools lo usan (RunContext[Deps].deps.user_id) para verificar propiedad
         # del recurso solicitado, con independencia de qué pida el propio modelo.
         # `enforce_gatekeeper=False` reproduce el comportamiento vulnerable original (estudio de
-        # ablación) — solo se desactiva si el llamador lo pide explícitamente.
-        deps = Deps(user_id=request.user_id, enforce_gatekeeper=defensa_tool_gatekeeper)
+        # ablación) — solo se desactiva si el llamador lo pide explícitamente. En shadow mode
+        # (solo aplica al proxy, no a `complex-with-document`) el Gatekeeper no puede "decidir sin
+        # bloquear" sin reescribir cada tool (ver limitación documentada en src/core/base.py) — se
+        # desactiva del todo, igual que el resto del pipeline.
+        effective_gatekeeper = defensa_tool_gatekeeper and not (proxy_enabled and shadow_mode())
+        deps = Deps(user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper)
         result = await agent.run(full_message, message_history=message_history, deps=deps)
         latency_ms = (time.time() - start_time) * 1000
 
@@ -299,6 +357,19 @@ async def _process_chat(
             fixture_expected_result=request.fixture_expected_result,
             audit_subdir=request.audit_subdir,
         )
+
+        # Compliance Logger: firma HMAC del Session File (requisito DORA Art. 12) — solo
+        # para turnos servidos por el proxy, ver utils/audit_repository.sign_turn().
+        if proxy_enabled:
+            sign_turn(
+                audit_path,
+                session_id=session_id,
+                user_id=request.user_id,
+                prompt=prompt_for_audit,
+                response=response_text,
+                latency_ms=latency_ms,
+                timestamp=datetime.now(timezone.utc),
+            )
 
         tool_names = [t["tool"] for t in tools_used] if tools_used else []
         thinking_tag = " [thinking]" if thinking else ""
@@ -364,6 +435,11 @@ async def chat_simple_prompt(request: ChatRequest):
         request, "simple-prompt",
         get_clara_agent_simple(), reset_clara_agent_simple,
         inject_context=False,
+        # Baseline vulnerable — `Deps.enforce_gatekeeper` por defecto es `True` (seguro por
+        # defecto, decisión de la Fase 2). Se desactiva explícitamente aquí para que este
+        # endpoint siga siendo el estado VULNERABLE real que documentan los fixtures del
+        # baseline (ver módulo docstring), no una versión ya defendida por accidente.
+        defensa_tool_gatekeeper=False,
     )
 
 
@@ -374,6 +450,7 @@ async def chat_complex_prompt(request: ChatRequest):
         request, "complex-prompt",
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=False,
+        defensa_tool_gatekeeper=False,  # baseline vulnerable — ver chat_simple_prompt
     )
 
 
@@ -384,6 +461,34 @@ async def chat_complex_with_context(request: ChatRequest):
         request, "complex-with-context",
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
+        defensa_tool_gatekeeper=False,  # baseline vulnerable — ver chat_simple_prompt
+    )
+
+
+@router.post("/chat/proxy", response_model=ChatResponse)
+async def chat_proxy(request: ChatRequest):
+    """Proxy PromptGuard — pipeline completo de defensa.
+
+    Input Sanitizer (esqueleto no-op) -> PII Shield (esqueleto no-op) -> Clara +
+    Tool Gatekeeper (RunContext[Deps], real — valida propiedad de cuenta/tarjeta) ->
+    Output Auditor (real — LLM07) -> Compliance Logger (firma HMAC del Session File).
+
+    Mismo patrón que el resto de endpoints (`_process_chat` parametrizable con un
+    flag) en vez de una ruta nueva por combinación de defensas — decisión landed en
+    el epic "Implementación de proxy base". `SHADOW_MODE=true` en el entorno hace que
+    el pipeline decida pero no bloquee (ver `src/core/base.py`).
+
+    Input Sanitizer y PII Shield son esqueletos ALLOW-siempre por ahora — su lógica
+    real vive en epics propios ("Defensa — Prompt Injection Directa" y "Defensa — PII
+    Harvesting vía Contexto"); están ya enganchados aquí para que activarla después
+    no requiera tocar el orquestador.
+    """
+    return await _process_chat(
+        request, "proxy",
+        get_clara_agent_complex(), reset_clara_agent_complex,
+        inject_context=True,
+        defensa_tool_gatekeeper=True,
+        proxy_enabled=True,
     )
 
 

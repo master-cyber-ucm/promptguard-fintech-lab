@@ -10,6 +10,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .crypto import sign_payload
+
 _AUDIT_DIR = Path(os.environ.get("AUDIT_DIR", Path(__file__).resolve().parents[3] / "audit" / "sessions"))
 
 
@@ -166,3 +168,33 @@ def append_turn(
         f.write(turn_md)
 
     return path
+
+
+def sign_turn(
+    path: Path,
+    *,
+    session_id: str,
+    user_id: str,
+    prompt: str,
+    response: str,
+    latency_ms: float,
+    timestamp: datetime,
+) -> str:
+    """Compliance Logger: firma HMAC-SHA256 del turno recién escrito en `path`
+    (requisito DORA Art. 12), añadida al Session File. Extiende este repositorio en
+    vez de crear un sistema de logging en paralelo — decisión landed en el epic
+    "Implementación de proxy base" — reusando `sign_payload` ya escrito en
+    `utils/crypto.py`. Solo se llama para turnos servidos por `/chat/proxy`.
+    """
+    payload = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "prompt": prompt,
+        "response": response,
+        "latency_ms": round(latency_ms, 1),
+        "timestamp": timestamp.isoformat(),
+    }
+    signature = sign_payload(payload)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"**Firma HMAC-SHA256 (Compliance Logger):** `{signature}`\n\n---\n\n")
+    return signature
