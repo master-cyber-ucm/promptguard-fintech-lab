@@ -6,7 +6,7 @@
 
 # ── Tripleta A · 3B-4B ──────────────────────────────────────────────────────
 # Vulnerable  : Qwen 2.5 generación anterior, safety menos maduro que Qwen 3.x
-# qwen2.5:3b
+qwen2.5:3b
 # Moderado    : Llama 3.2 3B con safety training de Meta Llama 3
 llama3.2:3b
 # Resistente  : Qwen 3.5 4B con alineamiento moderno
