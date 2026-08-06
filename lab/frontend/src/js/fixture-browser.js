@@ -24,6 +24,9 @@ const CAT_ORDER = ['LLM01', 'LLM02', 'LLM06', 'LLM07', '_extensiones'];
 let _pending = null;
 // Active fixture metadata for the current turn
 let _activeFixture = null;
+// Guardado para permitir re-render tras crear un fixture nuevo.
+let _container = null;
+let _onLoadStep = null;
 
 /** Devuelve los metadatos del fixture activo para incluir en el ChatRequest. */
 export function getActiveFixtureMeta() {
@@ -36,7 +39,14 @@ export function getActiveFixtureMeta() {
  * @param {Function}    opts.onLoadStep - callback(content: string) cuando se carga un step
  */
 export function initFixtureBrowser({ container, onLoadStep }) {
+    _container = container;
+    _onLoadStep = onLoadStep;
     _render(container, onLoadStep);
+}
+
+/** Re-renderiza el Fixture Browser (p.ej. tras guardar un fixture nuevo). */
+export function refreshFixtureBrowser() {
+    if (_container) _render(_container, _onLoadStep);
 }
 
 /**

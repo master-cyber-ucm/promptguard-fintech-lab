@@ -109,3 +109,7 @@ _Avoid_: bot, asistente, LLM
 **Fixture Browser**:
 El panel lateral del Playground que lista los fixtures disponibles agrupados por attack category, permitiendo cargar sus rendered steps en el textarea de chat.
 _Avoid_: attack panel, side panel, fixture list
+
+**Fixture Draft**:
+Una conversación capturada en el Playground en proceso de edición hacia un Fixture guardable. Reúne los turns que el usuario envió a Clara como steps candidatos, junto con los metadatos (id, category, subcategory, kind, severity, expected result) y el bloque de evaluación que el usuario configura en el formulario de autoría antes de persistirlo como YAML en el árbol de fixtures.
+_Avoid_: draft, borrador, nuevo test, capture

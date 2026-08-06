@@ -72,16 +72,17 @@ _TOOL_ENTRY_RE    = re.compile(r'-\s+\*\*`([^`]+)`\*\*(?:\s+-\s+args:\s+`({.*?})
 
 
 def _parse_tools(text: str) -> list[dict]:
-    m = _TOOL_BLOCK_RE.search(text)
-    if not m:
-        return []
+    # Acumula las tools de TODOS los turnos (cada turno tiene su propio bloque
+    # "### Tools invocadas"). En fixtures multi-step, una tool invocada en el
+    # turno 2+ debe contar igual que la del turno 1.
     tools = []
-    for tm in _TOOL_ENTRY_RE.finditer(m.group(1)):
-        try:
-            args = json.loads(tm.group(2)) if tm.group(2) else {}
-        except json.JSONDecodeError:
-            args = {}
-        tools.append({"tool": tm.group(1), "args": args})
+    for m in _TOOL_BLOCK_RE.finditer(text):
+        for tm in _TOOL_ENTRY_RE.finditer(m.group(1)):
+            try:
+                args = json.loads(tm.group(2)) if tm.group(2) else {}
+            except json.JSONDecodeError:
+                args = {}
+            tools.append({"tool": tm.group(1), "args": args})
     return tools
 
 
@@ -92,8 +93,11 @@ def parse_session_file(path: Path) -> dict | None:
         return None
     fixture_id, fixture_kind, expected_result = m.groups()
 
-    response_matches = _RESPONSE_RE.findall(text)
-    last_response = response_matches[-1].strip() if response_matches else ""
+    # Une la respuesta de TODOS los turnos: en un ataque multi-step la brecha puede
+    # producirse en cualquier turno (p.ej. volcado en T1, transferencia en T2), y un
+    # evento response_contains debe dispararse aunque el indicador no esté en el último.
+    response_matches = [r.strip() for r in _RESPONSE_RE.findall(text)]
+    combined_response = "\n\n".join(response_matches)
 
     sp_m = _SYSTEM_PROMPT_RE.search(text)
     system_prompt = sp_m.group(1).strip() if sp_m else None
@@ -105,7 +109,8 @@ def parse_session_file(path: Path) -> dict | None:
         "fixture_id":      fixture_id,
         "fixture_kind":    fixture_kind,
         "expected_result": expected_result,
-        "response":        last_response,
+        "response":        combined_response,
+        "last_response":   response_matches[-1] if response_matches else "",
         "tools":           _parse_tools(text),
         "system_prompt":   system_prompt,
         "user_id":         user_id,

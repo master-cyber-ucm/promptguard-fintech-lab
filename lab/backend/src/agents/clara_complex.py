@@ -27,7 +27,6 @@ from .tools import (
     transferencia_nacional,
 )
 
-
 def _load_prompt() -> str:
     p = Path(__file__).parent.parent.parent / "config" / "prompts" / "clara_system.txt"
     if p.exists():
