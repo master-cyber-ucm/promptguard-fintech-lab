@@ -1,134 +1,140 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PromptGuard Lab — VerdaBank</title>
-    <link rel="stylesheet" href="css/app.css" />
-  </head>
 
-  <body>
-    <div id="app">
-      <!-- Header -->
-      <header class="header">
-        <div class="header-left">
-          <h1>🏦 VerdaBank</h1>
-          <span class="badge badge-danger">⚠️ VULNERABLE — Sin defensas</span>
-        </div>
-        <div class="header-right">
-          <label for="mode-select">Modo:</label>
-          <select id="mode-select">
-            <option value="simple-prompt">simple-prompt</option>
-            <option value="complex-prompt">complex-prompt</option>
-            <option value="complex-with-context" selected>
-              complex-with-context
-            </option>
-            <option value="complex-with-document">
-              complex-with-document (adjuntar archivo)
-            </option>
-          </select>
-          <label for="user-select">Usuario:</label>
-          <select id="user-select">
-            <option value="usr_001">María García (usr_001)</option>
-            <option value="usr_002">Carlos Rodríguez (usr_002)</option>
-            <option value="usr_003">Ana Fernández (usr_003)</option>
-            <option value="usr_admin">Admin Banco (usr_admin)</option>
-          </select>
-          <button
-            id="btn-save-fixture"
-            class="btn btn-secondary"
-            title="Guardar la conversación como fixture"
-          >
-            💾 Guardar fixture
-          </button>
-          <button id="btn-clear" class="btn btn-secondary" title="Limpiar chat">
-            🗑️
-          </button>
-        </div>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromptGuard Lab — VerdaBank</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
 
-      <!-- Main layout -->
-      <div class="main-layout">
-        <!-- Chat panel -->
-        <div class="chat-panel">
-          <div id="chat-messages" class="chat-messages">
-            <div class="system-message">
-              <p>🏦 <strong>Bienvenido al chat de VerdaBank</strong></p>
-              <p>Soy Clara, tu asistente virtual. ¿En qué puedo ayudarte?</p>
-              <p class="text-muted" style="font-size: 0.8em">
-                ⚠️ Este es un entorno de laboratorio VULNERABLE. Sin
-                protecciones de seguridad.
-              </p>
-            </div>
-          </div>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1>🏦 VerdaBank</h1>
+        <span id="mode-banner" class="badge badge-danger">⚠️ VULNERABLE — Sin defensas</span>
+      </div>
+      <div class="header-right">
+        <label for="mode-select">Modo:</label>
+        <select id="mode-select">
+          <option value="simple-prompt">simple-prompt</option>
+          <option value="complex-prompt">complex-prompt</option>
+          <option value="complex-with-context" selected>
+            complex-with-context
+          </option>
+          <option value="complex-with-document">
+            complex-with-document (adjuntar archivo)
+          </option>
+          <!-- [Damaro] Modo con defensa Tool Gatekeeper activa (validación de propiedad
+          de cuenta/tarjeta, RunContext[Deps]) — sin requerir documento adjunto,
+          para demostrar el escenario de Cross-Context Leakage (ataque #5) en
+          texto plano. Backend: endpoint /chat/proxy, ya implementado y verificado
+          (ver session_ids en la memoria del vector). -->
+          <option value="proxy">proxy (defensa Tool Gatekeeper)</option>
+        </select>
+        <label for="user-select">Usuario:</label>
+        <select id="user-select">
+          <option value="usr_001">María García (usr_001)</option>
+          <option value="usr_002">Carlos Rodríguez (usr_002)</option>
+          <option value="usr_003">Ana Fernández (usr_003)</option>
+          <option value="usr_admin">Admin Banco (usr_admin)</option>
+        </select>
+        <button id="btn-save-fixture" class="btn btn-secondary" title="Guardar la conversación como fixture">
+          💾 Guardar fixture
+        </button>
+        <button id="btn-clear" class="btn btn-secondary" title="Limpiar chat">
+          🗑️
+        </button>
+      </div>
+    </header>
 
-          <!-- Adjuntar documento (solo visible en modo complex-with-document) -->
-          <div id="document-attach" class="document-attach" style="display:none">
-            <label for="document-input">📎 Documento a adjuntar (PDF / DOCX / XLSX):</label>
-            <input type="file" id="document-input" accept=".pdf,.docx,.xlsx">
-            <span id="document-filename" class="text-muted" style="font-size:0.85em"></span>
-          </div>
-
-          <!-- Estudio de ablación: toggles por capa de defensa (solo modo complex-with-document) -->
-          <div id="defensas-panel" class="defensas-panel" style="display:none">
-            <span class="text-muted" style="font-size:0.85em">🛡️ Defensas activas:</span>
-            <label><input type="checkbox" id="defensa-estructural" checked> A · estructural</label>
-            <label><input type="checkbox" id="defensa-sanitizer" checked> B · sanitizer</label>
-            <label><input type="checkbox" id="defensa-separacion-semantica" checked> C · separación semántica</label>
-            <label title="Experimento Fase 2.8: presenta el documento como resultado de una tool en vez de texto delimitado — reduce el éxito real de ataque de ~78% a 22% (aislado de D), sin eliminarlo. Solo tiene efecto si C también está activa.">
-              <input type="checkbox" id="defensa-separacion-tool-framing"> C · variante tool_framing 🧪
-            </label>
-            <label><input type="checkbox" id="defensa-tool-gatekeeper" checked> D · tool gatekeeper</label>
-          </div>
-
-          <!-- Input -->
-          <div class="chat-input">
-            <textarea
-              id="chat-input"
-              placeholder="Escribe tu mensaje..."
-              rows="2"
-            ></textarea>
-            <button id="btn-send" class="btn btn-primary">Enviar</button>
+    <!-- Main layout -->
+    <div class="main-layout">
+      <!-- Chat panel -->
+      <div class="chat-panel">
+        <div id="chat-messages" class="chat-messages">
+          <div class="system-message">
+            <p>🏦 <strong>Bienvenido al chat de VerdaBank</strong></p>
+            <p>Soy Clara, tu asistente virtual. ¿En qué puedo ayudarte?</p>
+            <p class="text-muted" style="font-size: 0.8em">
+              ⚠️ Este es un entorno de laboratorio VULNERABLE. Sin
+              protecciones de seguridad.
+            </p>
           </div>
         </div>
 
-        <!-- Side panel: fixture browser -->
-        <div class="side-panel">
-          <h3>🎯 Fixture Browser</h3>
-          <p class="text-muted" style="font-size: 0.85em; margin-bottom: 12px">
-            ⚔️ ataque &nbsp;·&nbsp; ✅ legítimo &nbsp;·&nbsp; 🔰 naïve
-          </p>
-          <div id="fixture-list"></div>
+        <!-- Adjuntar documento (solo visible en modo complex-with-document) -->
+        <div id="document-attach" class="document-attach" style="display: none">
+          <label for="document-input">📎 Documento a adjuntar (PDF / DOCX / XLSX):</label>
+          <input type="file" id="document-input" accept=".pdf,.docx,.xlsx" />
+          <span id="document-filename" class="text-muted" style="font-size: 0.85em"></span>
         </div>
+
+        <!-- Estudio de ablación: toggles por capa de defensa (solo modo complex-with-document) -->
+        <div id="defensas-panel" class="defensas-panel" style="display: none">
+          <span class="text-muted" style="font-size: 0.85em">🛡️ Defensas activas:</span>
+          <label><input type="checkbox" id="defensa-estructural" checked /> A ·
+            estructural</label>
+          <label><input type="checkbox" id="defensa-sanitizer" checked /> B ·
+            sanitizer</label>
+          <label><input type="checkbox" id="defensa-separacion-semantica" checked />
+            C · separación semántica</label>
+          <label
+            title="Experimento Fase 2.8: presenta el documento como resultado de una tool en vez de texto delimitado — reduce el éxito real de ataque de ~78% a 22% (aislado de D), sin eliminarlo. Solo tiene efecto si C también está activa.">
+            <input type="checkbox" id="defensa-separacion-tool-framing" /> C ·
+            variante tool_framing 🧪
+          </label>
+          <label><input type="checkbox" id="defensa-tool-gatekeeper" checked /> D
+            · tool gatekeeper</label>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input">
+          <textarea id="chat-input" placeholder="Escribe tu mensaje..." rows="2"></textarea>
+          <button id="btn-send" class="btn btn-primary">Enviar</button>
+        </div>
+      </div>
+
+      <!-- Side panel: fixture browser -->
+      <div class="side-panel">
+        <h3>🎯 Fixture Browser</h3>
+        <p class="text-muted" style="font-size: 0.85em; margin-bottom: 12px">
+          ⚔️ ataque &nbsp;·&nbsp; ✅ legítimo &nbsp;·&nbsp; 🔰 naïve
+        </p>
+        <div id="fixture-list"></div>
       </div>
     </div>
+  </div>
 
-    <!-- Templates (hidden) -->
-    <template id="msg-user">
-      <div class="message message-user">
-        <div class="msg-header">👤 <span class="user-name">Usuario</span></div>
-        <div class="msg-body"></div>
-        <div class="msg-meta"></div>
-      </div>
-    </template>
+  <!-- Templates (hidden) -->
+  <template id="msg-user">
+    <div class="message message-user">
+      <div class="msg-header">👤 <span class="user-name">Usuario</span></div>
+      <div class="msg-body"></div>
+      <div class="msg-meta"></div>
+    </div>
+  </template>
 
-    <template id="msg-clara">
-      <div class="message message-clara">
-        <div class="msg-header">🤖 <strong>Clara</strong></div>
-        <div class="msg-body"></div>
-        <div class="msg-meta"></div>
-      </div>
-    </template>
+  <template id="msg-clara">
+    <div class="message message-clara">
+      <div class="msg-header">🤖 <strong>Clara</strong></div>
+      <div class="msg-body"></div>
+      <div class="msg-meta"></div>
+    </div>
+  </template>
 
-    <template id="msg-error">
-      <div class="message message-error">
-        <div class="msg-header">❌ <strong>Error</strong></div>
-        <div class="msg-body"></div>
-      </div>
-    </template>
+  <template id="msg-error">
+    <div class="message message-error">
+      <div class="msg-header">❌ <strong>Error</strong></div>
+      <div class="msg-body"></div>
+    </div>
+  </template>
 
-    <script src="js/config.js"></script>
-    <script src="js/api.js"></script>
-    <script type="module" src="js/app.js"></script>
-  </body>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+
 </html>
