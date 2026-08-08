@@ -36,7 +36,9 @@ const defensaCheckboxes = {
   estructural: document.getElementById("defensa-estructural"),
   sanitizer: document.getElementById("defensa-sanitizer"),
   separacionSemantica: document.getElementById("defensa-separacion-semantica"),
-  separacionToolFraming: document.getElementById("defensa-separacion-tool-framing"),
+  separacionToolFraming: document.getElementById(
+    "defensa-separacion-tool-framing",
+  ),
   toolGatekeeper: document.getElementById("defensa-tool-gatekeeper"),
 };
 
@@ -64,6 +66,40 @@ function init() {
     });
   }
 
+  // [Damaro] Actualiza el banner del header según el modo elegido — evita que
+  // diga "VULNERABLE" cuando el modo activo tiene el Tool Gatekeeper
+  // bloqueando. El modo proxy siempre lo tiene activo; complex-with-document
+  // depende del checkbox "D · tool gatekeeper" del panel de ablación, que va
+  // marcado por defecto. No modifica el comportamiento de los demás modos.
+  const modeBanner = document.getElementById("mode-banner");
+
+  function updateModeBanner() {
+    if (!modeSelectEl || !modeBanner) return;
+    const mode = modeSelectEl.value;
+    const gatekeeperActive =
+      mode === "proxy" ||
+      (mode === "complex-with-document" &&
+        !!defensaCheckboxes.toolGatekeeper?.checked);
+    if (gatekeeperActive) {
+      modeBanner.textContent = "🛡️ DEFENSA ACTIVA — Tool Gatekeeper";
+      modeBanner.className = "badge badge-success";
+    } else {
+      modeBanner.textContent = "⚠️ VULNERABLE — Sin defensas";
+      modeBanner.className = "badge badge-danger";
+    }
+  }
+
+  if (modeSelectEl) {
+    modeSelectEl.addEventListener("change", updateModeBanner);
+    updateModeBanner();
+  }
+  if (defensaCheckboxes.toolGatekeeper) {
+    defensaCheckboxes.toolGatekeeper.addEventListener(
+      "change",
+      updateModeBanner,
+    );
+  }
+
   initFixtureBrowser({
     container: document.getElementById("fixture-list"),
     onLoadStep: (content) => {
@@ -78,7 +114,8 @@ function updateDocumentAttachVisibility() {
   if (!documentAttach || !modeSelectEl) return;
   const isDocumentMode = modeSelectEl.value === "complex-with-document";
   documentAttach.style.display = isDocumentMode ? "flex" : "none";
-  if (defensasPanel) defensasPanel.style.display = isDocumentMode ? "flex" : "none";
+  if (defensasPanel)
+    defensasPanel.style.display = isDocumentMode ? "flex" : "none";
 }
 
 function getDefensasFromUI() {
@@ -100,16 +137,21 @@ async function handleSend() {
   const endpoint = modeSelectEl ? modeSelectEl.value : null;
   const isDocumentMode = endpoint === "complex-with-document";
 
-  const documentFile = isDocumentMode && documentInput ? documentInput.files[0] : null;
+  const documentFile =
+    isDocumentMode && documentInput ? documentInput.files[0] : null;
   if (isDocumentMode && !documentFile) {
-    alert("Selecciona un documento (PDF/DOCX/XLSX) para adjuntar antes de enviar.");
+    alert(
+      "Selecciona un documento (PDF/DOCX/XLSX) para adjuntar antes de enviar.",
+    );
     return;
   }
 
   const userId = userSelect.value;
   const userName = userSelect.options[userSelect.selectedIndex].text;
 
-  const userMessageDisplay = documentFile ? `${message}\n📎 ${documentFile.name}` : message;
+  const userMessageDisplay = documentFile
+    ? `${message}\n📎 ${documentFile.name}`
+    : message;
   addMessage("user", userMessageDisplay, { userName });
   _capturedSteps.push({ content: message });
   chatInput.value = "";
@@ -122,10 +164,26 @@ async function handleSend() {
     btnSend.disabled = true;
 
     const response = documentFile
-      ? await window.VB.API.sendMessageWithDocument(userId, SESSION_ID, message, documentFile, getActiveFixtureMeta(), getDefensasFromUI())
-      : await window.VB.API.sendMessage(userId, SESSION_ID, message, getActiveFixtureMeta(), endpoint);
+      ? await window.VB.API.sendMessageWithDocument(
+          userId,
+          SESSION_ID,
+          message,
+          documentFile,
+          getActiveFixtureMeta(),
+          getDefensasFromUI(),
+        )
+      : await window.VB.API.sendMessage(
+          userId,
+          SESSION_ID,
+          message,
+          getActiveFixtureMeta(),
+          endpoint,
+        );
 
-    if (documentInput) { documentInput.value = ""; documentName.textContent = ""; }
+    if (documentInput) {
+      documentInput.value = "";
+      documentName.textContent = "";
+    }
 
     loadingEl.remove();
 
