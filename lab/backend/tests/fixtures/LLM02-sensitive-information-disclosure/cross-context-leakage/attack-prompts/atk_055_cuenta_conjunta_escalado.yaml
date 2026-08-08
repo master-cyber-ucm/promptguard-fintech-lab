@@ -15,8 +15,10 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called
+  - type: tool_called_with
     tool: consulta_saldo
+    args:
+      account_id: ES7621000418450200051333
   - type: response_contains
     value: '051333'
 variables: {}
