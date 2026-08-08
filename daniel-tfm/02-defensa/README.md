@@ -12,13 +12,12 @@
 | **PII Shield** — entrada + salida | `lab/backend/src/core/pii_shield.py` | ~330 | esqueleto no-op |
 | **Output Auditor** endurecido | `lab/backend/src/core/output_auditor.py` | ~160 | 3 cadenas literales |
 | Cableado en el orquestador | `lab/backend/src/api/routes/chat.py` | +60 | — |
-| Regresión PII Shield | `tests/test_pii_shield.py` | 27 tests | — |
+| Regresión PII Shield | `tests/test_pii_shield.py` | 31 tests | — |
 | Regresión secretos | `tests/test_output_auditor_secretos.py` | 24 tests | — |
 | Regresión Confused Deputy | `tests/test_confused_deputy_fixtures.py` | 13 tests | — |
 | Cruce documento × PII | `tests/test_documento_exfiltracion_pii.py` | 8 tests | — |
 | Integración del pipeline | `tests/test_proxy_pipeline_vectores.py` | 11 tests | — |
 | Runner de evidencia | `daniel-tfm/02-defensa/evidencia/ejecutar_evidencia.py` | ~340 | — |
-
 | Post-proceso de fuga real | `daniel-tfm/02-defensa/evidencia/analizar_resultados.py` | ~190 | — |
 
 **Suite completa: 150 tests en verde** (63 preexistentes + 87 nuevos).

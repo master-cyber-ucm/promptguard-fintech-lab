@@ -35,7 +35,7 @@ Tres controles con evidencia:
 | Control | Qué garantiza | Evidencia |
 |---|---|---|
 | Tool Gatekeeper | Ningún usuario opera sobre recursos de terceros | `test_confused_deputy_fixtures.py` (13 tests) + contrafactual |
-| PII Shield (salida) | Ningún dato personal de terceros sale en la respuesta | `test_pii_shield.py` (27 tests) |
+| PII Shield (salida) | Ningún dato personal de terceros sale en la respuesta | `test_pii_shield.py` (31 tests) |
 | Output Auditor | Ningún secreto de configuración sale en la respuesta | `test_output_auditor_secretos.py` (24 tests) |
 
 El Art. 32 pide medidas "apropiadas al riesgo" y cita expresamente la **seudonimización**. La

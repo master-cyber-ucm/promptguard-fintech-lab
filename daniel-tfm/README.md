@@ -36,6 +36,11 @@ docs/defensas/    → qué control habría que construir (invariantes, arquitect
 daniel-tfm/       → qué se construyó, qué mide y qué salió
 ```
 
+> **Dependencia pendiente:** `docs/defensas/` todavía no está en esta rama — vive en el PR
+> [#6](https://github.com/master-cyber-ucm/promptguard-fintech-lab/pull/6), abierto contra `main`.
+> Los enlaces de este workspace hacia esa carpeta resolverán cuando ese PR se integre. `docs/ataques/`
+> sí está presente y sus enlaces funcionan.
+
 Cuando este capítulo necesita una afirmación de los otros dos, la enlaza. Cuando los **contradice**
 —porque la implementación reveló algo que el diseño sobre el papel no había previsto— lo dice
 explícitamente y explica por qué. Eso es contenido propio, no duplicación.

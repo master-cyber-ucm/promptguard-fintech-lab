@@ -32,7 +32,7 @@
 - [x] Umbral de cosecha masiva: ≥2 terceros → descartar respuesta entera
 - [x] **Bug encontrado y corregido**: `phone_es` casaba dentro del IBAN → resolución de
       solapamientos por longitud
-- [x] 27 tests, incluidos 10 prompts legítimos que no pueden bloquearse
+- [x] 31 tests, incluidos 10 prompts legítimos que no pueden bloquearse
 
 ### 2.2 Output Auditor — de literal a normalizado
 - [x] Normalización (minúsculas, sin acentos, sin invisibles, sin separadores)
@@ -60,7 +60,7 @@
 - [x] `/chat/proxy` con la capa activa; baselines intactos
 - [x] `E(pii_shield)=…` en la cadena `defensas_activas` para que toda corrida diga si estaba puesta
 - [x] 11 tests de integración del pipeline
-- [x] **Suite completa: 146 tests en verde**
+- [x] **Suite completa: 150 tests en verde**
 
 ## Fase 3 — Evidencia experimental ✅
 
