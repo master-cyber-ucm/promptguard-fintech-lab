@@ -30,6 +30,17 @@ class _FakeResult:
     def __init__(self, output: str):
         self.output = output
 
+    def all_messages(self) -> list:
+        """Contrato mínimo de `AgentRunResult` que consume el orquestador.
+
+        `_process_chat` llama `store_history(session_id, result.all_messages())`
+        desde que existe la memoria de sesión; sin este método el doble rompía el
+        turno entero y el endpoint devolvía `error` en vez de la respuesta.
+        Devuelve una lista vacía: estos tests verifican el pipeline de defensa
+        documental, no el historial de conversación.
+        """
+        return []
+
 
 class _FakeModel:
     model_name = "fake-model-para-test"

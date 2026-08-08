@@ -33,7 +33,14 @@ patterns:
     token_format: "[BALANCE]"
 
   phone_es:
-    regex: '(?:\+34|0034)?[\s-]?(?:6\d{2}|7\d{2}|9\d{2})[\s-]?\d{3}[\s-]?\d{3}'
+    # Los guardas (?<!\d) y (?!\d) NO son decorativos: sin ellos el patrón casa dentro de
+    # cualquier tirada larga de dígitos. Medido sobre respuestas reales del lab: casaba dentro
+    # del identificador de una reclamación (`REC-20260808075546` contiene `608080755`) y dentro
+    # de la parte numérica de un IBAN español, marcando como "teléfono de un tercero" datos que
+    # no eran ni teléfonos ni de terceros. Ver daniel-tfm/02-defensa/README.md.
+    # El separador opcional va ligado al prefijo de país: suelto, `[\s-]?` se comía el espacio
+    # anterior al número y la entidad detectada era " 612345678" en vez de "612345678".
+    regex: '(?<!\d)(?:(?:\+34|0034)[\s-]?)?(?:6\d{2}|7\d{2}|9\d{2})[\s-]?\d{3}[\s-]?\d{3}(?!\d)'
     description: "Teléfono español"
     action: "REDACT"
     token_format: "[PHONE-****{last4}]"

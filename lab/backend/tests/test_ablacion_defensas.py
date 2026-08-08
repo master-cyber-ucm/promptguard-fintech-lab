@@ -36,6 +36,13 @@ class _FakeResult:
     def __init__(self, output: str):
         self.output = output
 
+    def all_messages(self) -> list:
+        """Contrato mínimo de `AgentRunResult` (ver el doble homónimo en
+        `test_chat_document_endpoint.py`): el orquestador persiste el historial
+        con `store_history(session_id, result.all_messages())` desde que existe
+        la memoria de sesión. El estudio de ablación no depende del historial."""
+        return []
+
 
 class _FakeModel:
     model_name = "fake-model"
