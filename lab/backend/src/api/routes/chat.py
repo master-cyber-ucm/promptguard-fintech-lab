@@ -56,6 +56,7 @@ from pydantic_ai.messages import (
 
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
+from src.agents.session_store import get_history, new_session_id, store_history
 from src.agents.tools import Deps
 from src.core.base import StageContext, shadow_mode
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
@@ -82,7 +83,11 @@ logger = logging.getLogger(__name__)
 class ChatRequest(BaseModel):
     user_id: str = Field(default="usr_001", description="ID del usuario")
     message: str = Field(..., description="Mensaje para Clara")
-    session_id: Optional[str] = Field(default=None, description="ID de sesión (opcional)")
+    session_id: Optional[str] = Field(
+        default=None,
+        description="ID de la sesión de memoria. Si se omite, Clara inicia una "
+        "conversación nueva y devuelve el id de referencia en la respuesta.",
+    )
     fixture_id: Optional[str] = Field(default=None)
     fixture_kind: Optional[str] = Field(default=None)
     fixture_expected_result: Optional[str] = Field(default=None)
@@ -189,7 +194,15 @@ async def _process_chat(
     if not user:
         raise HTTPException(status_code=404, detail=f"Usuario {request.user_id} no encontrado")
 
-    session_id = request.session_id or f"ses_{int(time.time())}"
+    # Memoria de sesión (ver src/agents/session_store.py): un session_id omitido arranca
+    # una conversación nueva; si se manda uno existente, se recupera su historial y los
+    # fixtures multi-step dejan de "empezar en frío" en cada paso.
+    if request.session_id:
+        session_id = request.session_id
+        prior_history: Optional[list] = get_history(session_id) or None
+    else:
+        session_id = new_session_id()
+        prior_history = None
     fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
 
     if inject_context:
@@ -238,7 +251,10 @@ async def _process_chat(
                 error=f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}",
             )
 
-    message_history: Optional[list] = None
+    # Arranca desde el historial de la sesión (memoria de conversación, ver arriba)
+    # en vez de siempre None — así los fixtures multi-step dejan de "empezar en
+    # frío" en cada paso.
+    message_history: Optional[list] = prior_history
     prompt_for_audit = full_message
 
     if document_text:
@@ -251,7 +267,10 @@ async def _process_chat(
             # real de ~78% a 22% (aislado de (D)) — mejora real, no elimina el problema (sigue
             # siendo una técnica de prompt). Ver henri-tfm/02-defensa/README.md §"Experimento (C)".
             tool_call_id = "call_document_reader_1"
-            message_history = [
+            # Extiende el historial de sesión ya cargado (si lo hay) en vez de
+            # reemplazarlo — la variante tool_framing no debe tirar la memoria de
+            # turnos previos de un fixture multi-step.
+            message_history = (message_history or []) + [
                 ModelRequest(parts=[UserPromptPart(content=full_message)]),
                 ModelResponse(
                     parts=[ToolCallPart(tool_name="document_reader", args={}, tool_call_id=tool_call_id)]
@@ -309,6 +328,9 @@ async def _process_chat(
         effective_gatekeeper = defensa_tool_gatekeeper and not (proxy_enabled and shadow_mode())
         deps = Deps(user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper)
         result = await agent.run(full_message, message_history=message_history, deps=deps)
+        # Memoria de sesión: persiste el historial completo (recortado a MAX_TURNS)
+        # para que el siguiente turno de esta sesión lo recupere via get_history().
+        store_history(session_id, result.all_messages())
         latency_ms = (time.time() - start_time) * 1000
 
         tools_used, thinking = _extract_tools_and_thinking(result)

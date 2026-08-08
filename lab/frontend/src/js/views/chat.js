@@ -59,6 +59,7 @@ window.VB.Views = window.VB.Views || {};
         if (!messages || !input || !sendBtn) return;
 
         var sending = false;
+        var sessionId = null;
 
         input.addEventListener('input', function() {
             input.style.height = 'auto';
@@ -93,8 +94,9 @@ window.VB.Views = window.VB.Views || {};
             sendBtn.disabled = true;
             var start = Date.now();
 
-            VB.API.sendMessage(user.id, 'ses_' + Date.now(), msg)
+            VB.API.sendMessage(user.id, sessionId, msg)
                 .then(function(resp) {
+                    if (resp.session_id) sessionId = resp.session_id;
                     var lat = Date.now() - start;
                     var el = document.getElementById(lid);
                     if (el) el.remove();

@@ -142,7 +142,6 @@ async def _run_fixture(
     repeat: int = 1,
 ) -> dict:
     start = time.time()
-    session_id = f"suite_{fixture['id']}_{int(start)}"
     error: str | None = None
     last_response = ""
 
@@ -152,23 +151,33 @@ async def _run_fixture(
         )
     else:
         for _ in range(repeat):
+            # Cada --repeat arranca una conversación nueva; dentro de la misma
+            # repetición, los pasos de un fixture multi-step SÍ comparten memoria
+            # real (session_store.py en el backend) — el primer step no manda
+            # session_id (Clara abre sesión nueva), los siguientes reutilizan el
+            # id que devuelve la API.
+            session_id: str | None = None
             try:
                 for step in fixture.get("rendered_steps", []):
                     body = {
                         "user_id": user_id,
-                        "session_id": session_id,
                         "message": step.get("content", ""),
                         "fixture_id": fixture.get("id"),
                         "fixture_kind": fixture.get("kind"),
                         "fixture_expected_result": fixture.get("expected_result"),
                         "audit_subdir": audit_subdir,
                     }
+                    if session_id:
+                        body["session_id"] = session_id
                     resp = await client.post(
                         f"{api_base}{endpoint_path}", json=body, timeout=90.0
                     )
                     data = resp.json()
                     last_response = data.get("response", "")
                     error = data.get("error") or None
+                    returned_id = data.get("session_id")
+                    if returned_id:
+                        session_id = returned_id
             except Exception as exc:
                 error = str(exc)
 
@@ -180,7 +189,7 @@ async def _run_fixture(
         "latency_ms": round(latency_ms, 1),
         "response_preview": last_response[:120].replace("\n", " "),
         "error": error,
-        "session_id": session_id,
+        "session_id": session_id or "",
     }
 
 

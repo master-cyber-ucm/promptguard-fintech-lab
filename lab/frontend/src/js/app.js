@@ -12,7 +12,9 @@ import { openFixtureEditor } from "./fixture-editor.js";
 
 // --- State ---
 let isSending = false;
-const SESSION_ID = `ses_${Date.now()}`;
+// Sesión de memoria de Clara. Empieza en null (Clara crea una conversación
+// nueva y devuelve su id de referencia) y se adopta el id devuelto en cada turno.
+let sessionId = null;
 
 // Conversación capturada para autoría de fixtures: turns enviados por el usuario
 // más la última respuesta de Clara y sus tools (para sugerir indicadores).
@@ -107,6 +109,11 @@ function init() {
       chatInput.focus();
       chatInput.scrollTop = chatInput.scrollHeight;
     },
+    onFixtureSelected: () => {
+      // Un fixture nuevo arranca una conversación limpia: la escalada de sus
+      // steps no hereda memoria de chats anteriores.
+      sessionId = null;
+    },
   });
 }
 
@@ -163,10 +170,12 @@ async function handleSend() {
     isSending = true;
     btnSend.disabled = true;
 
+    // sessionId viaja tal cual (puede ser null en el primer turno — Clara abre
+    // sesión nueva y devuelve su id en la respuesta, adoptado más abajo).
     const response = documentFile
       ? await window.VB.API.sendMessageWithDocument(
           userId,
-          SESSION_ID,
+          sessionId,
           message,
           documentFile,
           getActiveFixtureMeta(),
@@ -174,11 +183,13 @@ async function handleSend() {
         )
       : await window.VB.API.sendMessage(
           userId,
-          SESSION_ID,
+          sessionId,
           message,
           getActiveFixtureMeta(),
           endpoint,
         );
+
+    if (response.session_id) sessionId = response.session_id;
 
     if (documentInput) {
       documentInput.value = "";
@@ -271,6 +282,7 @@ function handleClear() {
   _capturedSteps = [];
   _lastResponse = "";
   _lastTools = [];
+  sessionId = null;
 }
 
 function handleSaveFixture() {
