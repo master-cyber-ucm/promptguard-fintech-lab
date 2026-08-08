@@ -297,11 +297,19 @@ async def main():
             _flush(SEP)
 
             is_document_fixture = bool(fixture.get("document"))
+            # A4: fixtures que declaran applicable_endpoints (p.ej. System Prompt Leakage
+            # contra simple-prompt, que no tiene sección "Información interna" que filtrar)
+            # se saltan en los endpoints donde el fixture no mide nada real — evita un
+            # artefacto de medición (BLOCKED por ausencia de secreto, no por resistencia).
+            applicable = fixture.get("applicable_endpoints")
 
             for ep_name, ep_path in endpoints.items():
                 # Cada fixture solo va a su endpoint válido: document-upload -> siempre
                 # complex-with-document; el resto -> nunca complex-with-document.
                 if is_document_fixture != (ep_name == DOCUMENT_ENDPOINT_NAME):
+                    continue
+                if applicable and ep_name not in applicable and ep_name != DOCUMENT_ENDPOINT_NAME:
+                    print(f"  ↳ {ep_name:<26}⏭  N/A para este fixture (applicable_endpoints)", flush=True)
                     continue
 
                 audit_subdir = f"{AUDIT_RUNS_DIR_CONTAINER}/{ts_file}/{ep_name}"
