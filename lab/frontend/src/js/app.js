@@ -67,13 +67,20 @@ function init() {
   }
 
   // [Damaro] Actualiza el banner del header según el modo elegido — evita que
-  // diga "VULNERABLE" cuando el modo activo (proxy) tiene el Tool Gatekeeper
-  // bloqueando. No modifica el comportamiento de los demás modos.
+  // diga "VULNERABLE" cuando el modo activo tiene el Tool Gatekeeper
+  // bloqueando. El modo proxy siempre lo tiene activo; complex-with-document
+  // depende del checkbox "D · tool gatekeeper" del panel de ablación, que va
+  // marcado por defecto. No modifica el comportamiento de los demás modos.
   const modeBanner = document.getElementById("mode-banner");
 
   function updateModeBanner() {
     if (!modeSelectEl || !modeBanner) return;
-    if (modeSelectEl.value === "proxy") {
+    const mode = modeSelectEl.value;
+    const gatekeeperActive =
+      mode === "proxy" ||
+      (mode === "complex-with-document" &&
+        !!defensaCheckboxes.toolGatekeeper?.checked);
+    if (gatekeeperActive) {
       modeBanner.textContent = "🛡️ DEFENSA ACTIVA — Tool Gatekeeper";
       modeBanner.className = "badge badge-success";
     } else {
@@ -85,6 +92,12 @@ function init() {
   if (modeSelectEl) {
     modeSelectEl.addEventListener("change", updateModeBanner);
     updateModeBanner();
+  }
+  if (defensaCheckboxes.toolGatekeeper) {
+    defensaCheckboxes.toolGatekeeper.addEventListener(
+      "change",
+      updateModeBanner,
+    );
   }
 
   initFixtureBrowser({
