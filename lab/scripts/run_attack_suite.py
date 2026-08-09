@@ -69,6 +69,10 @@ CHAT_ENDPOINTS: dict[str, str] = {
     "simple-prompt":        "/api/v1/chat/simple-prompt",
     "complex-prompt":       "/api/v1/chat/complex-prompt",
     "complex-with-context": "/api/v1/chat/complex-with-context",
+    # El pipeline completo de defensa. Sin él no hay forma de producir una corrida
+    # "defendida" que comparar contra las líneas base, que es lo que la pantalla de
+    # Corridas del SOC pone una al lado de la otra.
+    "proxy": "/api/v1/chat/proxy",
     DOCUMENT_ENDPOINT_NAME: "/api/v1/chat/complex-with-document",
 }
 
