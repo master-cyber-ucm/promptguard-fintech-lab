@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM-SOC · PromptGuard</title>
+  <link rel="stylesheet" href="css/soc.css" />
+</head>
+<body>
+  <div class="soc">
+    <!-- Carril de navegación. El enrutado es por hash dentro de esta única página:
+         si cada destino fuera un documento distinto, navegar reiniciaría el polling
+         y se perdería el hilo del vivo justo al explicar algo. -->
+    <nav class="rail" aria-label="Secciones del SOC">
+      <div class="rail-head">
+        <div class="rail-mark"><strong>LLM-SOC</strong><span>PromptGuard</span></div>
+        <div class="rail-sub">Observabilidad del proxy</div>
+      </div>
+
+      <div class="rail-nav" id="nav"></div>
+
+      <div class="rail-foot">
+        <div class="pulse" id="capture-state">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          <span id="capture-label">Capturando</span>
+        </div>
+        <div class="mono" style="margin-top:6px" id="capture-detail">—</div>
+      </div>
+    </nav>
+
+    <main class="main" id="main">
+      <header class="page-head">
+        <h1 id="page-title">Postura</h1>
+        <p id="page-sub"></p>
+      </header>
+      <div class="page-body" id="view" tabindex="-1"></div>
+    </main>
+  </div>
+
+  <script src="js/soc/md.js"></script>
+  <script src="js/soc/api.js"></script>
+  <script src="js/soc/ui.js"></script>
+  <script src="js/soc/views.js"></script>
+  <script src="js/soc/app.js"></script>
+</body>
+</html>
