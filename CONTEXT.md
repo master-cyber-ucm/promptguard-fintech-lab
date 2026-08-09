@@ -96,6 +96,48 @@ _Avoid_: keyword, detector, rule
 El par de artefactos generados por el Analyze Pass: un `.json` con datos estructurados y un `.md` con resumen legible, métricas y tablas. Ambos se guardan en la raíz del Run Folder como `run.json` y `run.md`. Su presencia indica que el Run Folder ya no es un Pending Run.
 _Avoid_: report, output, results file
 
+### Observabilidad del proxy (SOC)
+
+**SOC**:
+La capa de observación del proxy: captura lo que cada componente de defensa decidió en tiempo real y lo hace consultable. No tiene autoridad — nunca bloquea, nunca clasifica por su cuenta. El proxy detecta y detiene; el SOC solo mira.
+_Avoid_: monitor, auditoría, dashboard (a secas), WAF
+
+**Componente**:
+Una pieza del proxy capaz de examinar algo y decidir sobre ello: `input_sanitizer`, `pii_shield`, `document_sanitizer`, `tool_gatekeeper`, `output_auditor`, `leak_guard`. Es el "quién" de un Analysis Event.
+_Avoid_: stage (reservado a las que implementan `core.base.Stage`; el Tool Gatekeeper y el Document Sanitizer no lo hacen), capa, layer, módulo
+
+**Objetivo**:
+Lo que un Componente examinó en una evaluación concreta: `prompt`, `documento`, `tool`, `respuesta`. Es el "sobre qué" de un Analysis Event, y es lo que permite distinguir defensas de entrada de defensas de salida sin mirar el nombre del Componente.
+_Avoid_: target, input, scope
+
+**Analysis Event**:
+El registro de que un Componente examinó un Objetivo dentro de un Turn y decidió algo: acción, confianza, razón, regla que casó y latencia. Es el registro atómico del SOC y la forma única a la que se normalizan los cuatro dialectos que hoy conviven en el pipeline. **Se emite siempre, también cuando la acción es `ALLOW`** — un Componente que deja pasar es información, no silencio.
+_Avoid_: log, decisión (a secas), alerta, hallazgo
+
+**Acción**:
+Lo que un Componente decidió hacer en un Analysis Event: `ALLOW`, `SUSPICIOUS` o `BLOCK`. Es el vocabulario de `PromptDecision.action`, en tiempo real, y **no debe confundirse con Verdict**, que es el juicio *offline* del Analyze Pass sobre si el ataque funcionó. Un turno puede tener Acción `BLOCK` y Verdict `SUCCESS` si otra vía se lo saltó.
+_Avoid_: veredicto, resultado, estado
+
+**Origen**:
+De dónde vino el tráfico que produjo un Turn: `interactivo` (alguien escribiendo en el Playground) o `suite` (una corrida de `run_attack_suite.py`). Permite que el SOC separe una demo manual de las 400+ trazas de una corrida completa.
+_Avoid_: source, tipo, modo
+
+**Postura**:
+Qué defensas estaban activas en el momento de un Turn, capturada como la cadena que el pipeline ya construye (`proxy=True gatekeeper=True pii_shield=False vulnerable=False`). Es lo que permite leer un Turn sin ningún Analysis Event como ausencia de defensa en vez de como fallo de captura.
+_Avoid_: configuración, defensas activas, modo
+
+**Cobertura**:
+La relación entre un vector de ataque y el Componente que lo defiende, más si esa defensa está realmente implementada. Se declara a mano (deriva de `docs/defensas/README.md`, no del código) y es lo que hace visible que Prompt Injection Directa sigue sin control real.
+_Avoid_: mapa de defensas, matriz, protección
+
+**Alerta**:
+Un Analysis Event de acción `BLOCK` o `SUSPICIOUS` materializado para revisión humana, con severidad y estado (`nueva` / `revisada` / `descartada`). Marcar una Alerta es el **único** juicio que emite el sistema, y siempre lo emite una persona: el SOC nunca la cierra solo. La severidad se declara junto a su procedencia (`fixture`, `mapa-categoria`, `por-defecto`) para no presentar como objetiva una puntuación que no lo es.
+_Avoid_: incidente, hallazgo, detección
+
+**Base de conocimiento**:
+Los documentos de `docs/ataques/` y `docs/defensas/` indexados en memoria y servidos por el SOC. El puente con un Turn es estructural: fixtures y documentos comparten el árbol de taxonomía, así que la correspondencia no necesita metadatos ni etiquetado.
+_Avoid_: docs, wiki, ayuda
+
 ### Entidades del sistema
 
 **Playground**:

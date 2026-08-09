@@ -39,3 +39,11 @@ lab/audit/
 # Documentos Word del TFM (edición local, fuera del repo)
 *.docx
 .~lock.*#
+
+# Base de datos del SOC: telemetría local, se regenera con el tráfico
+lab/audit/soc.db
+lab/audit/soc.db-wal
+lab/audit/soc.db-shm
+
+# Configuración local de la skill de diseño (no forma parte del proyecto)
+.impeccable/
