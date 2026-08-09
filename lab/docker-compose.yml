@@ -26,6 +26,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       AUDIT_DIR: /app/audit/sessions
       SOC_DOCS_DIR: /app/docs
+      SOC_DB_PATH: /app/audit/soc.db
     volumes:
       - ./backend/src:/app/src
       - ./backend/config:/app/config

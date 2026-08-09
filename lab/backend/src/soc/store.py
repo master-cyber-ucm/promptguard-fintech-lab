@@ -17,9 +17,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-DB_PATH = Path(
-    os.environ.get("SOC_DB_PATH", Path(__file__).resolve().parents[3] / "audit" / "soc.db")
-)
+def _resolver_db() -> Path:
+    """Localiza `audit/soc.db` sin indexar los padres a ciegas.
+
+    En el contenedor el árbol es `/app/src/soc/`, que no tiene 4 niveles por encima:
+    `parents[3]` resolvía a `/` y la base acababa en `/audit/soc.db`, dentro del
+    sistema de ficheros efímero — se perdía entera al recrear el contenedor, sin que
+    nada avisara. Ahora se busca el directorio `audit` hacia arriba y solo se cae en
+    un valor por defecto si no aparece.
+    """
+    if os.environ.get("SOC_DB_PATH"):
+        return Path(os.environ["SOC_DB_PATH"])
+    for padre in Path(__file__).resolve().parents:
+        if (padre / "audit").is_dir():
+            return padre / "audit" / "soc.db"
+    return Path("/app/audit/soc.db")
+
+
+DB_PATH = _resolver_db()
 
 # Una sola conexión guardada por un lock. FastAPI despacha los endpoints síncronos en un
 # threadpool, así que `check_same_thread=False` es necesario y el lock es lo que mantiene
