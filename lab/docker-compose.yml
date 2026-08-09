@@ -25,12 +25,16 @@ services:
       APP_MODE: ${APP_MODE:-vulnerable}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       AUDIT_DIR: /app/audit/sessions
+      SOC_DOCS_DIR: /app/docs
     volumes:
       - ./backend/src:/app/src
       - ./backend/config:/app/config
       - ./backend/tests:/app/tests
       - ./audit:/app/audit
       - ./scripts:/app/scripts
+      # Base de conocimiento del SOC: los 60 documentos de ataque y 12 de defensa que
+      # el panel enlaza desde cada evento. Solo lectura — el SOC nunca los modifica.
+      - ../docs:/app/docs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload

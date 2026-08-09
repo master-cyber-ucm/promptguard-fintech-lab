@@ -24,11 +24,14 @@ henri-tfm/02-defensa/README.md §"Mejoras aplicadas tras la verificación manual
 """
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic_ai import RunContext
+
+from src.soc.collector import add_safe
 
 from ..models.banking import (
     MOCK_ACCOUNTS,
@@ -53,6 +56,11 @@ class Deps:
     """
     user_id: str
     enforce_gatekeeper: bool = True
+    # SocCollector del turno (ver src/soc/collector.py). El Tool Gatekeeper decide DENTRO
+    # de `agent.run()`, así que el orquestador no puede observar sus decisiones desde
+    # fuera: `Deps` es el único canal que llega hasta aquí. Se tipa como `Any` a
+    # propósito — `agents` no debe importar de `soc`.
+    collector: Any = None
 
 
 def _get_account(account_id: str) -> Optional[AccountInfo]:
@@ -84,6 +92,38 @@ def _get_user_cards(user_id: str) -> list[str]:
 
 def _denied(reason: str, **extra) -> str:
     return json.dumps({"status": "denied", "reason": reason, **extra}, ensure_ascii=False)
+
+
+def _gate(ctx: RunContext[Deps], tool: str, permitida: bool, razon: str,
+          t0: Optional[float] = None, **detalle) -> None:
+    """Emite el Analysis Event del Tool Gatekeeper para esta llamada.
+
+    Se llama en las DOS ramas de cada verificación de propiedad, no solo cuando deniega.
+    Un permiso concedido es exactamente igual de informativo que uno denegado: sin él,
+    el SOC no puede distinguir "el Gatekeeper lo revisó y lo autorizó" de "el Gatekeeper
+    no llegó a mirarlo".
+
+    Con `enforce_gatekeeper=False` no se emite nada, y es deliberado: en esa
+    configuración el Gatekeeper NO está verificando propiedad, así que registrar un
+    ALLOW haría parecer defendido un endpoint que no lo está. Su ranura en la cadena
+    tiene que salir vacía — el vacío es el dato.
+    """
+    if not getattr(ctx.deps, "enforce_gatekeeper", True):
+        return
+    add_safe(
+        getattr(ctx.deps, "collector", None),
+        componente="tool_gatekeeper",
+        objetivo="tool",
+        accion="ALLOW" if permitida else "BLOCK",
+        razon=razon,
+        regla="ownership_check",
+        confianza=1.0,
+        attack_type=None if permitida else "unauthorized_resource_access",
+        detalle={"tool": tool, **detalle},
+        # Se mide de verdad. Antes viajaba a None y la vista de actividad lo agregaba
+        # como "0.0 ms", que no es lo mismo que "instantáneo": era "sin medir".
+        latencia_ms=None if t0 is None else (time.perf_counter() - t0) * 1000,
+    )
 
 
 # ============================================================
@@ -120,16 +160,25 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
     reproducir el IBAN para el caso de uso más común. La verificación de propiedad íntegra sigue
     aplicando cuando SÍ se pide una cuenta explícita (el vector real del ataque #7).
     """
+    _t0 = time.perf_counter()
     if account_id is None:
         own_accounts = _get_user_accounts(ctx.deps.user_id)
         if not own_accounts:
             return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
         account_id = own_accounts[0]
+        _gate(ctx, "consulta_saldo", True, 
+              "Sin account_id: se resolvió la cuenta propia desde el canal de autenticación.", t0=_t0,
+              account_id=account_id, resuelto_por_backend=True)
     elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
+        _gate(ctx, "consulta_saldo", False, 
+              "El usuario autenticado no es titular de esta cuenta.", t0=_t0, account_id=account_id)
         return _denied(
             "El usuario autenticado no es titular de esta cuenta.",
             account_id_solicitado=account_id,
         )
+    else:
+        _gate(ctx, "consulta_saldo", True, 
+              "Cuenta propia del usuario autenticado.", t0=_t0, account_id=account_id)
 
     account = _get_account(account_id)
     if not account:
@@ -186,16 +235,28 @@ def transferencia_nacional(
     omite, se resuelve la cuenta propia desde `ctx.deps.user_id` en vez de exigir que el LLM la
     transcriba, eliminando esa fuente de falsos positivos también aquí.
     """
+    _t0 = time.perf_counter()
     if from_account is None:
         own_accounts = _get_user_accounts(ctx.deps.user_id)
         if not own_accounts:
             return "Error: No se encontró ninguna cuenta de origen asociada al usuario autenticado."
         from_account = own_accounts[0]
+        _gate(ctx, "transferencia_nacional", True, 
+              "Sin from_account: se resolvió la cuenta propia desde el canal de autenticación.", t0=_t0,
+              from_account=from_account, to_account=to_account, amount=amount,
+              resuelto_por_backend=True)
     elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, from_account):
+        _gate(ctx, "transferencia_nacional", False, 
+              "El usuario autenticado no es titular de la cuenta de origen.", t0=_t0,
+              from_account=from_account, to_account=to_account, amount=amount)
         return _denied(
             "El usuario autenticado no es titular de la cuenta de origen.",
             from_account_solicitada=from_account,
         )
+    else:
+        _gate(ctx, "transferencia_nacional", True, 
+              "Cuenta de origen propiedad del usuario autenticado.", t0=_t0,
+              from_account=from_account, to_account=to_account, amount=amount)
 
     from_acc = _get_account(from_account)
     to_acc = _get_account(to_account)
@@ -251,16 +312,25 @@ def bloquear_tarjeta(
     se resuelve la tarjeta propia del usuario autenticado en vez de exigir que el LLM transcriba
     el identificador.
     """
+    _t0 = time.perf_counter()
     if card_id is None:
         own_cards = _get_user_cards(ctx.deps.user_id)
         if not own_cards:
             return "Error: No se encontró ninguna tarjeta asociada al usuario autenticado."
         card_id = own_cards[0]
+        _gate(ctx, "bloquear_tarjeta", True, 
+              "Sin card_id: se resolvió la tarjeta propia desde el canal de autenticación.", t0=_t0,
+              card_id=card_id, resuelto_por_backend=True)
     elif ctx.deps.enforce_gatekeeper and not _owns_card(ctx.deps.user_id, card_id):
+        _gate(ctx, "bloquear_tarjeta", False, 
+              "El usuario autenticado no es titular de esta tarjeta.", t0=_t0, card_id=card_id)
         return _denied(
             "El usuario autenticado no es titular de esta tarjeta.",
             card_id_solicitada=card_id,
         )
+    else:
+        _gate(ctx, "bloquear_tarjeta", True, 
+              "Tarjeta propiedad del usuario autenticado.", t0=_t0, card_id=card_id)
 
     return json.dumps({
         "status": "blocked",

@@ -73,6 +73,7 @@ from src.models.banking import MOCK_USERS
 from src.models.interaction import PromptDecision
 from src.utils.audit_repository import append_turn, sign_turn
 from src.core.output_auditor import audit_response
+from src.soc.collector import SocCollector, add_safe
 
 # Pipeline del proxy (Input Sanitizer -> PII Shield): instancias reusadas entre
 # requests, las stages no guardan estado por turno (ver src/core/base.py).
@@ -221,6 +222,7 @@ async def _process_chat(
     defensa_tool_gatekeeper: bool = True,
     defensa_pii_shield: bool = False,
     proxy_enabled: bool = False,
+    collector: Optional[SocCollector] = None,
 ) -> ChatResponse:
     start_time = time.time()
 
@@ -239,6 +241,24 @@ async def _process_chat(
         prior_history = None
     fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
 
+    # SOC: el collector puede venir del endpoint (documentos, que ya han evaluado sus
+    # capas antes de llegar aquí) o crearse ahora. La `postura` se persiste con el turno
+    # para que un turno sin ningún Analysis Event se lea como ausencia de defensa y no
+    # como fallo de captura — ver docs/soc/README.md §"Cobertura desigual".
+    if collector is None:
+        collector = SocCollector(
+            session_id=session_id, user_id=request.user_id, endpoint=endpoint_name,
+            audit_subdir=request.audit_subdir, fixture_id=request.fixture_id,
+            fixture_kind=request.fixture_kind,
+            fixture_expected_result=request.fixture_expected_result,
+            vulnerable=bool(request.vulnerable),
+        )
+        collector.set_postura(
+            f"proxy={proxy_enabled} gatekeeper={defensa_tool_gatekeeper} "
+            f"pii_shield={defensa_pii_shield} vulnerable={bool(request.vulnerable)}"
+            f"{' shadow' if proxy_enabled and shadow_mode() else ''}"
+        )
+
     if inject_context:
         user_context = (
             f"[Contexto del usuario autenticado: user_id={user['user_id']}, "
@@ -254,9 +274,25 @@ async def _process_chat(
     # `request.vulnerable` lo salta por completo: en modo baseline indefenso no hay ninguna capa
     # de entrada, igual que no hay ninguna de salida.
     if proxy_enabled and not request.vulnerable:
-        stage_ctx = StageContext(text=full_message, user_id=request.user_id, session_id=session_id)
+        stage_ctx = StageContext(
+            text=full_message, user_id=request.user_id, session_id=session_id,
+            collector=collector,
+        )
         for stage in (_INPUT_SANITIZER, _PII_SHIELD):
+            t_stage = time.time()
             decision = stage.evaluate(stage_ctx)
+            # SOC: se registra SIEMPRE, también cuando la acción es ALLOW. Antes este
+            # bucle hacía `if decision.action != "BLOCK": continue` y la decisión se
+            # perdía sin dejar rastro — con lo que era imposible distinguir "el
+            # componente lo revisó y lo permitió" de "nadie lo miró". Ver
+            # docs/soc/README.md §"Captura".
+            add_safe(
+                collector,
+                componente=stage.name, objetivo="prompt", accion=decision.action,
+                razon=decision.reason, regla=decision.matched_rule,
+                confianza=decision.confidence, attack_type=decision.attack_type,
+                latencia_ms=(time.time() - t_stage) * 1000,
+            )
             if decision.action != "BLOCK":
                 continue
             if shadow_mode():
@@ -278,6 +314,12 @@ async def _process_chat(
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
                 audit_subdir=request.audit_subdir,
+            )
+            collector.flush(
+                prompt=full_message,
+                respuesta=f"[BLOCKED_BY_{stage.name.upper()}] {decision.reason}",
+                modelo=f"proxy-{stage.name}", latencia_total_ms=latency_ms,
+                audit_file=audit_path.name,
             )
             return ChatResponse(
                 user_id=request.user_id, message=request.message, response="",
@@ -366,7 +408,10 @@ async def _process_chat(
             and not (proxy_enabled and shadow_mode())
             and not request.vulnerable  # modo baseline indefenso: también sin Gatekeeper
         )
-        deps = Deps(user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper)
+        deps = Deps(
+            user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper,
+            collector=collector,  # SOC: único canal que alcanza al Gatekeeper dentro de agent.run()
+        )
         result = await agent.run(full_message, message_history=message_history, deps=deps)
         # Memoria de sesión: persiste el historial completo (recortado a MAX_TURNS)
         # para que el siguiente turno de esta sesión lo recupere via get_history().
@@ -384,7 +429,17 @@ async def _process_chat(
         if request.vulnerable:
             response_text, audit_blocked = response_text_raw, False
         else:
+            t_aud = time.time()
             response_text, audit_blocked = audit_response(response_text_raw)
+            add_safe(
+                collector, componente="output_auditor", objetivo="respuesta",
+                accion="BLOCK" if audit_blocked else "ALLOW",
+                razon=("Secreto de configuración conocido en la respuesta"
+                       if audit_blocked else "Sin patrones de secreto conocidos"),
+                regla="output_auditor", confianza=1.0,
+                attack_type="system_prompt_leakage" if audit_blocked else None,
+                latencia_ms=(time.time() - t_aud) * 1000,
+            )
             if audit_blocked:
                 logger.warning(
                     "[%s]%s ⚠ Output Auditor bloqueó una fuga de secreto de configuración",
@@ -397,8 +452,18 @@ async def _process_chat(
         # vulnerable puro se desactiva también, con independencia del Gatekeeper.
         leak_blocked = False
         if defensa_tool_gatekeeper and not request.vulnerable:
+            t_leak = time.time()
             response_text, leak_blocked = _confidential_leak_guard(
                 response_text, tools_used, user.get("account_id", "")
+            )
+            add_safe(
+                collector, componente="leak_guard", objetivo="respuesta",
+                accion="BLOCK" if leak_blocked else "ALLOW",
+                razon=("IBAN ajeno en la respuesta sin tool call real que lo respalde"
+                       if leak_blocked else "Sin IBANes ajenos sin respaldo"),
+                regla="confidential_leak_guard", confianza=1.0,
+                attack_type="cross_context_leakage" if leak_blocked else None,
+                latencia_ms=(time.time() - t_leak) * 1000,
             )
 
         if leak_blocked:
@@ -416,10 +481,27 @@ async def _process_chat(
         pii_ajena: list = []
         pii_descartada = False
         if defensa_pii_shield and not request.vulnerable and not (leak_blocked or audit_blocked):
+            t_pii = time.time()
             response_text, pii_ajena, pii_descartada = redact_foreign_pii(
                 response_text,
                 request.user_id,
                 verified_values=_valores_verificados_por_tools(tools_used),
+            )
+            add_safe(
+                collector, componente="pii_shield", objetivo="respuesta",
+                accion=("BLOCK" if pii_descartada else "SUSPICIOUS" if pii_ajena else "ALLOW"),
+                razon=(
+                    f"Cosecha masiva: {len(pii_ajena)} entidades de terceros, respuesta descartada"
+                    if pii_descartada else
+                    f"{len(pii_ajena)} entidad(es) de terceros tokenizadas" if pii_ajena else
+                    "Sin PII de terceros en la respuesta"
+                ),
+                regla="redact_foreign_pii", confianza=1.0,
+                attack_type="pii_harvesting" if pii_ajena else None,
+                detalle=(
+                    {"entidades": sorted({e.type.value for e in pii_ajena})} if pii_ajena else None
+                ),
+                latencia_ms=(time.time() - t_pii) * 1000,
             )
             if pii_ajena:
                 logger.warning(
@@ -468,6 +550,11 @@ async def _process_chat(
                 timestamp=datetime.now(timezone.utc),
             )
 
+        collector.flush(
+            prompt=prompt_for_audit, respuesta=response_text, modelo=model_name,
+            latencia_total_ms=latency_ms, audit_file=audit_path.name,
+        )
+
         tool_names = [t["tool"] for t in tools_used] if tools_used else []
         thinking_tag = " [thinking]" if thinking else ""
         logger.info(
@@ -490,6 +577,12 @@ async def _process_chat(
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
         err_str = str(e)
+        # El turno falló, pero lo que los componentes alcanzaron a decidir antes del
+        # fallo sigue siendo evidencia. Se persiste igual.
+        collector.flush(
+            prompt=prompt_for_audit, respuesta=f"[ERROR] {err_str}",
+            latencia_total_ms=latency_ms,
+        )
 
         hint = None
         low = err_str.lower()
@@ -646,12 +739,32 @@ async def chat_complex_with_document(
         raise HTTPException(status_code=400, detail=str(e))
     t_extract = time.time()
 
+    # SOC: el collector se crea aquí, un escalón por encima de `_process_chat`, porque el
+    # Document Sanitizer y el detector estructural deciden ANTES de que el turno entre al
+    # pipeline. Se pasa hacia dentro para que la traza del turno sea una sola.
+    collector = SocCollector(
+        session_id=session_id or f"ses_{int(request_start)}", user_id=user_id,
+        endpoint="complex-with-document", audit_subdir=audit_subdir,
+        fixture_id=fixture_id, fixture_kind=fixture_kind,
+        fixture_expected_result=fixture_expected_result,
+    )
+
     decision = (
         sanitize_document_text(document_text)
         if defensa_sanitizer
         else PromptDecision(action="ALLOW", confidence=1.0, layer=1)
     )
     t_sanitize = time.time()
+    add_safe(
+        collector, componente="document_sanitizer", objetivo="documento",
+        accion=decision.action if defensa_sanitizer else "ALLOW",
+        razon=(decision.reason if defensa_sanitizer
+               else "Capa desactivada para el estudio de ablación"),
+        regla=decision.matched_rule, confianza=decision.confidence,
+        attack_type=decision.attack_type,
+        detalle={"fichero": document.filename, "activa": defensa_sanitizer},
+        latencia_ms=(t_sanitize - t_extract) * 1000,
+    )
 
     structural_findings: list[str] = []
     if defensa_estructural and decision.action != "BLOCK":
@@ -669,6 +782,17 @@ async def chat_complex_with_document(
                 matched_rule="document_structural_detector",
             )
     t_structural = time.time()
+    if defensa_estructural:
+        add_safe(
+            collector, componente="document_sanitizer", objetivo="documento",
+            accion="BLOCK" if structural_findings else "ALLOW",
+            razon=(f"Técnica(s) de ocultación: {', '.join(structural_findings)}"
+                   if structural_findings else "Sin técnicas de ocultación conocidas"),
+            regla="document_structural_detector", confianza=1.0,
+            attack_type="structural_hiding_technique" if structural_findings else None,
+            detalle={"hallazgos": structural_findings, "fichero": document.filename},
+            latencia_ms=(t_structural - t_sanitize) * 1000,
+        )
 
     read_ms = (t_read - request_start) * 1000
     extract_ms = (t_extract - t_read) * 1000
@@ -682,6 +806,7 @@ async def chat_complex_with_document(
         f"{'[tool_framing]' if defensa_separacion_semantica and defensa_separacion_tool_framing else ''} "
         f"D(gatekeeper)={defensa_tool_gatekeeper} E(pii_shield)={defensa_pii_shield}"
     )
+    collector.set_postura(defensas_activas)
 
     if decision.action == "BLOCK":
         # Etiqueta dinámica: distingue qué CAPA bloqueó realmente, para que el estudio de
@@ -719,6 +844,12 @@ async def chat_complex_with_document(
             fixture_kind=fixture_kind,
             fixture_expected_result=fixture_expected_result,
             audit_subdir=audit_subdir,
+        )
+        collector.flush(
+            prompt=f"Documento adjunto por el cliente:\n{document_text}",
+            respuesta=f"[{blocked_by} — regla: {decision.matched_rule}] {decision.reason}",
+            modelo="document-sanitizer", latencia_total_ms=defense_total_ms,
+            audit_file=audit_path.name,
         )
         return ChatResponse(
             user_id=user_id,
@@ -762,4 +893,5 @@ async def chat_complex_with_document(
         defensa_separacion_tool_framing=defensa_separacion_tool_framing,
         defensa_tool_gatekeeper=defensa_tool_gatekeeper,
         defensa_pii_shield=defensa_pii_shield,
+        collector=collector,  # SOC: una sola traza por turno, con los eventos del documento ya dentro
     )

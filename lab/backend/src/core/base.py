@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 from src.models.interaction import PromptDecision
 
@@ -32,11 +33,23 @@ def shadow_mode() -> bool:
 
 @dataclass
 class StageContext:
-    """Lo mínimo que necesita cualquier stage genérica para evaluar un turno."""
+    """Lo mínimo que necesita cualquier stage genérica para evaluar un turno.
+
+    `collector` es el `SocCollector` del turno (ver src/soc/collector.py). El
+    orquestador ya emite un Analysis Event con la decisión final de cada stage, así que
+    una stage no necesita tocarlo para que su decisión quede registrada. Está aquí para
+    las que tengan algo MÁS que contar: cuando el Input Sanitizer real aterrice con sus
+    tres capas (regex → clasificador → LLM guard), podrá emitir el detalle de cada una
+    sin que haya que cambiar el contrato ni el orquestador.
+
+    Se tipa como `Any` a propósito: `core` no debe importar de `soc`. La observabilidad
+    depende de la defensa, nunca al revés.
+    """
 
     text: str
     user_id: str
     session_id: str
+    collector: Any = None
 
 
 class Stage(ABC):

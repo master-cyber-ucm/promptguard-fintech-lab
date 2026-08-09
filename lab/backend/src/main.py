@@ -30,7 +30,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import chat, fixtures, info
+from src.api.routes import chat, fixtures, info, soc
 from src.agents.clara_base import resolve_llm_config
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -89,6 +89,7 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(info.router, prefix="/api/v1")
 app.include_router(fixtures.router, prefix="/api/v1")
+app.include_router(soc.router, prefix="/api/v1")
 
 
 @app.get("/")
