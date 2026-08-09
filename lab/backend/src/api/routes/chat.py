@@ -97,6 +97,19 @@ class ChatRequest(BaseModel):
     fixture_kind: Optional[str] = Field(default=None)
     fixture_expected_result: Optional[str] = Field(default=None)
     audit_subdir: Optional[str] = Field(default=None, description="Ruta absoluta del directorio destino para el Session File")
+    vulnerable: bool = Field(
+        default=False,
+        description=(
+            "Modo baseline VULNERABLE PURO para el estudio de ablación. Cuando es True, desactiva "
+            "TODAS las guardias de salida que hasta ahora corrían incondicionalmente en los "
+            "endpoints JSON: el Output Auditor (LLM07, `audit_response`) y la guardia de fuga de "
+            "IBAN ajeno (`_confidential_leak_guard`). Sin este flag no existía una línea base "
+            "genuinamente indefensa para System Prompt Leakage ni para Cross-Context Leakage — "
+            "`audit_response` tapaba la fuga incluso en `complex-with-context`, haciendo imposible "
+            "medir la efectividad real del ataque contra un entorno sin defensas. Default False: "
+            "no cambia el comportamiento previo de ningún llamador que no lo pida explícitamente."
+        ),
+    )
 
 
 class ChatResponse(BaseModel):
@@ -238,7 +251,9 @@ async def _process_chat(
     # --- Pipeline del proxy: Input Sanitizer -> PII Shield (esqueleto no-op, ver
     # src/core/input_sanitizer.py y pii_shield.py) — solo corre en /chat/proxy.
     # SHADOW_MODE=true: decide pero no bloquea (ver src/core/base.py).
-    if proxy_enabled:
+    # `request.vulnerable` lo salta por completo: en modo baseline indefenso no hay ninguna capa
+    # de entrada, igual que no hay ninguna de salida.
+    if proxy_enabled and not request.vulnerable:
         stage_ctx = StageContext(text=full_message, user_id=request.user_id, session_id=session_id)
         for stage in (_INPUT_SANITIZER, _PII_SHIELD):
             decision = stage.evaluate(stage_ctx)
@@ -346,7 +361,11 @@ async def _process_chat(
         # (solo aplica al proxy, no a `complex-with-document`) el Gatekeeper no puede "decidir sin
         # bloquear" sin reescribir cada tool (ver limitación documentada en src/core/base.py) — se
         # desactiva del todo, igual que el resto del pipeline.
-        effective_gatekeeper = defensa_tool_gatekeeper and not (proxy_enabled and shadow_mode())
+        effective_gatekeeper = (
+            defensa_tool_gatekeeper
+            and not (proxy_enabled and shadow_mode())
+            and not request.vulnerable  # modo baseline indefenso: también sin Gatekeeper
+        )
         deps = Deps(user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper)
         result = await agent.run(full_message, message_history=message_history, deps=deps)
         # Memoria de sesión: persiste el historial completo (recortado a MAX_TURNS)
@@ -358,18 +377,26 @@ async def _process_chat(
         response_text_raw = str(result.output)
         model_name = getattr(agent.model, "model_name", str(agent.model))
 
-        response_text, audit_blocked = audit_response(response_text_raw)
-        if audit_blocked:
-            logger.warning(
-                "[%s]%s ⚠ Output Auditor bloqueó una fuga de secreto de configuración",
-                session_id, fixture_tag,
-            )
+        # Output Auditor (LLM07). Hasta ahora corría SIEMPRE, en todos los endpoints, incluidos
+        # los baseline "vulnerables" — de modo que una fuga del system prompt quedaba tapada aunque
+        # ninguna otra defensa estuviera activa, y el ataque #5 medía 0% de éxito contra un entorno
+        # supuestamente indefenso. `request.vulnerable=True` lo desactiva para tener línea base real.
+        if request.vulnerable:
+            response_text, audit_blocked = response_text_raw, False
+        else:
+            response_text, audit_blocked = audit_response(response_text_raw)
+            if audit_blocked:
+                logger.warning(
+                    "[%s]%s ⚠ Output Auditor bloqueó una fuga de secreto de configuración",
+                    session_id, fixture_tag,
+                )
 
         # Guardia de salida (Fase 2.7, parte de (D) — ver docstring de _confidential_leak_guard):
         # solo activa cuando el Tool Gatekeeper lo está, para no alterar el comportamiento
-        # "vulnerable puro" del estudio de ablación cuando defensa_tool_gatekeeper=False.
+        # "vulnerable puro" del estudio de ablación cuando defensa_tool_gatekeeper=False. En modo
+        # vulnerable puro se desactiva también, con independencia del Gatekeeper.
         leak_blocked = False
-        if defensa_tool_gatekeeper:
+        if defensa_tool_gatekeeper and not request.vulnerable:
             response_text, leak_blocked = _confidential_leak_guard(
                 response_text, tools_used, user.get("account_id", "")
             )
@@ -388,7 +415,7 @@ async def _process_chat(
         # la respuesta no queda nada que tokenizar. Ver src/core/pii_shield.py.
         pii_ajena: list = []
         pii_descartada = False
-        if defensa_pii_shield and not (leak_blocked or audit_blocked):
+        if defensa_pii_shield and not request.vulnerable and not (leak_blocked or audit_blocked):
             response_text, pii_ajena, pii_descartada = redact_foreign_pii(
                 response_text,
                 request.user_id,

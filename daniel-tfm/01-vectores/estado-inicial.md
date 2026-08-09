@@ -98,6 +98,13 @@ class PIIShieldStage(Stage):
 Y en el flanco de salida, el `Output Auditor` sobre un volcado masivo de PII de terceros
 (nombres + IBANs + saldos de tres clientes): **PASA**. Solo miraba secretos de configuración.
 
+> **Ampliación posterior (investigación del 0%).** La corrida de evidencia mostró que estos dos
+> fixtures dan 0% de éxito *incluso sin defensas*, lo que parecía contradecir "sin defensa". No lo
+> contradice: `atk_011/012` piden enumerar una base de datos de clientes que **ninguna tool del
+> escenario puede devolver**, así que el ataque es inganable por construcción, no defendido. El
+> vector real de PII exige que la PII entre al contexto (documento adjunto). Ver
+> [`investigacion-0pct/`](./investigacion-0pct/README.md).
+
 ## El patrón que emerge — tres ejes, uno descubierto
 
 Al poner las cuatro mediciones juntas, el hueco deja de parecer cuatro problemas sueltos y pasa a

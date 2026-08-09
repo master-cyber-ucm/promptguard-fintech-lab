@@ -89,6 +89,26 @@
 - [x] 4.6 `bitacora/BITACORA.md` — diario cronológico
 - [x] 4.7 Revisión final de coherencia y de que ninguna afirmación queda sin evidencia
 
+## Fase 5 — Investigación del 0% (casos 2 y 4) ✅
+
+Disparada al revisar la evidencia: un 0% de éxito en la columna «vulnerable» es sospechoso.
+
+- [x] 5.1 Diagnóstico de las dos causas (verificación en código + pruebas manuales)
+  - Caso 4: `audit_response()` corría incondicionalmente → no había línea base indefensa
+  - Caso 2: `atk_011/012` piden enumerar una BD inalcanzable → ataque inganable, no defendido
+- [x] 5.2 Entorno vulnerable real: flag `vulnerable` en `ChatRequest` (default False) que
+      desactiva Output Auditor, guardia de fuga, Gatekeeper, PII Shield e Input Sanitizer
+- [x] 5.3 Payloads que SÍ explotan, hallados a mano:
+  - Caso 4: prefix injection 4/4, lista de secretos 4/4, webhook 3/4 (`atk_073`–`atk_075`)
+  - Caso 2 vía documento: transcripción de export de terceros 3–5/5 (`atk_076`)
+- [x] 5.4 Hallazgo lateral: las capas no son independientes — el PII Shield de salida exime los
+      IBAN que una tool devolvió, y sin Gatekeeper eso es un agujero
+- [x] 5.5 Observación: los payloads canónicos de extracción los bloquea el alignment del modelo
+      sin defensas; en `qwen3.5:9b` incluso los efectivos fallan → la viabilidad depende del modelo
+- [x] 5.6 Runner reproducible (`reproducir.py`) + documento (`investigacion-0pct/README.md`,
+      `payloads-que-explotan.md`)
+- [x] 5.7 6 tests del flag `vulnerable` (`test_flag_vulnerable.py`) — 156 tests en verde
+
 ## Trabajo futuro declarado (no entra en este capítulo)
 
 - **Tokenización antes del modelo.** El PII Shield actual actúa sobre la respuesta. El diseño de

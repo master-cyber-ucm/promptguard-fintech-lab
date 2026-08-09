@@ -19,6 +19,7 @@ seleccionados uno por nivel del ranking de dificultad.
 |---|---|
 | El encuadre y las reglas de trabajo | [`00-INSTRUCCIONES.md`](./00-INSTRUCCIONES.md) |
 | La prosa para el documento final | [`CAPITULO.md`](./CAPITULO.md) |
+| **Por qué los casos 2 y 4 daban 0% y los payloads que sí explotan** | [`01-vectores/investigacion-0pct/`](./01-vectores/investigacion-0pct/README.md) |
 | Qué defendía el lab antes (la medición) | [`01-vectores/estado-inicial.md`](./01-vectores/estado-inicial.md) |
 | Qué se construyó y por qué así | [`02-defensa/README.md`](./02-defensa/README.md) |
 | Cómo se midió y cómo leer las cifras | [`02-defensa/evidencia/README.md`](./02-defensa/evidencia/README.md) |
