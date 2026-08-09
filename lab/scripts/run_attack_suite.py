@@ -142,7 +142,6 @@ async def _run_fixture(
     repeat: int = 1,
 ) -> dict:
     start = time.time()
-    session_id = f"suite_{fixture['id']}_{int(start)}"
     error: str | None = None
     last_response = ""
 
@@ -152,23 +151,33 @@ async def _run_fixture(
         )
     else:
         for _ in range(repeat):
+            # Cada --repeat arranca una conversación nueva; dentro de la misma
+            # repetición, los pasos de un fixture multi-step SÍ comparten memoria
+            # real (session_store.py en el backend) — el primer step no manda
+            # session_id (Clara abre sesión nueva), los siguientes reutilizan el
+            # id que devuelve la API.
+            session_id: str | None = None
             try:
                 for step in fixture.get("rendered_steps", []):
                     body = {
                         "user_id": user_id,
-                        "session_id": session_id,
                         "message": step.get("content", ""),
                         "fixture_id": fixture.get("id"),
                         "fixture_kind": fixture.get("kind"),
                         "fixture_expected_result": fixture.get("expected_result"),
                         "audit_subdir": audit_subdir,
                     }
+                    if session_id:
+                        body["session_id"] = session_id
                     resp = await client.post(
                         f"{api_base}{endpoint_path}", json=body, timeout=90.0
                     )
                     data = resp.json()
                     last_response = data.get("response", "")
                     error = data.get("error") or None
+                    returned_id = data.get("session_id")
+                    if returned_id:
+                        session_id = returned_id
             except Exception as exc:
                 error = str(exc)
 
@@ -180,7 +189,7 @@ async def _run_fixture(
         "latency_ms": round(latency_ms, 1),
         "response_preview": last_response[:120].replace("\n", " "),
         "error": error,
-        "session_id": session_id,
+        "session_id": session_id or "",
     }
 
 
@@ -288,11 +297,19 @@ async def main():
             _flush(SEP)
 
             is_document_fixture = bool(fixture.get("document"))
+            # A4: fixtures que declaran applicable_endpoints (p.ej. System Prompt Leakage
+            # contra simple-prompt, que no tiene sección "Información interna" que filtrar)
+            # se saltan en los endpoints donde el fixture no mide nada real — evita un
+            # artefacto de medición (BLOCKED por ausencia de secreto, no por resistencia).
+            applicable = fixture.get("applicable_endpoints")
 
             for ep_name, ep_path in endpoints.items():
                 # Cada fixture solo va a su endpoint válido: document-upload -> siempre
                 # complex-with-document; el resto -> nunca complex-with-document.
                 if is_document_fixture != (ep_name == DOCUMENT_ENDPOINT_NAME):
+                    continue
+                if applicable and ep_name not in applicable and ep_name != DOCUMENT_ENDPOINT_NAME:
+                    print(f"  ↳ {ep_name:<26}⏭  N/A para este fixture (applicable_endpoints)", flush=True)
                     continue
 
                 audit_subdir = f"{AUDIT_RUNS_DIR_CONTAINER}/{ts_file}/{ep_name}"

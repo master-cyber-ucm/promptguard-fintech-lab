@@ -27,6 +27,7 @@ let _activeFixture = null;
 // Guardado para permitir re-render tras crear un fixture nuevo.
 let _container = null;
 let _onLoadStep = null;
+let _onFixtureSelected = null;
 
 /** Devuelve los metadatos del fixture activo para incluir en el ChatRequest. */
 export function getActiveFixtureMeta() {
@@ -37,10 +38,12 @@ export function getActiveFixtureMeta() {
  * @param {Object} opts
  * @param {HTMLElement} opts.container  - el elemento donde se renderiza la lista
  * @param {Function}    opts.onLoadStep - callback(content: string) cuando se carga un step
+ * @param {Function}    [opts.onFixtureSelected] - callback() cuando el usuario selecciona un fixture
  */
-export function initFixtureBrowser({ container, onLoadStep }) {
+export function initFixtureBrowser({ container, onLoadStep, onFixtureSelected }) {
     _container = container;
     _onLoadStep = onLoadStep;
+    _onFixtureSelected = onFixtureSelected || null;
     _render(container, onLoadStep);
 }
 
@@ -140,6 +143,8 @@ function _makeItem(fixture, onLoadStep) {
     btn.addEventListener('click', () => {
         const steps = fixture.rendered_steps || [];
         if (steps.length === 0) return;
+
+        if (_onFixtureSelected) _onFixtureSelected();
 
         _activeFixture = {
             fixture_id: fixture.id,

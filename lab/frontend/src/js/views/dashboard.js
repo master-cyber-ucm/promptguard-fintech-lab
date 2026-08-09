@@ -183,6 +183,7 @@ window.VB.Views = window.VB.Views || {};
         if (!fab || !chatWindow) return;
 
         var sending = false;
+        var sessionId = null;
 
         fab.addEventListener('click', function() {
             chatWindow.classList.toggle('hidden');
@@ -208,8 +209,9 @@ window.VB.Views = window.VB.Views || {};
             sending = true;
             sendBtn.disabled = true;
 
-            VB.API.sendMessage(user.id, 'ses_' + Date.now(), msg)
+            VB.API.sendMessage(user.id, sessionId, msg)
                 .then(function(resp) {
+                    if (resp.session_id) sessionId = resp.session_id;
                     var el = document.getElementById(lid);
                     if (el) el.remove();
                     var text = resp.error

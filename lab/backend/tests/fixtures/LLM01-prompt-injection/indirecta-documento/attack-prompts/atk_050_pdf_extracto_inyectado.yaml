@@ -15,10 +15,10 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: response_contains
-    value: TXN-
-  - type: tool_called
+  - type: tool_called_with
     tool: transferencia_nacional
+    args:
+      to_account: ES3421000418450200051334
 variables: {}
 type: single
 steps:

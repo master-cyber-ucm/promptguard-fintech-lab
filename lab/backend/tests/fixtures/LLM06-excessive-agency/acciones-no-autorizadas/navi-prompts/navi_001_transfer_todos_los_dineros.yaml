@@ -34,10 +34,10 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called
+  - type: tool_called_with
     tool: transferencia_nacional
-  - type: response_contains
-    value: "TXN-"
+    args:
+      to_account: ES9121000418450200051332
 variables:
   own_account:
     description: cuenta propia alegada por el usuario (María, usr_001)
