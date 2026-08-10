@@ -192,6 +192,8 @@ window.SOC = window.SOC || {};
         }
         stream.innerHTML = d.turnos.map(function (t) { return filaTurno(t); }).join('');
         cablearTurnos(stream);
+        self.techo = PAGINA;
+        pintarPie(el, self, d.turnos.length === PAGINA);
       });
     },
     /** Inserción incremental: nunca se repinta el stream entero. */
@@ -210,10 +212,72 @@ window.SOC = window.SOC || {};
         cablearTurnos(nodo.parentNode, nodo);
       });
       // Techo del DOM: una corrida entera son 400+ turnos y el navegador no tiene
-      // por qué cargar con todos.
-      while (stream.children.length > 250) stream.removeChild(stream.lastElementChild);
+      // por qué cargar con todos. El techo crece con lo que el usuario haya paginado
+      // a mano — recortar por debajo le borraría justo lo que acaba de pedir.
+      var techo = Math.max(250, (this.techo || 0) + 60);
+      while (stream.children.length > techo) stream.removeChild(stream.lastElementChild);
     }
   };
+
+  var PAGINA = 60;
+
+  /**
+   * Pie de paginación del stream.
+   *
+   * Se pagina hacia atrás con el cursor `before`, no con offset: el stream crece por
+   * arriba mientras lo miras, y un `offset` numérico iría desplazándose y repetiría
+   * filas cada vez que entrara un turno nuevo.
+   *
+   * Botón explícito en vez de scroll infinito, porque el scroll infinito pelearía con
+   * la inserción en vivo por arriba: cargar al llegar abajo y que a la vez te empujen
+   * contenido desde arriba hace que la lista salte bajo el dedo.
+   */
+  function pintarPie(el, vista, hayMas) {
+    var stream = el.querySelector('#stream');
+    if (!stream) return;
+    var viejo = el.querySelector('#stream-pie');
+    if (viejo) viejo.remove();
+
+    var n = stream.querySelectorAll('details.turn').length;
+    var pie = document.createElement('div');
+    pie.id = 'stream-pie';
+    pie.className = 'stream-pie';
+    pie.innerHTML = hayMas
+      ? '<button class="btn" id="btn-mas">Cargar 60 más</button>' +
+        '<span class="mono">' + n + ' turnos mostrados</span>'
+      : '<span class="mono">' + n + ' turnos · no hay más que cargar</span>';
+    stream.parentNode.appendChild(pie);
+
+    var btn = pie.querySelector('#btn-mas');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var filas = stream.querySelectorAll('details.turn');
+      if (!filas.length) return;
+      var ultimo = +filas[filas.length - 1].dataset.id;
+      btn.disabled = true;
+      btn.textContent = 'Cargando…';
+      api.turns(Object.assign({ before: ultimo, limit: PAGINA }, vista.filtros))
+        .then(function (d) {
+          // Se añaden por ABAJO: los turnos nuevos siguen entrando por arriba sin
+          // que una cosa pise a la otra.
+          d.turnos.forEach(function (t) {
+            var wrap = document.createElement('div');
+            wrap.innerHTML = filaTurno(t);
+            var nodo = wrap.firstElementChild;
+            stream.appendChild(nodo);
+            cablearTurnos(stream, nodo);
+          });
+          vista.techo = (vista.techo || PAGINA) + d.turnos.length;
+          pintarPie(el, vista, d.turnos.length === PAGINA);
+        })
+        .catch(function (e) {
+          btn.disabled = false;
+          btn.textContent = 'Reintentar';
+          pie.insertAdjacentHTML('beforeend',
+            '<span class="mono" style="color:var(--block)">' + esc(e.message) + '</span>');
+        });
+    });
+  }
 
   function barraFiltros(f) {
     var opt = function (v, txt, sel) {

@@ -293,6 +293,14 @@ section.panel { background: var(--surface); border: 1px solid var(--border); bor
   to   { opacity: 1; transform: none; }
 }
 
+.stream-pie {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 14px 16px; border-top: 1px solid var(--border);
+  background: var(--surface-2); border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.stream-pie .mono { font-size: 11.5px; color: var(--ink-3); }
+.stream-pie .btn[disabled] { opacity: 0.6; cursor: default; }
+
 /* ---------- Traza desplegada ---------- */
 
 .trace { padding: 4px 16px 18px 16px; background: var(--surface-2); }
