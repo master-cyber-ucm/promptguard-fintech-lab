@@ -1,24 +1,10 @@
 # TODOs — PromptGuard FinTech Lab
 
-> **Última revisión: 2026-08-09** contra `main` (`9cdc25f`, PR #7 mergeada).
-> Todo lo marcado `[x]` se ha verificado contra el código o los documentos reales, no contra
-> memoria. La numeración de secciones (§1–§17) se conserva porque otros documentos la citan.
-
----
-
-## 🔴 Prioritario — hacer ya
-
-Lo que bloquea la nota, en orden. El resto del fichero es inventario; esto es el camino crítico.
-
-| # | Qué | Por qué ya | Ref |
-|---|---|---|---|
-| **P1** | **Implementar el Input Sanitizer real** (LLM01 · Prompt Injection Directa) | Es el **único** módulo del pipeline que sigue siendo un no-op de 31 líneas que siempre devuelve `ALLOW`. `docs/defensas/README.md` promete 6 capas y el proxy entrega 5. Sin esto no hay comparativa antes/después del vector más citado del OWASP LLM Top 10. Ya está cableado en el orquestador (`_INPUT_SANITIZER`), solo hay que sobreescribir `evaluate()`. | §11, §16 |
-| **P2** | **Medición unificada antes/después**: añadir `/chat/proxy` a `CHAT_ENDPOINTS` y correr las 108 fixtures × {vulnerable, defendido} en un solo Run Report | Henri y Daniel midieron cada uno con su runner propio (`ejecutar_evidencia.py` ×2). **No existe una sola tabla** que compare el sistema con y sin defensas sobre el corpus completo — y es exactamente el artefacto que pide el enunciado ("análisis crítico que valore la eficacia y las limitaciones"). | §8, §9, §17 |
-| **P3** | **Arrancar el documento integrador de la memoria** (índice · estado del arte común · metodología · resultados agregados · conclusiones) | Hay dos capítulos individuales cerrados (Henri 10.8k palabras, Daniel 4.9k) y **ningún documento principal**. Tope de 20 páginas: cuanto antes se fije el índice, antes se sabe qué recortar. | — |
-| **P4** | **Fijar la lista canónica de los 6 vectores críticos** | El profe pide "los seis vectores críticos acotados para el sector bancario"; el catálogo documenta **7** subcategorías. Ambigüedad viva desde hace semanas. Decidir: ¿se fusionan dos, se declara uno fuera de alcance, o se defiende el 7? | §7 |
-| **P5** | **Cerrar Cross-Context Leakage (vector #3)** | Está mitigado por `_confidential_leak_guard`, un guard táctico dentro de `api/routes/chat.py` (6 tests), no por el módulo que describe `docs/defensas/.../cross-context-leakage.md`. O se sube a módulo propio, o se declara el alcance por escrito. Hoy el diseño y la implementación no coinciden. | §11 |
-| **P6** | **Multi-modelo**: `--model` / `--provider` en `run_attack_suite.py` + re-correr el ranking | Los datos de 6 modelos en `lab/audit/runs-saves/` son del **28-jun**, anteriores a los fixes A1 (indicadores `tool_called_with`), A3 (memoria de sesión) y a la corrección de colisión de IDs que excluía 3 fixtures de toda corrida. **Esas cifras ya no son citables.** | §9, §16 |
-| **P7** | **Sanear la deuda de documentación cruzada** | `CONTEXT.md` describe el vocabulario pero no menciona las stages del proxy ni el flag `vulnerable`. Los worktrees `software/` y `software-daniel/` conviven y el primero está 6 commits por detrás. | — |
+> **Última revisión: 2026-08-16** contra `main` (`3ddfacb`).
+> Reorganizado en dos bloques: primero lo cerrado, después lo pendiente como roadmap por
+> fases. Todo lo marcado `[x]` se ha verificado contra el código o los documentos reales,
+> no contra memoria. La numeración de secciones (§1–§17) se conserva porque otros
+> documentos la citan.
 
 ---
 
@@ -29,11 +15,12 @@ Lo que bloquea la nota, en orden. El resto del fichero es inventario; esto es el
 | Lab ejecutable · cold start | ✅ | `make run` (genera `.env`, levanta Ollama, descarga modelo, arranca stack) |
 | Endpoints | ✅ | 5: `simple-prompt`, `complex-prompt`, `complex-with-context`, `complex-with-document`, `proxy` |
 | Fixtures | ✅ | **108** (72 ataque / 20 legítimos / 12 navi) |
-| Tests | ✅ | **156 recogidos**, 13 ficheros |
+| Tests | ✅ | **186+ recogidos**, 14 ficheros (se sumó `test_soc.py`, 30 tests) |
 | Catálogo de ataques | ✅ | **60 docs** — 7 subcategorías × 8 |
 | Catálogo de defensas (diseño) | ✅ | **12 docs** |
+| Panel SOC / observabilidad | ✅ | 7 pantallas, captura turno a turno, 71 docs indexados — §12 ya no está "sin empezar" |
 | Defensas implementadas | 🔶 **5 de 6** | Falta Input Sanitizer (P1) |
-| Evidencia experimental | 🔶 | Por vector sí; agregada no (P2) |
+| Evidencia experimental | 🔶 | Por vector sí; agregada no (P2 — el endpoint ya está en el runner) |
 | Memoria final | ❌ | 2 capítulos individuales, sin documento integrador (P3) |
 
 ### Cobertura vector × defensa
@@ -42,7 +29,7 @@ Lo que bloquea la nota, en orden. El resto del fichero es inventario; esto es el
 |---|---|:-:|:-:|:-:|:-:|:-:|
 | 1 | Excessive Agency (LLM06) | ✅ | ✅ | ✅ | ✅ Tool Gatekeeper | 🔶 |
 | 2 | **Prompt Injection Directa (LLM01)** | ✅ | ✅ | ✅ | ❌ **no-op → P1** | ❌ |
-| 3 | Cross-Context Leakage (LLM02) | ✅ | ✅ | ✅ | 🔶 guard ad-hoc → P5 | 🔶 |
+| 3 | Cross-Context Leakage (LLM02) | ✅ | ✅ | ✅ | ✅ `core/leak_guard.py` + PII Shield | ✅ |
 | 4 | Confused Deputy (LLM06) | ✅ | ✅ | ✅ | ✅ Tool Gatekeeper | ✅ |
 | 5 | System Prompt Leakage (LLM07) | ✅ | ✅ | ✅ | ✅ Output Auditor (184 líneas) | ✅ |
 | 6 | PII Harvesting (LLM02) | ✅ | ✅ | ✅ | ✅ PII Shield (421 líneas) | ✅ |
@@ -50,151 +37,196 @@ Lo que bloquea la nota, en orden. El resto del fichero es inventario; esto es el
 
 ---
 
-## 1. Evidencia reproducible
+## ✅ Hecho
 
+### §1 — Evidencia reproducible
 - [x] Transcripción completa del ataque (turno a turno) — `lab/audit/runs/{run}/{endpoint}/*.md`
 - [x] Respuesta JSON cruda del endpoint (`response`, `tools_used`, `latency_ms`, `error`) — Run Report
 - [x] Logs del backend durante la ejecución — logging estructurado
 - [x] System prompt de Clara en la cabecera del Session File — `audit_repository.py::_session_header`
 - [x] Verdict (`SUCCESS`/`BLOCKED`/`UNKNOWN`) en el Session File — `evaluate.py` appendea `## Evaluación ·`
-- [ ] Captura de pantalla del frontend durante el ataque (before/after defensa)
-- [ ] Comando `curl`/script exacto para reproducirlo en una línea (con `user_id`, modelo y commit hash)
-- [ ] GIF o vídeo corto de la explotación para la memoria
 
-## 2. Biblioteca de payloads
-
+### §2 — Biblioteca de payloads
 - [x] Payloads que explotan de verdad los vectores "0%" — `daniel-tfm/01-vectores/investigacion-0pct/` (`atk_073`–`atk_076`)
 - [x] Motor de mutación de PDF adversarios — `henri-tfm/01-ataque/payloads/`
-- [ ] Más variantes por ataque (básico / intermedio / avanzado)
-- [ ] Variantes multilingües (ES/EN) y por modelo objetivo
-- [ ] Payloads parametrizables (plantilla con variables: IBAN, importe) — _decidido "no hacer" (D4)_
-- [ ] Payloads encadenados que combinan dos ataques — _decidido "no hacer" (D4)_
-- [ ] Generador de variantes automático — _decidido "no hacer" (D3)_
 
-## 3. Métricas y medición
-
+### §3 — Métricas y medición
 - [x] Tasa de éxito del ataque y tasa de bloqueo — `attack_success_rate`, `legitimate_false_positive_rate`, `navi_self_block_rate`
 - [x] Latencia por intento — `latency_ms` capturado y promediado
 - [x] Cuantificación de fixtures inestables (`--repeat`) — B2, 5 fixtures a n=4
 - [x] Métrica de **fuga real** separada de artefactos de medición — `daniel-tfm/02-defensa/evidencia/analizar_resultados.py`
-- [ ] **Por modelo: ¿cae Llama más que Claude ante el mismo payload?** → **P6**
-- [ ] Número de turnos hasta éxito (ataques multi-turno como PII Harvesting)
-- [ ] Severidad cuantificada (impacto en € estimado, nº de clientes afectados)
 
-## 4. Mapeo taxonómico
-
+### §4 — Mapeo taxonómico
 - [x] MITRE ATLAS: tactic + technique — 18 docs con técnicas `AML.T*`
 - [x] Mapeo a controles NIST AI RMF / ISO 27001 — 7 docs `01-mapeo-taxonomico.md`
 - [x] Relación con otros OWASP LLM01-10 del catálogo
-- [ ] Kill chain dibujada (recon → acceso → ejecución → impacto) — **parcial, 5 de 7**
-- [ ] Mapeo a CAPEC y CWE cuando aplique — **0 menciones en todo `docs/`**
 
-## 5. Threat modeling / scoring
-
+### §5 — Threat modeling / scoring
 - [x] Actor de amenaza, pre-requisitos, explotabilidad vs impacto, scoring — 7 docs `02-threat-modeling.md`
 
-## 6. Casos reales y referencias
-
+### §6 — Casos reales y referencias
 - [x] Incidentes públicos, papers académicos, CVE / blog posts, evolución de la técnica — 7 docs `03-casos-reales.md`
 
-## 7. Análisis técnico profundo
-
+### §7 — Análisis técnico profundo
 - [x] Anatomía del payload comentada — 7 docs `04-analisis-tecnico.md` + `henri-tfm/01-ataque/anatomia-payload.md`
 - [x] Diagrama de flujo del payload y diagrama de intercepción de la defensa — Mermaid en 34 ficheros de `docs/`
 - [x] Por qué cae el LLM: mecanismo de fallo
 - [x] Descubrimiento colateral documentado: el alignment del modelo bloquea payloads canónicos sin ninguna defensa — `docs/nota-descubrimiento-alignment-implicito.md`, `daniel-tfm/01-vectores/investigacion-0pct/`
-- [ ] **Identificar y fijar los 6 vectores críticos canónicos** _(feedback profe)_ → **P4** — hoy hay 7 subcategorías documentadas y el profe habla de 6
 
-## 8. Automatización / tests
-
-- [x] 156 tests recogidos, 13 ficheros — incluye `test_tool_gatekeeper`, `test_pii_shield`, `test_output_auditor_secretos`, `test_confused_deputy_fixtures`, `test_proxy_pipeline_vectores`, `test_ablacion_defensas`, `test_flag_vulnerable`
+### §8 — Automatización / tests
+- [x] 186+ tests recogidos, 14 ficheros — incluye `test_tool_gatekeeper`, `test_pii_shield`, `test_output_auditor_secretos`, `test_confused_deputy_fixtures`, `test_proxy_pipeline_vectores`, `test_ablacion_defensas`, `test_flag_vulnerable`, `test_soc` (30 tests)
 - [x] Test de regresión atado a fixtures concretos — `test_confused_deputy_fixtures.py` (`atk_010`, `atk_020`, `atk_028`)
 - [x] Integración con `run_attack_suite.py` (filtros `--id`, `--type`, `--kind`, `--repeat`)
 - [x] Soporte `type: document-upload` (multipart) para el vector #7
 - [x] Flag `vulnerable` en `ChatRequest` que desactiva todas las capas — línea base indefensa real
-- [ ] **`/chat/proxy` en `CHAT_ENDPOINTS`** → **P2** (hoy el runner compartido solo cubre 4 de 5 endpoints)
-- [ ] CI: la suite corre en cada PR y bloquea el merge si una defensa retrocede
-- [ ] **Scope de Garak** _(feedback profe)_ — qué automatiza Garak vs qué queda como validación manual profunda
+- [x] `/chat/proxy` añadido a `CHAT_ENDPOINTS` — mitad de P2. Falta la corrida y la tabla comparativa, ver roadmap.
 
-## 9. Análisis comparativo
-
+### §9 — Análisis comparativo
 - [x] Lista de modelos candidatos — `docs/modelos-candidatos.md` (10 modelos, 3 proveedores)
 - [x] A/B de defensas por capa (estudio de ablación) — `test_ablacion_defensas.py` + `defensa_*` en `/chat/complex-with-document`
-- [ ] **Ejecutar suite contra cada modelo y generar ranking** → **P6**. ⚠️ Los runs de 6 modelos en `runs-saves/` (28-jun) son **anteriores** a los fixes A1/A3 y a la corrección de colisión de IDs: no citables.
-- [ ] Comparativa de configuraciones (¿ayuda reforzar el system prompt? ¿bajar temperature?)
-- [ ] Matriz de cobertura completa: ataque × modelo × defensa
 
-## 10. Cumplimiento normativo
-
+### §10 — Cumplimiento normativo
 - [x] GDPR, DORA, EU AI Act — 7 docs `05-cumplimiento-normativo.md` + `henri-tfm/03-normativa/` + `daniel-tfm/03-normativa/`
 - [x] Citas legales verificadas contra fuente oficial (Henri, Fase 3)
-- [ ] Plantilla de notificación AEPD 72h — _justificado inline como no aplicable: riesgo residual medido en 0%_
-- [ ] Multas potenciales estimadas en el escenario
 
-## 11. Defensa en profundidad
-
+### §11 — Defensa en profundidad
 - [x] Diseño detallado del Tool Gatekeeper _(feedback profe)_ — `docs/defensas/LLM06-excessive-agency/`
 - [x] Catálogo de defensas completo: 4 principios transversales + pipeline de referencia + 1 doc por ataque — `docs/defensas/` (12 docs)
 - [x] Limitaciones y bypass conocidos declarados por módulo
 - [x] Tool Gatekeeper (RBAC determinista), Output Auditor (LLM07 normalizado), PII Shield (entrada + salida), Document Sanitizer + detector estructural
-- [ ] **Input Sanitizer real** → **P1**. `lab/backend/src/core/input_sanitizer.py` es un esqueleto de 31 líneas que devuelve `ALLOW` siempre.
-- [ ] **Cross-Context Leakage con módulo propio** → **P5**. Hoy: `_confidential_leak_guard` dentro de `api/routes/chat.py`.
-- [ ] Tokenización reversible de PII **antes** del modelo (el PII Shield actual actúa sobre la respuesta) — _declarado como trabajo futuro en `daniel-tfm/ROADMAP.md`_
-- [ ] Presidio / NER genérico para nombres y direcciones arbitrarias — _declarado como trabajo futuro_
-- [ ] Configuración recomendada (umbrales, `tool_permissions.yaml`, regex) documentada para producción
+- [x] **Cerrado P5 — Cross-Context Leakage (§3 del catálogo)**: `_confidential_leak_guard` promovido de guard ad-hoc en `api/routes/chat.py` a módulo propio `core/leak_guard.py` (`confidential_leak_guard`, `verified_ibans_from_tools`), mismo patrón que `output_auditor.py`/`pii_shield.py`. Diseño (`docs/defensas/LLM02.../cross-context-leakage.md`) corregido contra la implementación real. Evidencia vulnerable/defendida con metodología de fuga real (no solo el criterio del fixture) en `docs/reports/evidencia-cross-context-leakage.md`: 83,3% de fuga real en la línea base, 0% con el pipeline defendido, 0 falsos positivos sobre el legítimo. 188 tests pasan tras el refactor.
 
-## 12. Perspectiva SOC / detección
+### §12 — Perspectiva SOC / detección
+> Corregido: esta sección estaba marcada como "sin empezar" en la revisión anterior. Ya no lo está — se diseñó e implementó completa entre el 8 y el 9 de agosto.
+- [x] Panel LLM-SOC de 7 pantallas — Postura, Eventos, Alertas, Sesión, Conocimiento, Playbooks, Corridas (`soc.html`, hash routing)
+- [x] Captura de decisiones del proxy turno a turno — `SocCollector`, un evento por componente, **incluso cuando la acción es `ALLOW`**
+- [x] Persistencia en SQLite (`soc_turn`, `soc_event`, `soc_alert`) — `ADR 0007`, corregido para no vivir en el contenedor efímero (antes los tests la contaminaban)
+- [x] Stream de eventos en vivo con polling incremental cada 2s, paginado, techo de 250 filas
+- [x] Base de conocimiento indexada: 71 documentos de `docs/ataques/` y `docs/defensas/` por árbol de taxonomía
+- [x] Alertas con severidad, procedencia (`fixture` / `mapa-categoria` / `por-defecto`) y estado (`nueva`/`revisada`/`descartada`) — triaje humano, el sistema no cierra nada solo
+- [x] Accesibilidad: doble codificación color+forma, tema claro por física de proyector, `prefers-reduced-motion`, contraste AA verificado
+- [x] 30 tests del almacén, collector, indexador y API — `test_soc.py`
+- [x] Diseño y ADR documentados — `docs/soc/README.md`, `docs/adr/0007-dos-almacenes-para-la-traza-de-un-turno.md`
 
-> **Sección sin empezar.** 0 menciones a Sigma, IoC o Elasticsearch en todo `docs/`.
-> Decidir si entra en alcance o se declara fuera explícitamente en la memoria.
-
-- [ ] Firma Sigma/SIEM para detectar el patrón en logs
-- [ ] IoCs conversacionales
-- [ ] Queries de Elasticsearch para el dashboard LLM-SOC
-- [ ] Alerta que generaría y su severidad
-
-## 13. Incident response / playbook
-
+### §13 — Incident response / playbook
 - [x] Playbook paso a paso, post-mortem, línea temporal, lecciones aprendidas — 7 docs `07-playbook-incident-response.md`
 
-## 14. Contexto del escenario VerdaBank
-
+### §14 — Contexto del escenario VerdaBank
 - [x] Narrativa del incidente, línea temporal, impacto en el escenario, relación con otros ataques — 7 docs `06-contexto-verdabank.md`
 
-## 15. Visuales / multimedia
-
+### §15 — Visuales / multimedia
 - [x] Diagramas Mermaid (flujo, defensa, pipeline) — 34 ficheros en `docs/`
 - [x] Tablas comparativas y matrices
-- [ ] Gráficos de resultados (barras de éxito/fracaso por modelo) — depende de **P6**
-- [ ] Capturas / GIF de explotación — ver §1
+- [x] Capturas de los tres sistemas (Playground, SOC, VerdaBank) para el README — `docs/img/`
 
-## 16. Deuda técnica del lab
-
+### §16 — Deuda técnica del lab
 - [x] Verdict en sesiones de auditoría — `evaluate.py` appendea `## Evaluación ·` con `verdict`
 - [x] System prompt en sesiones de auditoría — `audit_repository.py` lo escribe en la cabecera
 - [x] Ollama en `docker-compose.yml` — servicio `ollama` bajo perfil, con volumen `ollama_data`
 - [x] Validación de cold start _(feedback profe)_ — `make run` + `.env.example` + quickstart en `lab/README.md`
 - [x] `audit_subdir` como ruta de contenedor (no del host) — corregido
 - [x] `JUDGE_MODEL` por defecto inalcanzable (`qwen3.5:9b` nunca descargado) — pasar `JUDGE_MODEL=qwen2.5:3b` explícitamente hasta decidir default
-- [ ] **Multi-modelo en el suite runner** (`--model` / `--provider`) → **P6**. Hoy solo prueba el modelo del `.env`.
-- [ ] **Groq como proveedor online alternativo** — 0 rastro en `.env.example` ni en el código. Documentar `LLM_BASE_URL=https://api.groq.com/openai/v1` y añadir alias `LLM_PROVIDER=groq`.
-- [ ] Fijar `temperature` o pasar a voto de mayoría — _decidido "no hacer" (B1)_; consecuencia asumida: las cifras con n bajo tienen ruido estocástico
+- [x] Worktree duplicado `software-daniel/` — ya no existe en disco, resuelto
 
-## 17. Niveles de configuración del lab
-
-Progresión de menos a más defensa. Cada nivel es un experimento independiente; los mismos fixtures
-corren contra todos y el Run Report compara los Verdicts.
-
+### §17 — Niveles de configuración del lab
 - [x] **Chat vulnerable** — flag `vulnerable` en `ChatRequest`, desactiva Output Auditor, leak guard, Gatekeeper, PII Shield e Input Sanitizer
 - [x] **System prompt simple** — `POST /api/v1/chat/simple-prompt`
 - [x] **System prompt complejo** — `POST /api/v1/chat/complex-prompt`
 - [x] **System prompt complejo + contexto** — `POST /api/v1/chat/complex-with-context`
 - [x] **Documento adjunto** — `POST /api/v1/chat/complex-with-document`, con ablación por capa (`defensa_*`)
 - [x] **Detrás del proxy** — `POST /api/v1/chat/proxy` (pipeline completo, `SHADOW_MODE` disponible)
-- [ ] **Los 6 niveles corridos contra el corpus completo en una sola pasada** → **P2**. El endpoint existe; lo que falta es que el runner compartido lo ejercite y produzca la tabla comparativa.
+
+---
+
+## 🔲 Pendiente — Roadmap
+
+Cuatro fases, en orden de dependencia. No saltar una fase hasta que la anterior esté
+cerrada: la Fase 3 (comparativa de modelos) depende de que la Fase 1 exista, y la memoria
+(Fase 2) necesita que el alcance esté fijado antes de escribirse.
+
+### Fase 1 — Cerrar el pipeline de defensa (bloqueante para todo lo demás)
+
+- [ ] **P1 · Implementar el Input Sanitizer real** (§11) — único módulo no-op de las 6
+  defensas prometidas. Ya está cableado en el orquestador (`_INPUT_SANITIZER`); solo hay
+  que sobreescribir `evaluate()`. Sin esto no hay comparativa antes/después del vector
+  más citado del OWASP LLM Top 10.
+- [ ] **P2 · Medición unificada antes/después** (§8, §9, §17) — correr las 108 fixtures ×
+  6 niveles en una sola pasada y generar el Run Report comparativo. El endpoint ya está
+  en `CHAT_ENDPOINTS`; falta ejecutar la corrida y producir la tabla.
+
+### Fase 2 — Decisiones de alcance y arranque de la memoria
+
+- [ ] **P4 · Fijar la lista canónica de los 6 vectores críticos** (§7) — el catálogo
+  documenta 7 subcategorías; el profesor habla de 6. Decidir: ¿se fusionan dos, se
+  declara uno fuera de alcance, o se defiende el 7?
+- [ ] **P3 · Arrancar el documento integrador de la memoria** — índice, estado del arte
+  común, metodología, resultados agregados, conclusiones. Dos capítulos individuales
+  cerrados (Henri 10.8k palabras, Daniel 4.9k), ningún documento principal. Tope de 20
+  páginas: cuanto antes se fije el índice, antes se sabe qué recortar.
+- [ ] Trasladar a la memoria (§10) los controles de PII/retención que un despliegue real
+  necesitaría — ya documentados en `docs/soc/README.md` ("PII y retención"), falta
+  integrarlos en el capítulo de cumplimiento normativo.
+
+### Fase 3 — Comparativa multi-modelo
+
+- [ ] **P6 · Multi-modelo**: `--model` / `--provider` en `run_attack_suite.py` + re-correr
+  el ranking (§9, §16). Los datos de 6 modelos en `runs-saves/` (28-jun) son anteriores a
+  los fixes A1 (indicadores `tool_called_with`), A3 (memoria de sesión) y a la corrección
+  de colisión de IDs — **no citables**.
+- [ ] Comparativa de configuraciones (§9): ¿ayuda reforzar el system prompt? ¿bajar
+  `temperature`?
+- [ ] Matriz de cobertura completa: ataque × modelo × defensa (§9)
+- [ ] Gráficos de resultados por modelo (§15) — depende de P6
+
+### Fase 4 — Evidencia, automatización y pulido final
+
+- [ ] Captura de pantalla del frontend durante el ataque (before/after defensa) + GIF o
+  vídeo corto de la explotación (§1, §15)
+- [ ] Comando `curl`/script exacto para reproducir un ataque en una línea, con `user_id`,
+  modelo y commit hash (§1)
+- [ ] Número de turnos hasta éxito en ataques multi-turno (ej. PII Harvesting) (§3)
+- [ ] Severidad cuantificada: impacto en €, nº de clientes afectados (§3)
+- [ ] Kill chain dibujada completa — hoy parcial, 5 de 7 vectores (§4)
+- [ ] Mapeo a CAPEC y CWE cuando aplique — 0 menciones hoy en `docs/` (§4)
+- [ ] CI que corra la suite en cada PR y bloquee el merge si una defensa retrocede (§8)
+- [ ] **Scope de Garak** _(feedback profe)_ — qué automatiza Garak vs qué queda como
+  validación manual profunda (§8)
+- [ ] Configuración recomendada para producción documentada: umbrales,
+  `tool_permissions.yaml`, regex (§11)
+- [ ] Groq como proveedor online alternativo — documentar
+  `LLM_BASE_URL=https://api.groq.com/openai/v1` y alias `LLM_PROVIDER=groq` (§16)
+- [ ] Multas potenciales estimadas en el escenario normativo (§10)
+- [ ] Aislamiento de sesión por `user_id` en cada lectura (§11, I3 del diseño de
+  Cross-Context Leakage) — `session_store.py` indexa solo por `session_id`, sin validar
+  a quién pertenece. Declarado como hueco abierto en `core/leak_guard.py` y en
+  `docs/defensas/LLM02.../cross-context-leakage.md` §5/§10 al cerrar P5; no lo cierra.
+- [ ] Detección de importes ajenos sin IBAN al lado (§11, §4.3 del mismo diseño) — sigue
+  siendo un diseño propuesto, sin código.
+
+---
+
+## ❌ Descartado — decisiones explícitas
+
+No son trabajo pendiente: son alcance que ya se decidió no cubrir. Se listan para que no
+vuelvan a proponerse sin revisar la razón.
+
+- Payloads parametrizables (plantilla con variables: IBAN, importe) — decidido "no hacer" (D4)
+- Payloads encadenados que combinan dos ataques — decidido "no hacer" (D4)
+- Generador de variantes automático — decidido "no hacer" (D3)
+- Fijar `temperature` o pasar a voto de mayoría — decidido "no hacer" (B1); consecuencia
+  asumida: las cifras con n bajo tienen ruido estocástico
+- Plantilla de notificación AEPD 72h — no aplicable, riesgo residual medido en 0%
+- Tokenización reversible de PII antes del modelo — declarado trabajo futuro en
+  `daniel-tfm/ROADMAP.md`
+- Presidio / NER genérico para nombres y direcciones arbitrarias — declarado trabajo futuro
+- Firmas Sigma/SIEM e IoCs conversacionales (§12) — fuera de alcance deliberado; el SOC
+  aporta el sustrato, no las firmas (`docs/soc/README.md` § "Trabajo declarado fuera de alcance")
+- Cruce del SOC con ground truth (`fixture_expected_result`) o con el Verdict del Analyze
+  Pass — fuera de alcance deliberado: mezclaría observación con evaluación
+- Asignación de alertas a personas y fases cronometradas del playbook — fuera de alcance
 
 ---
 
 > **Mínimo rentable para una memoria TFM sólida:** `#1` Evidencia · `#3` Métricas ·
 > `#4` Mapeo ATLAS/kill chain · `#9` Comparativa entre modelos.
-> Los tres primeros están cubiertos. **`#9` es el que falta y es P6.**
+> Los tres primeros están cubiertos. La Fase 3 del roadmap (P6) es la que falta.
