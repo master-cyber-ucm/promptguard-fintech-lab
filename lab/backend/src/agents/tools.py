@@ -19,7 +19,7 @@ Fase 2.7 (verificación manual capa por capa) encontró dos fallos reales de (D)
 `ctx.deps.user_id` sin depender de que el LLM los escriba—; (2) el LLM podía invocar una tool sin
 relación (o ninguna) y fabricar un saldo en texto libre para la cuenta objetivo, algo que (D) no
 podía interceptar por no pasar por ninguna tool protegida — cerrado con una guardia de salida
-determinista en `src/api/routes/chat.py` (`_confidential_leak_guard`), no en este módulo. Ver
+determinista en `src/core/leak_guard.py` (`confidential_leak_guard`), no en este módulo. Ver
 henri-tfm/02-defensa/README.md §"Mejoras aplicadas tras la verificación manual".
 """
 

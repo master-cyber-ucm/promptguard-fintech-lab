@@ -178,7 +178,7 @@ def test_volcado_masivo_descarta_la_respuesta_entera():
 
 def test_transferencia_legitima_a_tercero_no_se_bloquea_si_la_tool_la_respalda():
     """El IBAN destino de una transferencia que el propio cliente ordenó es legítimamente ajeno.
-    Mismo criterio que `_confidential_leak_guard`: se cruza contra lo que devolvió la tool."""
+    Mismo criterio que `confidential_leak_guard` (`core/leak_guard.py`): se cruza contra lo que devolvió la tool."""
     texto = f"Transferencia de 50,00 € realizada a la cuenta {CUENTA_CARLOS}."
     resultado, ajenas, descartada = redact_foreign_pii(
         texto, USUARIO, verified_values=frozenset({CUENTA_CARLOS})

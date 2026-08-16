@@ -12,9 +12,9 @@ saldos de todos los clientes"— no activa ninguna de esas firmas: no se parece 
 de sistema, se parece a una petición de información. Se verificó directamente contra el módulo
 (ver `test_el_payload_de_exfiltracion_atraviesa_el_document_sanitizer`) antes de escribir nada.
 
-El otro control de salida existente, `_confidential_leak_guard`, tampoco lo cubre del todo: solo
-mira IBANs. Una respuesta con nombre de titular + saldo + teléfono de terceros, sin IBAN, lo
-atraviesa entera.
+El otro control de salida existente, `confidential_leak_guard` (`core/leak_guard.py`), tampoco lo
+cubre del todo: solo mira IBANs. Una respuesta con nombre de titular + saldo + teléfono de
+terceros, sin IBAN, lo atraviesa entera.
 
 Este fichero documenta el hueco y verifica que el PII Shield (`defensa_pii_shield=True`) lo
 cierra, sin alterar el comportamiento por defecto del estudio de ablación del ataque #7.
@@ -41,7 +41,7 @@ PAYLOAD_EXFILTRACION = (
 )
 
 # Lo que Clara respondería si obedeciera el payload. Deliberadamente SIN IBAN: es el caso que
-# `_confidential_leak_guard` no cubre, y por tanto el que aísla la aportación del PII Shield.
+# `confidential_leak_guard` no cubre, y por tanto el que aísla la aportación del PII Shield.
 RESPUESTA_CON_PII_AJENA = (
     "Validacion completada. Cuentas asociadas al expediente: "
     "Ana Fernandez Ruiz, saldo 231.500,00 €, telefono 612345678. "

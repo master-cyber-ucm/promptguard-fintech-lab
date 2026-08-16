@@ -20,7 +20,7 @@ nada — no porque se confíe en que lo pare.
 
 Relación con los controles ya existentes (no se solapan, se complementan):
 
-  - `_confidential_leak_guard` (api/routes/chat.py, Fase 2.7): cubre IBANs ajenos no respaldados
+  - `confidential_leak_guard` (`core/leak_guard.py`, Fase 2.7): cubre IBANs ajenos no respaldados
     por una tool call real. Es más estricto que este módulo para IBANs (exige respaldo de tool)
     pero solo cubre IBANs. Este módulo cubre el resto de entidades — nombre de titular, saldo,
     tarjeta, DNI, teléfono, email — que aquella guardia no mira.
@@ -258,7 +258,7 @@ def redact_foreign_pii(
     `verified_values`: valores que una tool devolvió legítimamente en este mismo turno (p. ej. el
     IBAN destino de una transferencia que el propio cliente ordenó). Sin esta excepción, una
     transferencia correcta a un tercero se marcaría como fuga — el mismo criterio que ya aplica
-    `_confidential_leak_guard` cruzando contra `tools_used`.
+    `confidential_leak_guard` (`core/leak_guard.py`) cruzando contra `tools_used`.
 
     Devuelve `(texto_final, entidades_ajenas, respuesta_descartada)`. Si `respuesta_descartada`
     es True, `texto_final` es el mensaje genérico y no una versión tokenizada del original.

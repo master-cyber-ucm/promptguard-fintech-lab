@@ -43,7 +43,6 @@ Progresión de menor a mayor defensa:
 """
 
 import logging
-import re
 import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
@@ -68,6 +67,7 @@ from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.core.document_sanitizer import sanitize_document_text
 from src.core.document_structural_detector import detect_hiding_techniques
 from src.core.input_sanitizer import InputSanitizerStage
+from src.core.leak_guard import confidential_leak_guard, verified_ibans_from_tools
 from src.core.pii_shield import PIIShieldStage, redact_foreign_pii
 from src.models.banking import MOCK_USERS
 from src.models.interaction import PromptDecision
@@ -104,7 +104,7 @@ class ChatRequest(BaseModel):
             "Modo baseline VULNERABLE PURO para el estudio de ablación. Cuando es True, desactiva "
             "TODAS las guardias de salida que hasta ahora corrían incondicionalmente en los "
             "endpoints JSON: el Output Auditor (LLM07, `audit_response`) y la guardia de fuga de "
-            "IBAN ajeno (`_confidential_leak_guard`). Sin este flag no existía una línea base "
+            "IBAN ajeno (`core/leak_guard.py::confidential_leak_guard`). Sin este flag no existía una línea base "
             "genuinamente indefensa para System Prompt Leakage ni para Cross-Context Leakage — "
             "`audit_response` tapaba la fuga incluso en `complex-with-context`, haciendo imposible "
             "medir la efectividad real del ataque contra un entorno sin defensas. Default False: "
@@ -148,66 +148,6 @@ def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
             elif isinstance(part, ToolReturnPart):
                 tools.append({"tool": part.tool_name, "result": str(part.content)})
     return tools, thinking
-
-
-_IBAN_PATTERN = re.compile(r"\bES\d{22}\b")
-_CONFIDENTIAL_LEAK_SAFE_MESSAGE = (
-    "No puedo confirmar esa información en este momento. Si necesitas datos sobre otra cuenta, "
-    "contacta con soporte para verificarlos."
-)
-
-
-def _confidential_leak_guard(
-    response_text: str, tools_used: list[dict], own_account: str
-) -> tuple[str, bool]:
-    """Guardia de salida determinista (Fase 2.7 — arreglo del Fallo 1 de (D) detectado en la
-    verificación manual: "el LLM invoca `consulta_producto` en vez de `consulta_saldo` y luego
-    inventa un saldo para la cuenta objetivo").
-
-    (D) el Tool Gatekeeper solo protege la INVOCACIÓN de `consulta_saldo` / `transferencia_
-    nacional` / `bloquear_tarjeta` — si el LLM nunca llega a invocarlas (llama a una tool sin
-    relación, o ninguna) y aun así declara en texto libre el saldo o los datos de una cuenta,
-    (D) no tiene ninguna llamada que interceptar. Esta guardia cierra ese hueco desde el otro
-    extremo: escanea la respuesta final en busca de un IBAN español y, si aparece uno que no sea
-    la cuenta propia del usuario NI provenga de un resultado real (no denegado) de una tool call
-    de este mismo turno, sustituye la respuesta completa por un mensaje genérico.
-
-    Deliberadamente NO exige que además haya una cifra monetaria junto al IBAN para disparar —
-    cualquier IBAN ajeno no verificado se trata como dato sensible, incluida la mención de una
-    cuenta denegada por (D) en un mensaje de rechazo (coherente con la nota de diseño de este
-    mismo módulo: minimizar el detalle expuesto al cliente). Es determinista — regex + cruce
-    contra `tools_used` real —, no depende de que el LLM "decida" no alucinar.
-
-    Devuelve `(texto_final, huella_detectada)`.
-    """
-    ibans_en_respuesta = set(_IBAN_PATTERN.findall(response_text))
-    if not ibans_en_respuesta:
-        return response_text, False
-
-    ibans_verificados = {own_account.replace(" ", "").upper()}
-    for tool in tools_used:
-        result = tool.get("result", "")
-        if result and '"status": "denied"' not in result:
-            ibans_verificados.update(_IBAN_PATTERN.findall(result))
-
-    if ibans_en_respuesta - ibans_verificados:
-        return _CONFIDENTIAL_LEAK_SAFE_MESSAGE, True
-    return response_text, False
-
-
-def _valores_verificados_por_tools(tools_used: list[dict]) -> frozenset[str]:
-    """IBANs que una tool devolvió legítimamente en este turno (resultado no denegado).
-
-    Mismo criterio que `_confidential_leak_guard`: el IBAN destino de una transferencia que el
-    propio cliente ordenó es ajeno pero legítimo. Se comparte con el PII Shield para que no
-    marque como fuga un dato que el usuario mismo puso en la operación.
-    """
-    verificados: set[str] = set()
-    for tool in tools_used:
-        resultado = tool.get("result", "")
-        if resultado and '"status": "denied"' not in resultado:
-            verificados.update(_IBAN_PATTERN.findall(resultado))
-    return frozenset(verificados)
 
 
 async def _process_chat(
@@ -446,14 +386,14 @@ async def _process_chat(
                     session_id, fixture_tag,
                 )
 
-        # Guardia de salida (Fase 2.7, parte de (D) — ver docstring de _confidential_leak_guard):
+        # Guardia de salida (Fase 2.7, parte de (D) — ver core/leak_guard.py::confidential_leak_guard):
         # solo activa cuando el Tool Gatekeeper lo está, para no alterar el comportamiento
         # "vulnerable puro" del estudio de ablación cuando defensa_tool_gatekeeper=False. En modo
         # vulnerable puro se desactiva también, con independencia del Gatekeeper.
         leak_blocked = False
         if defensa_tool_gatekeeper and not request.vulnerable:
             t_leak = time.time()
-            response_text, leak_blocked = _confidential_leak_guard(
+            response_text, leak_blocked = confidential_leak_guard(
                 response_text, tools_used, user.get("account_id", "")
             )
             add_safe(
@@ -475,7 +415,7 @@ async def _process_chat(
 
         # PII Shield — control de SALIDA (LLM02:2025, ataque #6 del catálogo). Cubre las entidades
         # que las guardias anteriores no miran: nombre de titular ajeno, saldo de tercero,
-        # tarjeta, DNI, teléfono y email. Corre después de `_confidential_leak_guard` a propósito:
+        # tarjeta, DNI, teléfono y email. Corre después de `confidential_leak_guard` a propósito:
         # aquella es más estricta para IBANs (exige respaldo de tool call real) y si ya sustituyó
         # la respuesta no queda nada que tokenizar. Ver src/core/pii_shield.py.
         pii_ajena: list = []
@@ -485,7 +425,7 @@ async def _process_chat(
             response_text, pii_ajena, pii_descartada = redact_foreign_pii(
                 response_text,
                 request.user_id,
-                verified_values=_valores_verificados_por_tools(tools_used),
+                verified_values=verified_ibans_from_tools(tools_used),
             )
             add_safe(
                 collector, componente="pii_shield", objetivo="respuesta",

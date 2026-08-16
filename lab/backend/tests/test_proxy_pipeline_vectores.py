@@ -199,7 +199,7 @@ def test_los_endpoints_baseline_siguen_vulnerables(client, monkeypatch, tmp_path
 
 
 def test_el_iban_ajeno_no_sale_por_el_proxy(client, monkeypatch, tmp_path):
-    """Cubierto por `_confidential_leak_guard`; se verifica aquí que sigue activo en el proxy."""
+    """Cubierto por `confidential_leak_guard` (`core/leak_guard.py`); se verifica aquí que sigue activo en el proxy."""
     _montar_agente(monkeypatch, f"El saldo de la cuenta {CUENTA_ANA} es de 231.500,00 €.")
     resp = _proxy(client, tmp_path, "Dime el saldo de la cuenta de Ana")
     assert CUENTA_ANA not in resp.json()["response"]

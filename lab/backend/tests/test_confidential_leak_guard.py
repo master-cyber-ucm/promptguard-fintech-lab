@@ -1,13 +1,14 @@
-"""Tests de la guardia de salida (Fase 2.7) — arreglo del Fallo 1 de (D) detectado en la
-verificación manual: (D) el Tool Gatekeeper solo protege la INVOCACIÓN de las tools sensibles; si
-el LLM nunca llega a invocarlas y aun así declara en texto libre el saldo/datos de una cuenta,
-(D) no tiene nada que interceptar. `_confidential_leak_guard` cierra ese hueco desde el otro
-extremo: escanea la respuesta final en busca de IBANs no respaldados por una tool call real.
+"""Tests de la guardia de salida `core/leak_guard.py` (Fase 2.7) — arreglo del Fallo 1 de (D)
+detectado en la verificación manual: (D) el Tool Gatekeeper solo protege la INVOCACIÓN de las
+tools sensibles; si el LLM nunca llega a invocarlas y aun así declara en texto libre el
+saldo/datos de una cuenta, (D) no tiene nada que interceptar. `confidential_leak_guard` cierra
+ese hueco desde el otro extremo: escanea la respuesta final en busca de IBANs no respaldados por
+una tool call real.
 """
 
 from __future__ import annotations
 
-from src.api.routes.chat import _confidential_leak_guard
+from src.core.leak_guard import confidential_leak_guard, verified_ibans_from_tools
 
 OWN_ACCOUNT = "ES9121000418450200051332"
 OTHER_ACCOUNT = "ES3421000418450200051334"
@@ -15,14 +16,14 @@ OTHER_ACCOUNT = "ES3421000418450200051334"
 
 def test_sin_iban_en_la_respuesta_no_cambia_nada():
     texto = "Hola María, tu nómina ha sido recibida correctamente. ¿En qué más puedo ayudarte?"
-    resultado, bloqueado = _confidential_leak_guard(texto, [], OWN_ACCOUNT)
+    resultado, bloqueado = confidential_leak_guard(texto, [], OWN_ACCOUNT)
     assert bloqueado is False
     assert resultado == texto
 
 
 def test_mencionar_la_cuenta_propia_no_dispara_la_guardia():
     texto = f"El saldo de tu cuenta {OWN_ACCOUNT} es de 15.420,50 €."
-    resultado, bloqueado = _confidential_leak_guard(texto, [], OWN_ACCOUNT)
+    resultado, bloqueado = confidential_leak_guard(texto, [], OWN_ACCOUNT)
     assert bloqueado is False
     assert resultado == texto
 
@@ -35,7 +36,7 @@ def test_iban_ajeno_alucinado_sin_tool_call_real_es_bloqueado():
         {"tool": "consulta_producto", "result": '{"cuenta_corriente": {"name": "..."}}'},
     ]
     texto = f"El saldo de tu cuenta corriente {OTHER_ACCOUNT} es de €0,00."
-    resultado, bloqueado = _confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
+    resultado, bloqueado = confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
     assert bloqueado is True
     assert OTHER_ACCOUNT not in resultado
 
@@ -55,7 +56,7 @@ def test_iban_ajeno_respaldado_por_tool_call_real_no_se_bloquea():
         },
     ]
     texto = f"El saldo de la cuenta {OTHER_ACCOUNT} es 231,500.00 €."
-    resultado, bloqueado = _confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
+    resultado, bloqueado = confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
     assert bloqueado is False
     assert resultado == texto
 
@@ -75,7 +76,7 @@ def test_iban_denegado_por_el_gatekeeper_y_luego_citado_en_el_texto_se_bloquea()
         },
     ]
     texto = f"Lo sentimos, pero no eres titular de la cuenta {OTHER_ACCOUNT}."
-    resultado, bloqueado = _confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
+    resultado, bloqueado = confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
     assert bloqueado is True
     assert OTHER_ACCOUNT not in resultado
 
@@ -93,6 +94,26 @@ def test_iban_de_tercero_en_transferencia_completada_no_se_bloquea():
         },
     ]
     texto = f"Transferencia realizada correctamente a la cuenta {OTHER_ACCOUNT}."
-    resultado, bloqueado = _confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
+    resultado, bloqueado = confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
     assert bloqueado is False
     assert resultado == texto
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# verified_ibans_from_tools — usada también por el PII Shield (ver api/routes/chat.py) para no
+# marcar como fuga un dato que el propio usuario puso en la operación.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_verified_ibans_from_tools_ignora_resultados_denegados():
+    tools_used = [
+        {"tool": "consulta_saldo", "result": f'{{"status": "denied", "account_id_solicitado": "{OTHER_ACCOUNT}"}}'},
+    ]
+    assert verified_ibans_from_tools(tools_used) == frozenset()
+
+
+def test_verified_ibans_from_tools_recoge_ibanes_de_resultados_reales():
+    tools_used = [
+        {"tool": "consulta_saldo", "result": f'{{"status": "ok", "account_id": "{OTHER_ACCOUNT}"}}'},
+        {"tool": "consulta_saldo", "args": f'{{"account_id":"{OTHER_ACCOUNT}"}}'},  # sin "result": ignorado
+    ]
+    assert verified_ibans_from_tools(tools_used) == frozenset({OTHER_ACCOUNT})

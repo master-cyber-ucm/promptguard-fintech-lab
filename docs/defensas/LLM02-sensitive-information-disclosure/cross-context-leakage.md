@@ -2,7 +2,12 @@
 
 > Contra el ataque **#3** del catálogo · [ficha del ataque](../../ataques/LLM02-sensitive-information-disclosure/cross-context-leakage)
 > **OWASP LLM02:2025 · MITRE ATLAS AML.T0024** · Incidente motivador **INC-2025-0089**
-> **Módulo principal:** Output Auditor · **Apoyo:** Tool Gatekeeper, aislamiento de sesión, PII Shield
+> **Módulos principales:** Leak Guard (`core/leak_guard.py`, IBANs) + PII Shield (`core/pii_shield.py`, resto de entidades) · **Apoyo:** Tool Gatekeeper, aislamiento de sesión
+>
+> **Nota de saneado (`TODOs.md §P5`, 2026-08-16):** este documento describía originalmente un
+> único "Output Auditor" ampliado como segunda comprobación. La implementación real tomó otro
+> camino — dos módulos separados, cada uno con su propio criterio de verificación — y el diseño
+> no se había actualizado para reflejarlo. §4.2 y §10 están corregidos contra el código real.
 
 ---
 
@@ -67,27 +72,43 @@ def authorize(call: ToolCall, session: Session) -> Decision:
 
 Nótese que `session.user_id` **procede del token de autenticación, nunca del texto de la conversación**. Si el `user_id` se leyera del contexto del modelo, el atacante podría reescribirlo con una inyección y el control entero sería decorativo.
 
-### 4.2 Output Auditor — la segunda comprobación
+### 4.2 Leak Guard + PII Shield — la segunda comprobación
 
-Ejecuta sobre el texto final, después de que Clara haya redactado y antes de responder al usuario.
+Ejecutan sobre el texto final, después de que Clara haya redactado y antes de responder al
+usuario. El diseño original planteaba un único "Output Auditor" ampliado que extrajera todos los
+patrones (IBAN, tarjeta, SWIFT, saldo) y resolviera el conjunto autorizado en un solo paso. La
+implementación real reparte esa responsabilidad en **dos módulos con criterios de verificación
+distintos**, ejecutados en este orden:
 
-**Paso 1 — Extracción.** Aplicar los patrones de `banking_patterns.yaml` (IBAN, Visa, Mastercard, SWIFT, saldo en euros) sobre la respuesta. Extraer también los tokens del PII Shield.
+**1. `leak_guard.py::confidential_leak_guard`** — solo IBANs. Extrae los IBAN españoles de la
+respuesta con regex y los cruza contra el conjunto `{cuenta propia del user_id} ∪ {IBANs que
+aparecen en un resultado NO denegado de `tools_used` en este mismo turno}`. No consulta la base
+de cuentas: verifica que el dato tenga un origen real dentro de la conversación, no que exista en
+el sistema. Cualquier IBAN fuera de ese conjunto sustituye la respuesta completa por un mensaje
+neutro.
 
-**Paso 2 — Resolución del conjunto autorizado.** Consultar las cuentas, tarjetas y posiciones del `user_id` de la sesión. Es una consulta a datos, no una inferencia.
+  | Caso | Decisión |
+  |------|----------|
+  | El IBAN es el de la cuenta propia del `user_id` | ALLOW |
+  | El IBAN aparece en un resultado real (no `denied`) de una tool de este turno | ALLOW — es el caso legítimo de un beneficiario de transferencia |
+  | El IBAN no está respaldado por ninguna de las dos vías anteriores | **BLOCK** — sustituye toda la respuesta |
 
-**Paso 3 — Cruce.** Para cada dato extraído:
+**2. `pii_shield.py::redact_foreign_pii`** — el resto de entidades (nombre de titular, saldo,
+tarjeta, DNI, teléfono, email). Aquí sí hay consulta a datos: resuelve `MOCK_ACCOUNTS`,
+`MOCK_CARDS` y `MOCK_USERS` por `user_id` para construir el conjunto de valores propios, y
+tokeniza (o descarta la respuesta entera, si hay cosecha masiva) cualquier entidad de tercero.
+Corre después del Leak Guard a propósito: si este ya sustituyó la respuesta, no queda nada que
+tokenizar.
 
-| Caso | Decisión |
-|------|----------|
-| El IBAN pertenece al `user_id` | ALLOW |
-| El IBAN no pertenece al `user_id` | **BLOCK** — incidente CRITICAL |
-| El IBAN no existe en el sistema | **BLOCK** — alucinación; incidente MEDIUM |
-| Token del PII Shield resoluble para este `user_id` | Detokenizar y ALLOW |
-| Token no resoluble para este `user_id` | **BLOCK** — fuga entre sesiones; incidente CRITICAL |
-| Token sin resolver que llegaría literal al usuario | **BLOCK** — bug del pipeline; incidente HIGH |
-| Importe que coincide con el saldo de una cuenta ajena | **BLOCK** — incidente CRITICAL |
+No existe hoy una detección de **saldo ajeno como cifra suelta** (un importe sin IBAN al lado) —
+ver §4.3, sigue siendo un diseño propuesto, no implementado — ni una resolución de **tokens del
+PII Shield entre sesiones distintas**: el mapeo token→valor no se comparte entre `user_id`, así
+que esa fila del diseño original no aplica al mecanismo real (los tokens no viajan fuera de la
+sesión que los generó).
 
-**Paso 4 — Respuesta segura.** Ante BLOCK no se devuelve una versión "censurada" del texto: se sustituye por un mensaje neutro. Un texto parcialmente redactado sigue filtrando estructura ("el saldo de esa cuenta es [REDACTED]" confirma que la cuenta existe y que hay saldo).
+**Respuesta segura.** Ambos módulos, ante bloqueo, devuelven un mensaje neutro y no una versión
+"censurada" del texto: un texto parcialmente redactado sigue filtrando estructura ("el saldo de
+esa cuenta es [REDACTED]" confirma que la cuenta existe y que hay saldo).
 
 ### 4.3 Detección de saldos: el caso difícil
 
@@ -120,6 +141,8 @@ Requisito estructural, previo a todo lo anterior:
 | IBAN ofuscado por el modelo (espacios, guiones raros) | Evade el regex | Normalizar la respuesta antes de aplicar patrones |
 | Datos de terceros legítimamente presentes | Un beneficiario de transferencia sí es una cuenta ajena legítima | Lista blanca contextual: cuentas destino que el propio usuario ha introducido en el turno |
 | Coste de la consulta al conjunto autorizado | Una consulta a datos por respuesta | Cacheable por sesión |
+| `session_store.py` indexa solo por `session_id`, sin validar `user_id` en cada lectura (I3) | Si un `session_id` se filtrara o colisionara, `get_history()` lo serviría sin comprobar a quién pertenece | No mitigado. Declarado como hueco abierto, no como decisión de diseño — ver `core/leak_guard.py`, cabecera "Alcance declarado" |
+| Sin importes monetarios cruzados contra el saldo de otras cuentas | Una cifra ajena sin IBAN al lado ("231.500 €") no dispara ninguna guardia | No mitigado. §4.3 sigue siendo un diseño propuesto, no código |
 
 El segundo límite merece énfasis en el TFM: **la filtración semántica sin emisión del dato no es detectable con controles de patrón**. Es un argumento a favor de resolver este ataque en la capa de tools (I1) y tratar el Output Auditor como red de seguridad, no como control primario.
 
@@ -185,13 +208,17 @@ Prueba explícita y separada: dos sesiones concurrentes de usuarios distintos co
 
 ## 10. Estado
 
+> Corregido el 2026-08-16 contra el código real — la versión anterior no se había actualizado
+> desde el diseño inicial y declaraba "sin implementar" cosas que ya lo estaban (Tool
+> Gatekeeper), y "implementado" un módulo (Output Auditor ampliado) que nunca se construyó así.
+
 - [x] Invariantes definidos (I1, I2, I3)
-- [x] Patrones de detección disponibles (`banking_patterns.yaml`)
-- [x] Reglas de propiedad de cuenta definidas (`tool_permissions.yaml`)
-- [ ] Tool Gatekeeper implementado
-- [ ] Output Auditor implementado (extracción · resolución · cruce)
-- [ ] Detección de importes sensibles del contexto
-- [ ] Aislamiento estricto de sesión verificado (`session_store.py`)
-- [ ] Alerta automática al DPO
-- [ ] Validado contra `atk_008`, `atk_009`, `atk_025`, `atk_026`
-- [ ] Prueba de concurrencia entre sesiones en la regresión
+- [x] Patrones de detección disponibles (`banking_patterns.yaml`, regex IBAN en `leak_guard.py`)
+- [x] Reglas de propiedad de cuenta definidas (`tool_permissions.yaml`, `require_own_account: true`)
+- [x] Tool Gatekeeper implementado (I1) — `consulta_saldo`, `transferencia_nacional`, `bloquear_tarjeta`
+- [x] I2 implementado — repartido en dos módulos reales, no en un Output Auditor único: `core/leak_guard.py` (IBANs) + `core/pii_shield.py` (resto de entidades). Ver §4.2.
+- [x] Validado contra `atk_008`, `atk_009`, `atk_025`, `atk_026`, `leg_025`, `navi_006` — evidencia en `docs/reports/evidencia-cross-context-leakage.md`
+- [ ] Detección de importes sensibles del contexto (§4.3) — sigue siendo diseño propuesto, sin código
+- [ ] Aislamiento estricto de sesión por `user_id` verificado — **no implementado**. `session_store.py` indexa solo por `session_id`; `leak_guard`/`pii_shield` cierran la fuga dentro de un turno, no entre sesiones. Declarado como hueco abierto en `core/leak_guard.py` (cabecera "Alcance declarado") y en §5.
+- [ ] Alerta automática al DPO — no implementado. El SOC registra la Alerta con severidad `CRITICAL` (mapeo de categoría en `api/routes/soc.py`) para revisión humana; no hay integración con un canal de notificación real.
+- [ ] Prueba de concurrencia entre sesiones en la regresión — no existe. Requiere primero resolver el punto anterior para que la prueba verifique algo real y no una propiedad que ya se cumple por construcción del diccionario en memoria.
