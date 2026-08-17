@@ -62,7 +62,7 @@ async def _un_intento(
                 "user_id": user_id, "message": mensaje, "vulnerable": vulnerable,
                 "audit_subdir": audit_subdir,
             },
-            timeout=90.0,
+            timeout=180.0,
         )
         data = resp.json()
     except Exception as exc:

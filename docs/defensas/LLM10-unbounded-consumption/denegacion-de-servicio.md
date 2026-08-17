@@ -71,7 +71,7 @@ se acerca a esos límites.
   (cota LRU de 1000 sesiones + TTL de 30 min). Cableados en `/chat/proxy`, respetan el
   flag `vulnerable` (mismo mecanismo que el resto del pipeline de defensas).
 - [x] Tests automáticos — `test_rate_limiter.py` (5), `test_session_store_limits.py`
-  (5), 215/215 tests del backend en verde tras el cambio
+  (5), 206/206 tests del backend en verde tras el cambio
 - [x] Fixtures/escenarios de ataque — `lab/backend/tests/fixtures/llm10_scenarios.yaml`
   (`llm10_001` flood, `llm10_002` token_burn) + `lab/scripts/run_llm10_suite.py`
 - [x] Evidencia vulnerable-vs-defendida — ver

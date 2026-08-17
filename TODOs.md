@@ -235,8 +235,8 @@ cerrada: la Fase 3 (comparativa de modelos) depende de que la Fase 1 exista, y l
   el resto del proyecto. Fixtures nuevas: `lab/backend/tests/fixtures/
   llm10_scenarios.yaml` (`llm10_001` flood, `llm10_002` token_burn, `llm10_003`
   budget_burn, `llm10_navi_001` control legítimo), ejecutables con
-  `lab/scripts/run_llm10_suite.py`. 23 tests nuevos (`test_rate_limiter.py`,
-  `test_budget_guard.py`, `test_session_store_limits.py`), 215/215 del backend en
+  `lab/scripts/run_llm10_suite.py`. 18 tests nuevos (`test_rate_limiter.py`,
+  `test_budget_guard.py`, `test_session_store_limits.py`), 206/206 del backend en
   verde. Evidencia vulnerable-vs-defendida en
   `docs/reports/evidencia-llm10-unbounded-consumption.md`.
 - [ ] **#10 y #11 siguen sin implementar** (Query Pattern Monitor, Document Size

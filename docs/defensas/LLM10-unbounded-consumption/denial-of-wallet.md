@@ -82,7 +82,7 @@ declarada.
   `core/budget_guard.py` (20.000 tokens/hora por defecto), cableado en `/chat/proxy`,
   descuenta el consumo REAL tras cada respuesta (`result.usage()`), respeta el flag
   `vulnerable`. Emite Analysis Event `budget_guard` al SOC.
-- [x] Tests automáticos — `test_budget_guard.py` (8 casos), 215/215 del backend en verde
+- [x] Tests automáticos — `test_budget_guard.py` (8 casos), 206/206 del backend en verde
 - [x] Fixture/escenario de ataque — `llm10_003` (budget_burn) en
   `llm10_scenarios.yaml` + `run_llm10_suite.py`
 - [x] Evidencia vulnerable-vs-defendida — ver
