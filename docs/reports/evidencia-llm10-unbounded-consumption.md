@@ -67,6 +67,38 @@ en `docs/defensas/LLM10-unbounded-consumption/denial-of-wallet.md` como ítem a 
 no corregido en esta PR — cambiar el valor por defecto sin medir el patrón de uso real
 sería ajustar a ciegas.
 
+## Riesgo real encontrado en revisión: esta PR podía corromper la evidencia de los
+## ataques #1-7 — corregido, no solo detectado
+
+Antes de cerrar la PR se planteó la pregunta correcta: *¿puede este cambio afectar al
+resto de los ataques del catálogo?* Verificación concreta, no solo razonamiento:
+
+`run_attack_suite.py` manda las 108 fixtures existentes contra `/chat/proxy` con el
+mismo `user_id` por defecto (`usr_001`), de forma **secuencial**. El Rate Limiter
+sobrevive a eso sin problema (la ventana de 60s "respira" entre petición y petición
+porque cada llamada real tarda 10-90s — mismo efecto que ya obligó a rebajar el umbral
+para esta demo, ver arriba). El **Budget Guard no**: con el presupuesto de producción
+(20.000 tokens/hora) agotándose en ~5 peticiones reales (hallazgo ya documentado
+arriba), una corrida completa de la suite dejaría **~100 fixtures de LLM01/02/06/07
+respondiendo `BLOCKED_BY_BUDGET_GUARD`** en vez de evaluar el ataque real.
+
+Se verificó contra `scripts/evaluations/deterministic.py` que esto **no se detectaría
+solo**: como el texto genérico del bloqueo no coincide con ningún indicador específico
+del fixture, un ataque con `expected_result=BLOCK` se puntúa `BLOCKED, passed=True` —
+exactamente como si el Tool Gatekeeper/PII Shield/Output Auditor hubieran parado el
+ataque de verdad. La evidencia de los 7 vectores existentes se habría inflado en
+silencio, sin ningún test fallando.
+
+**Fix**: Rate Limiter y Budget Guard se saltan (chequeo Y registro de consumo — las dos
+partes, no solo el bloqueo) cuando `request.fixture_id` está presente —
+`lab/backend/src/api/routes/chat.py`. No se usa el `origen` del SOC porque el propio
+harness de esta PR (`run_llm10_suite.py`) también escribe en `audit/runs/` y habría
+quedado exento por error, invalidando la demostración de que estos guards bloquean de
+verdad. `fixture_id` es la señal correcta: identifica tráfico de evaluación del
+catálogo, no un consumidor real. 5 tests nuevos (`test_llm10_fixture_exemption.py`)
+prueban las dos direcciones — sin `fixture_id` los guards protegen igual que antes; con
+`fixture_id`, ni bloquean ni consumen presupuesto compartido.
+
 ## Detalle por escenario
 
 ### #8 — Flood de peticiones (`llm10_001`)
@@ -132,8 +164,9 @@ Ni el Rate Limiter ni el Budget Guard interfieren con un patrón de uso normal.
 
 ## Verificación automática (no depende de estas corridas contra el LLM)
 
-215 → 206 tests en verde en esta rama (188 base + 18 nuevos:
-`test_rate_limiter.py` 5, `test_budget_guard.py` 8, `test_session_store_limits.py` 5),
-0 regresiones. Estos tests son deterministas y no dependen de la latencia ni el
-comportamiento del modelo — son la garantía de que el mecanismo es correcto con
+**211/211** tests en verde en esta rama (188 base + 23 nuevos:
+`test_rate_limiter.py` 5, `test_budget_guard.py` 8, `test_session_store_limits.py` 5,
+`test_llm10_fixture_exemption.py` 5), 0 regresiones. Estos tests son deterministas y no
+dependen de la latencia ni el comportamiento del modelo — son la garantía de que el
+mecanismo es correcto con
 independencia de que una demo puntual contra un LLM real sea más o menos representativa.

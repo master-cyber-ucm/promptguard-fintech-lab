@@ -276,7 +276,44 @@ async def _process_chat(
     # --- Rate Limiter + Budget Guard (#8/#9, LLM10:2025 — Unbounded Consumption).
     # Mismo gating que Input Sanitizer/PII Shield: solo en /chat/proxy, saltado por
     # completo en modo vulnerable puro. Ver docs/defensas/LLM10-unbounded-consumption/.
-    if proxy_enabled and not request.vulnerable:
+    #
+    # EXENCIÓN para tráfico de suite de fixtures (`request.fixture_id is not None`):
+    # sin esto, correr `run_attack_suite.py` contra /chat/proxy (108 fixtures, mismo
+    # user_id por defecto) agota el Budget Guard en ~5 peticiones reales — verificado
+    # en la evidencia de esta PR (docs/reports/evidencia-llm10-unbounded-consumption.md
+    # § hallazgo colateral). Las ~100 fixtures restantes volverían con
+    # `BLOCKED_BY_BUDGET_GUARD`, y `evaluations/deterministic.py` no distingue esa
+    # respuesta de un bloqueo real: para un fixture de ataque (`expected_result=BLOCK`)
+    # lo puntúa como `BLOCKED, passed=True` — como si el Tool Gatekeeper/PII Shield/
+    # Output Auditor hubieran parado el ataque, cuando en realidad nunca llegaron a
+    # evaluarlo. Corrompería en silencio la evidencia de los 7 ataques existentes
+    # (#1-7) sin que ningún test lo detectara.
+    #
+    # Se usa `fixture_id`, no `collector.origen`, a propósito: el propio harness de
+    # esta PR (`run_llm10_suite.py`) también escribe en `audit/runs/` (mismo patrón de
+    # Run Folder que el resto del proyecto) y por tanto también resolvería a
+    # `origen=suite` — exentarlo por origen habría invalidado la propia demostración de
+    # que estos guards bloquean. `run_llm10_suite.py` nunca manda `fixture_id` (no
+    # evalúa un fixture catalogado, envía patrones de volumen/tasa en crudo); el
+    # Agente de red-team tampoco lo manda — su propia exención de presupuesto sigue
+    # declarada y pendiente en `docs/defensas/.../denial-of-wallet.md`, no resuelta
+    # aquí de rebote. Estos guards protegen contra un CONSUMIDOR real descontrolado —
+    # evaluar el catálogo de fixtures del propio equipo no es ese caso de uso.
+    trafico_automatizado = request.fixture_id is not None
+
+    if proxy_enabled and not request.vulnerable and trafico_automatizado:
+        add_safe(
+            collector, componente="rate_limiter", objetivo="prompt", accion="ALLOW",
+            razon=f"Exento — fixture_id={request.fixture_id!r} (evaluación de la suite de fixtures, no tráfico de usuario real)",
+            regla="sliding_window", confianza=1.0, latencia_ms=0.0,
+        )
+        add_safe(
+            collector, componente="budget_guard", objetivo="prompt", accion="ALLOW",
+            razon=f"Exento — fixture_id={request.fixture_id!r} (evaluación de la suite de fixtures, no tráfico de usuario real)",
+            regla="token_budget", confianza=1.0, latencia_ms=0.0,
+        )
+
+    if proxy_enabled and not request.vulnerable and not trafico_automatizado:
         def _bloquear_por_infraestructura(componente: str, razon: str) -> ChatResponse:
             latency_ms = (time.time() - start_time) * 1000
             logger.warning("[%s]%s ✗ BLOQUEADO por %s: %s", session_id, fixture_tag, componente, razon)
@@ -434,8 +471,13 @@ async def _process_chat(
 
         # Budget Guard (#9, LLM10:2025): se descuenta el consumo REAL tras la respuesta,
         # no una estimación — ver docs/defensas/LLM10-unbounded-consumption/denial-of-
-        # wallet.md §3.1. Mismo gating que el resto del pipeline de infraestructura.
-        if proxy_enabled and not request.vulnerable:
+        # wallet.md §3.1. Mismo gating que el resto del pipeline de infraestructura —
+        # incluida la exención de tráfico automatizado: si NO se salta también el
+        # registro (no solo el chequeo), una corrida de `run_attack_suite.py` como
+        # usr_001 dejaría la cuenta de usr_001 agotada para la siguiente sesión
+        # INTERACTIVA real con ese mismo user_id mock (Playground reusa los mismos
+        # usr_001-003) — el bug se colaría por la puerta de atrás.
+        if proxy_enabled and not request.vulnerable and not trafico_automatizado:
             try:
                 usage = result.usage()
                 tokens_turno = getattr(usage, "total_tokens", None) or (
