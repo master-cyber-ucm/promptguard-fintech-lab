@@ -58,17 +58,21 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+from pydantic_ai.settings import ModelSettings
+
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
 from src.agents.session_store import get_history, new_session_id, store_history
 from src.agents.tools import Deps
 from src.core.base import StageContext, shadow_mode
+from src.core.budget_guard import default_guard
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.core.document_sanitizer import sanitize_document_text
 from src.core.document_structural_detector import detect_hiding_techniques
 from src.core.input_sanitizer import InputSanitizerStage
 from src.core.leak_guard import confidential_leak_guard, verified_ibans_from_tools
 from src.core.pii_shield import PIIShieldStage, redact_foreign_pii
+from src.core.rate_limiter import default_limiter
 from src.models.banking import MOCK_USERS
 from src.models.interaction import PromptDecision
 from src.utils.audit_repository import append_turn, sign_turn
@@ -269,6 +273,65 @@ async def _process_chat(
                 error=f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}",
             )
 
+    # --- Rate Limiter + Budget Guard (#8/#9, LLM10:2025 — Unbounded Consumption).
+    # Mismo gating que Input Sanitizer/PII Shield: solo en /chat/proxy, saltado por
+    # completo en modo vulnerable puro. Ver docs/defensas/LLM10-unbounded-consumption/.
+    if proxy_enabled and not request.vulnerable:
+        def _bloquear_por_infraestructura(componente: str, razon: str) -> ChatResponse:
+            latency_ms = (time.time() - start_time) * 1000
+            logger.warning("[%s]%s ✗ BLOQUEADO por %s: %s", session_id, fixture_tag, componente, razon)
+            audit_path = append_turn(
+                session_id=session_id, user_id=request.user_id, model=f"proxy-{componente}",
+                prompt=full_message, thinking=None, tools=[],
+                response=f"[BLOCKED_BY_{componente.upper()}] {razon}",
+                latency_ms=latency_ms,
+                fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
+                fixture_expected_result=request.fixture_expected_result,
+                audit_subdir=request.audit_subdir,
+            )
+            collector.flush(
+                prompt=full_message, respuesta=f"[BLOCKED_BY_{componente.upper()}] {razon}",
+                modelo=f"proxy-{componente}", latencia_total_ms=latency_ms, audit_file=audit_path.name,
+            )
+            return ChatResponse(
+                user_id=request.user_id, message=request.message, response="",
+                model=f"proxy-{componente}", latency_ms=round(latency_ms, 1),
+                session_id=session_id, tools_used=[], endpoint=endpoint_name,
+                audit_file=audit_path.name, error=f"BLOCKED_BY_{componente.upper()}: {razon}",
+            )
+
+        t_rl = time.time()
+        permitido, retry_after = default_limiter.permitir(request.user_id)
+        add_safe(
+            collector, componente="rate_limiter", objetivo="prompt",
+            accion="ALLOW" if permitido else "BLOCK",
+            razon=("Dentro de la cuota de peticiones" if permitido
+                   else f"Cuota de peticiones superada (retry_after={retry_after:.1f}s)"),
+            regla="sliding_window", confianza=1.0,
+            attack_type=None if permitido else "denial_of_service",
+            latencia_ms=(time.time() - t_rl) * 1000,
+        )
+        if not permitido:
+            return _bloquear_por_infraestructura(
+                "rate_limiter", f"Demasiadas peticiones — reintenta en {retry_after:.0f}s",
+            )
+
+        t_bg = time.time()
+        hay_presupuesto, consumidos = default_guard.hay_presupuesto(request.user_id)
+        add_safe(
+            collector, componente="budget_guard", objetivo="prompt",
+            accion="ALLOW" if hay_presupuesto else "BLOCK",
+            razon=(f"Presupuesto disponible ({consumidos}/{default_guard.token_budget} tokens usados)"
+                   if hay_presupuesto else "Presupuesto de tokens agotado para este usuario"),
+            regla="token_budget", confianza=1.0,
+            attack_type=None if hay_presupuesto else "denial_of_wallet",
+            latencia_ms=(time.time() - t_bg) * 1000,
+        )
+        if not hay_presupuesto:
+            return _bloquear_por_infraestructura(
+                "budget_guard", "Presupuesto de tokens agotado para este usuario",
+            )
+
     # Arranca desde el historial de la sesión (memoria de conversación, ver arriba)
     # en vez de siempre None — así los fixtures multi-step dejan de "empezar en
     # frío" en cada paso.
@@ -352,11 +415,35 @@ async def _process_chat(
             user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper,
             collector=collector,  # SOC: único canal que alcanza al Gatekeeper dentro de agent.run()
         )
-        result = await agent.run(full_message, message_history=message_history, deps=deps)
+        # Cap de tokens de salida (#8, LLM10:2025): el agente lleva un cap por defecto
+        # (`clara_base._default_model_settings`, ver docs/defensas/LLM10-unbounded-
+        # consumption/denegacion-de-servicio.md §3.2). `vulnerable=True` lo levanta —
+        # mismo criterio que el resto del flag: reproducir la línea base sin ninguna
+        # defensa, aquí incluida la de infraestructura. `model_settings` solo se pasa
+        # cuando hace falta levantarlo: los dobles de test de la suite (`_FakeAgent` en
+        # varios ficheros) no aceptan ese kwarg, y no tienen por qué — no ejercitan un
+        # `Agent` real de pydantic-ai.
+        run_kwargs = {"message_history": message_history, "deps": deps}
+        if request.vulnerable:
+            run_kwargs["model_settings"] = ModelSettings(max_tokens=100_000)
+        result = await agent.run(full_message, **run_kwargs)
         # Memoria de sesión: persiste el historial completo (recortado a MAX_TURNS)
         # para que el siguiente turno de esta sesión lo recupere via get_history().
         store_history(session_id, result.all_messages())
         latency_ms = (time.time() - start_time) * 1000
+
+        # Budget Guard (#9, LLM10:2025): se descuenta el consumo REAL tras la respuesta,
+        # no una estimación — ver docs/defensas/LLM10-unbounded-consumption/denial-of-
+        # wallet.md §3.1. Mismo gating que el resto del pipeline de infraestructura.
+        if proxy_enabled and not request.vulnerable:
+            try:
+                usage = result.usage()
+                tokens_turno = getattr(usage, "total_tokens", None) or (
+                    (getattr(usage, "request_tokens", 0) or 0) + (getattr(usage, "response_tokens", 0) or 0)
+                )
+            except Exception:
+                tokens_turno = 0
+            default_guard.registrar_consumo(request.user_id, tokens_turno)
 
         tools_used, thinking = _extract_tools_and_thinking(result)
         response_text_raw = str(result.output)

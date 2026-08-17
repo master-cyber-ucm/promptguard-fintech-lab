@@ -41,7 +41,10 @@ class _FakeAgent:
         self.model = _FakeModel()
         self.respuesta = respuesta
 
-    async def run(self, message, message_history=None, deps=None):
+    async def run(self, message, message_history=None, deps=None, model_settings=None):
+        # model_settings: solo lo pasa _process_chat cuando vulnerable=True (cap de
+        # tokens levantado, #8 LLM10:2025) — este doble no necesita hacer nada con él,
+        # solo aceptarlo para no romper la llamada real.
         return _FakeResult(self.respuesta)
 
 

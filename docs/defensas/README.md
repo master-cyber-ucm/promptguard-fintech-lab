@@ -22,9 +22,15 @@ defensas/
 │   ├── README.md                    Tool Gatekeeper
 │   ├── acciones-no-autorizadas.md   Defensa del ataque #1
 │   └── confused-deputy.md           Defensa del ataque #4
-└── LLM07-system-prompt-leakage/
-    ├── README.md                    Minimización del prompt + Output Auditor
-    └── filtrado-por-repeticion.md   Defensa del ataque #5
+├── LLM07-system-prompt-leakage/
+│   ├── README.md                    Minimización del prompt + Output Auditor
+│   └── filtrado-por-repeticion.md   Defensa del ataque #5
+└── LLM10-unbounded-consumption/
+    ├── README.md                          Rate Limiter + Budget Guard implementados (#8/#9); Query Pattern Monitor + Document Size Guard, investigación (#10/#11)
+    ├── denegacion-de-servicio.md          Defensa del ataque #8
+    ├── denial-of-wallet.md                Defensa del ataque #9
+    ├── extraccion-de-modelo.md            Defensa del ataque #10
+    └── amplificacion-documentos-adjuntos.md  Defensa del ataque #11
 ```
 
 ## Mapa ataque → defensa
@@ -38,6 +44,16 @@ defensas/
 | 5 | System Prompt Leakage | LLM07 | Minimización + Output Auditor | [`filtrado-por-repeticion.md`](./LLM07-system-prompt-leakage/filtrado-por-repeticion.md) |
 | 6 | PII Harvesting vía Contexto | LLM02 | PII Shield | [`pii-harvesting.md`](./LLM02-sensitive-information-disclosure/pii-harvesting.md) |
 | 7 | Prompt Injection Indirecta — Documento | LLM01 | Input Sanitizer sobre contenido extraído | [`indirecta-documento.md`](./LLM01-prompt-injection/indirecta-documento.md) |
+| 8 | Denegación de Servicio | LLM10 | Rate Limiter | [`denegacion-de-servicio.md`](./LLM10-unbounded-consumption/denegacion-de-servicio.md) |
+| 9 | Denial of Wallet | LLM10 | Budget Guard | [`denial-of-wallet.md`](./LLM10-unbounded-consumption/denial-of-wallet.md) |
+| 10 | Extracción de Modelo | LLM10 | Query Pattern Monitor | [`extraccion-de-modelo.md`](./LLM10-unbounded-consumption/extraccion-de-modelo.md) |
+| 11 | Amplificación vía Documentos Adjuntos | LLM10 | Document Size Guard | [`amplificacion-documentos-adjuntos.md`](./LLM10-unbounded-consumption/amplificacion-documentos-adjuntos.md) |
+
+Los ataques #8–#11 (LLM10) atacan la **infraestructura**, no la inteligencia del
+modelo. #8 y #9 tienen implementación real, fixtures (`llm10_scenarios.yaml`) y
+evidencia vulnerable-vs-defendida (`docs/reports/evidencia-llm10-unbounded-
+consumption.md`); #10 y #11 siguen en fase de investigación, sin código (ver
+`TODOs.md`). El resto de la tabla sigue el mismo estado que el resto del documento.
 
 Ningún módulo cubre un ataque en solitario. La columna indica **quién decide**; los documentos individuales detallan los controles complementarios.
 
@@ -124,3 +140,7 @@ La primera ejecución de la suite (ver [`nota-descubrimiento-alignment-implicito
 | Tool Gatekeeper | ✅ | `tool_permissions.yaml` | ⬜ | ⬜ |
 | Output Auditor | ✅ | `banking_patterns.yaml` | ⬜ | ⬜ |
 | Compliance Logger | ✅ | — | ⬜ | ⬜ |
+| Rate Limiter *(LLM10, #8)* | ✅ | `RATE_LIMIT_*` (env) | ✅ | ✅ |
+| Budget Guard *(LLM10, #9)* | ✅ | `BUDGET_GUARD_*` (env) | ✅ | ✅ |
+| Query Pattern Monitor *(LLM10, #10)* | ✅ | — | ⬜ | ⬜ |
+| Document Size Guard *(LLM10, #11)* | ✅ | — | ⬜ | ⬜ |

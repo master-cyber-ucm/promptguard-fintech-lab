@@ -23,3 +23,23 @@ def _soc_aislado(tmp_path_factory):
     store.reset_for_tests(tmp_path_factory.mktemp("soc") / "soc.db")
     yield
     store.reset_for_tests(original)
+
+
+@pytest.fixture(autouse=True)
+def _llm10_guards_limpios():
+    """Aísla Rate Limiter y Budget Guard (#8/#9, LLM10:2025) entre tests.
+
+    Ambos son estado compartido por proceso (`core/rate_limiter.py`,
+    `core/budget_guard.py`) — varios tests reutilizan `user_id="usr_001"` contra
+    `/chat/proxy` (`test_proxy_pipeline_vectores.py`, `test_soc.py`...). Sin este reset,
+    el orden de ejecución de la suite podría hacer que un test agotara la cuota que
+    necesita otro — mismo motivo que `_soc_aislado`, aplicado a los guards nuevos.
+    """
+    from src.core.budget_guard import default_guard
+    from src.core.rate_limiter import default_limiter
+
+    default_limiter.reset()
+    default_guard.reset()
+    yield
+    default_limiter.reset()
+    default_guard.reset()
