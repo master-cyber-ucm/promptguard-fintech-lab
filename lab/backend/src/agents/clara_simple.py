@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pydantic_ai import Agent
 
-from .clara_base import _build_model
+from .clara_base import _build_model, _default_model_settings
 from .tools import (
     Deps,
     abrir_reclamacion,
@@ -44,6 +44,7 @@ def create_clara_agent_simple(model=None) -> Agent:
         system_prompt=_load_prompt(),
         tools=[consulta_saldo, transferencia_nacional, bloquear_tarjeta, consulta_producto, abrir_reclamacion],
         retries=3,
+        model_settings=_default_model_settings(),
     )
 
 

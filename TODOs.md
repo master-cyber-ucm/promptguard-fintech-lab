@@ -203,6 +203,63 @@ cerrada: la Fase 3 (comparativa de modelos) depende de que la Fase 1 exista, y l
 - [ ] Detección de importes ajenos sin IBAN al lado (§11, §4.3 del mismo diseño) — sigue
   siendo un diseño propuesto, sin código.
 
+### Fase 5 — Ataques a la infraestructura (LLM10, nueva área)
+
+> Hasta ahora el catálogo (#1–#7) solo cubre ataques a la **inteligencia** del
+> modelo — convencerlo de hacer algo que no debería. Sesión de investigación abierta
+> el 17/08 para la otra mitad: ataques a la **infraestructura** — volumen, tamaño o
+> repetición de peticiones, sin necesidad de engañar a Clara en absoluto. Mapeado
+> contra **OWASP LLM10:2025 — Unbounded Consumption**, **MITRE ATLAS AML.T0029**
+> (Denial of ML Service), **AML.T0034** (Cost Harvesting) y **AML.T0024**
+> (Exfiltration via AI Inference API). No bloquea las Fases 1–4 — es alcance nuevo, no
+> una corrección de lo existente.
+
+- [x] Investigación documentada — `docs/ataques/LLM10-unbounded-consumption/`
+  (categoría + **4 ataques**: #8 denegación de servicio, #9 denial of wallet,
+  #10 extracción de modelo, #11 amplificación vía documentos adjuntos) y
+  `docs/defensas/LLM10-unbounded-consumption/` (Rate Limiter, Budget Guard, Query
+  Pattern Monitor, Document Size Guard — diseño). Cuatro huecos reales del lab
+  verificados contra el código: sin rate limiting, sin cap de tokens de salida,
+  `session_store.py` sin cota ni TTL, `document_extractor.py` sin límite de tamaño,
+  ratio de compresión, páginas ni filas.
+- [x] Técnicas avanzadas de DoS incorporadas al mapeo de #8, con cita — *sponge
+  examples* (Shumailov et al. 2021, amplificación de hasta 6000× medida en servicios de
+  traducción reales), *"overthinking"* en modelos con razonamiento explícito (literatura
+  2025-2026), ataques al framework de serving (Ollama) en vez de al modelo.
+- [x] **#8 y #9 implementados, con fixtures y evidencia** (PR
+  `feat/llm10-unbounded-consumption-defenses`, 17/08) — Rate Limiter
+  (`core/rate_limiter.py`), cap de tokens de salida
+  (`agents/clara_base.py::_default_model_settings`), cota LRU + TTL de sesiones
+  (`agents/session_store.py`), Budget Guard (`core/budget_guard.py`). Cableados en
+  `/chat/proxy`, respetan el flag `vulnerable` — misma metodología de comparación que
+  el resto del proyecto. Fixtures nuevas: `lab/backend/tests/fixtures/
+  llm10_scenarios.yaml` (`llm10_001` flood, `llm10_002` token_burn, `llm10_003`
+  budget_burn, `llm10_navi_001` control legítimo), ejecutables con
+  `lab/scripts/run_llm10_suite.py`. 18 tests nuevos (`test_rate_limiter.py`,
+  `test_budget_guard.py`, `test_session_store_limits.py`), 206/206 del backend en
+  verde. Evidencia vulnerable-vs-defendida en
+  `docs/reports/evidencia-llm10-unbounded-consumption.md`.
+- [ ] **#10 y #11 siguen sin implementar** (Query Pattern Monitor, Document Size
+  Guard) — declarado fuera de esta PR: #10 tiene bajo valor con el Ollama local por
+  defecto (sin IP que robar); #11 (zip bombs contra `document_extractor.py`) requiere
+  un entorno aislado que no es el lab compartido de desarrollo.
+- [ ] **Validación empírica bajo carga de producción real** — la evidencia capturada
+  usa el lab de desarrollo con volumen acotado (decenas de peticiones), no un entorno
+  de carga dedicado.
+- [ ] **Tabla de coste real por proveedor** (€/1M tokens de OpenRouter/Groq/NVIDIA
+  NIM vigentes) — necesaria para calibrar el Budget Guard, no investigada todavía.
+- [ ] **Umbrales concretos del Document Size Guard** (#11) — tamaño máximo, ratio de
+  compresión, páginas/filas — sin decidir, requieren calibrarse contra los documentos
+  legítimos reales del lab para no romper el flujo del ataque #7.
+- [ ] Resto de la profundidad que sí tienen LLM01/02/06/07 (7 docs por ataque: threat
+  modeling, casos reales — incluidos CVEs conocidos de `pypdf`/`openpyxl`/`python-docx`
+  para #11 —, análisis técnico, cumplimiento normativo, contexto VerdaBank, playbook) —
+  hoy solo existe el mapeo taxonómico (`01-`) de cada uno.
+- [ ] Integrar #8–#11 en `anexo-catalogo-ataques-llm.md` (el catálogo raíz sigue
+  listando solo 7 ataques).
+- [ ] Decidir si esta área entra en el alcance de la memoria final dado el tope de 20
+  páginas (§ "Fase 2 · P4"), o queda como línea de investigación futura declarada.
+
 ---
 
 ## ❌ Descartado — decisiones explícitas

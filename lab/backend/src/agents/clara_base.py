@@ -10,6 +10,20 @@ from dataclasses import dataclass
 
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
+
+# Denegación de Servicio (#8, LLM10:2025) — "Generación sin techo": ninguna llamada al
+# proveedor fijaba un límite de tokens de salida antes de esto. Ver
+# docs/defensas/LLM10-unbounded-consumption/denegacion-de-servicio.md §3.2. Un valor de
+# referencia generoso para el uso legítimo del lab (una respuesta de Clara con contexto
+# no se acerca a este límite) — configurable porque el límite razonable depende del
+# proveedor activo (Ollama local vs. uno de pago).
+DEFAULT_MAX_OUTPUT_TOKENS = 1024
+
+
+def _default_model_settings() -> ModelSettings:
+    max_tokens = int(os.environ.get("CLARA_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS))
+    return ModelSettings(max_tokens=max_tokens)
 
 
 @dataclass(frozen=True)
