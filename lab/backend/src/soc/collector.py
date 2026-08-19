@@ -53,6 +53,22 @@ def run_id_desde_audit_subdir(audit_subdir: Optional[str]) -> Optional[str]:
     return PurePosixPath(audit_subdir).parent.name or None
 
 
+def origen_desde_run_id(run_id: Optional[str]) -> str:
+    """Deriva el Origen del Turn a partir del nombre de la carpeta de corrida.
+
+    Tres valores posibles (ver CONTEXT.md § Origen): sin `run_id` es una sesión manual
+    (`interactivo`); con `run_id` es o bien un Suite Run de `run_attack_suite.py`
+    (`suite`) o una Campaña del Agente de red-team (`redteam-agent`), distinguibles por
+    el sufijo `_redteam-agent` que el orquestador del agente añade al nombre de la
+    carpeta (`lab/audit/runs/{timestamp}_redteam-agent/`).
+    """
+    if not run_id:
+        return "interactivo"
+    if run_id.endswith("_redteam-agent"):
+        return "redteam-agent"
+    return "suite"
+
+
 class SocCollector:
     """Acumulador de un turno. Barato de crear: uno por petición."""
 
@@ -72,7 +88,7 @@ class SocCollector:
         self.user_id = user_id
         self.endpoint = endpoint
         self.run_id = run_id_desde_audit_subdir(audit_subdir)
-        self.origen = "suite" if self.run_id else "interactivo"
+        self.origen = origen_desde_run_id(self.run_id)
         self.fixture_id = fixture_id
         self.fixture_kind = fixture_kind
         self.fixture_expected_result = fixture_expected_result

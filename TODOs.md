@@ -144,6 +144,23 @@ Cuatro fases, en orden de dependencia. No saltar una fase hasta que la anterior 
 cerrada: la Fase 3 (comparativa de modelos) depende de que la Fase 1 exista, y la memoria
 (Fase 2) necesita que el alcance esté fijado antes de escribirse.
 
+- [ ] **Agente de red-team — Analyze Pass offline bloqueado por infraestructura, no por
+  el diseño** (no bloqueante para el roadmap del TFM — trabajo aparte, ver
+  `lab/redteam-agent/README.md`). `analyze_campania.py` (plan de excelencia §B1) re-juzga
+  cada Intento con un juez más fuerte (`qwen3.5:9b`) para corregir los falsos positivos
+  del juez en caliente detectados en `directa`/`pii-harvesting`. El mecanismo funciona —
+  4 tests deterministas en verde + 1 re-juicio real correcto en vivo (`FAILED` → `FAILED`,
+  coincide con la auditoría manual) — pero la validación a escala de campaña completa no
+  se pudo terminar: en este hardware `qwen3.5:9b` corre sin GPU (`size_vram: 0`,
+  confirmado vía `GET /api/ps`), ~20× más lento que el modelo objetivo (`qwen2.5:3b`), y
+  se agrava más bajo carga concurrente — un segundo intento superó un timeout de 300s con
+  solo otra campaña corriendo en paralelo. Es infraestructura ("A la infraestructura, no
+  a la inteligencia" — el juez más grande sí razona mejor, el problema es el hardware que
+  lo corre), no un fallo de diseño del Analyze Pass. Revisar cuando haya GPU disponible, o
+  correrlo en una ventana sin otras campañas compitiendo por la misma instancia de Ollama.
+  Ver `lab/redteam-agent/HALLAZGOS-SESION-20260817.md` y
+  `docs/reports/plan-excelencia-redteam-y-defensas.md` §B1.
+
 ### Fase 1 — Cerrar el pipeline de defensa (bloqueante para todo lo demás)
 
 - [ ] **P1 · Implementar el Input Sanitizer real** (§11) — único módulo no-op de las 6

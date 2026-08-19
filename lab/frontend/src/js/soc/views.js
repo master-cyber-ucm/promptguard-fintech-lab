@@ -291,7 +291,7 @@ window.SOC = window.SOC || {};
       '</select>' +
       '<select id="f-origen" aria-label="Filtrar por origen">' +
         opt('', 'Cualquier origen', f.origen) + opt('interactivo', 'Interactivo', f.origen) +
-        opt('suite', 'Suite', f.origen) +
+        opt('suite', 'Suite', f.origen) + opt('redteam-agent', 'Agente de red-team', f.origen) +
       '</select>' +
       '<select id="f-componente" aria-label="Filtrar por componente">' +
         opt('', 'Cualquier componente', f.componente) +

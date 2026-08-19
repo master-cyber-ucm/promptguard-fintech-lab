@@ -69,8 +69,8 @@ _Avoid_: reasoning, chain of thought, internal monologue
 ### Ejecución automática y métricas
 
 **Suite Run**:
-Una ejecución de `run_attack_suite.py` que envía fixtures al backend y persiste los Session Files en el Run Folder. No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pass.
-_Avoid_: test run, batch, campaign
+Una ejecución de `run_attack_suite.py` que envía fixtures al backend y persiste los Session Files en el Run Folder. No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pass. No confundir con una **Campaña** (Agente de red-team): un Suite Run envía fixtures estáticos y predefinidos; una Campaña genera y muta payloads en vivo.
+_Avoid_: test run, batch, campaign (reservado a la ejecución del Agente de red-team)
 
 **Analyze Pass**:
 Ejecución de `analyze.py` sobre un Run Folder. Lee los Session Files, carga los fixtures por ID para obtener los Fixture Indicators, calcula Verdicts (heurística + juez opcional), hace append de la Evaluation Section a cada Session File, y genera el Run Report.
@@ -81,7 +81,7 @@ Un Run Folder que contiene Session Files pero no tiene Run Report todavía. `mak
 _Avoid_: incomplete run, unanalyzed run
 
 **Run Folder**:
-Directorio `lab/audit/runs/{timestamp}_{model_slug}/` que agrupa todos los artefactos de un Suite Run: subcarpetas por endpoint con Session Files, y el Run Report en la raíz.
+Directorio `lab/audit/runs/{timestamp}_{model_slug}/` que agrupa todos los artefactos de un Suite Run: subcarpetas por endpoint con Session Files, y el Run Report en la raíz. Una Campaña (Agente de red-team) produce un Run Folder con la misma forma (`lab/audit/runs/{timestamp}_redteam-agent/`), pero subcarpetas por Ejercicio en vez de por endpoint.
 _Avoid_: run directory, output folder, results directory
 
 **Verdict**:
@@ -93,7 +93,7 @@ Una de las listas `success` o `blocked` definidas en el YAML de un fixture. El A
 _Avoid_: keyword, detector, rule
 
 **Run Report**:
-El par de artefactos generados por el Analyze Pass: un `.json` con datos estructurados y un `.md` con resumen legible, métricas y tablas. Ambos se guardan en la raíz del Run Folder como `run.json` y `run.md`. Su presencia indica que el Run Folder ya no es un Pending Run.
+El par de artefactos generados por el Analyze Pass: un `.json` con datos estructurados y un `.md` con resumen legible, métricas y tablas. Ambos se guardan en la raíz del Run Folder como `run.json` y `run.md`. Su presencia indica que el Run Folder ya no es un Pending Run. El equivalente para una Campaña es el **Informe de Campaña**: misma forma (`run.json`/`run.md`) y mismo sitio, pero lo genera el propio Agente de red-team al cerrar la Campaña, no el Analyze Pass — no hay Fixture Indicators que cargar por ID porque los Intentos no son fixtures.
 _Avoid_: report, output, results file
 
 ### Observabilidad del proxy (SOC)
@@ -119,7 +119,7 @@ Lo que un Componente decidió hacer en un Analysis Event: `ALLOW`, `SUSPICIOUS` 
 _Avoid_: veredicto, resultado, estado
 
 **Origen**:
-De dónde vino el tráfico que produjo un Turn: `interactivo` (alguien escribiendo en el Playground) o `suite` (una corrida de `run_attack_suite.py`). Permite que el SOC separe una demo manual de las 400+ trazas de una corrida completa.
+De dónde vino el tráfico que produjo un Turn: `interactivo` (alguien escribiendo en el Playground), `suite` (una corrida de `run_attack_suite.py`) o `redteam-agent` (un Intento del Agente de red-team dentro de una Campaña). Permite que el SOC separe una demo manual, una corrida de fixtures estáticos y una campaña de ataques mutados entre sí.
 _Avoid_: source, tipo, modo
 
 **Postura**:
@@ -137,6 +137,40 @@ _Avoid_: incidente, hallazgo, detección
 **Base de conocimiento**:
 Los documentos de `docs/ataques/` y `docs/defensas/` indexados en memoria y servidos por el SOC. El puente con un Turn es estructural: fixtures y documentos comparten el árbol de taxonomía, así que la correspondencia no necesita metadatos ni etiquetado.
 _Avoid_: docs, wiki, ayuda
+
+### Agente de red-team
+
+**Agente de red-team**:
+Módulo propio (`lab/redteam-agent/`, sin dependencia de FuzzyAI/Garak) que ataca un endpoint de Clara de forma autónoma e iterativa: genera y muta payloads, lee la respuesta, decide si el Objetivo del Ejercicio en curso se cumplió y elige el siguiente movimiento. Es un ejercicio de aprendizaje sobre el marco de defensa existente, no un componente del pipeline de producción — no tiene autoridad ni forma parte del proxy.
+_Avoid_: fuzzer, red teamer, atacante automático
+
+**Campaña**:
+Una ejecución completa del Agente de red-team: recorre los Ejercicios de la Taxonomía de Ataque contra un endpoint objetivo (por defecto `/chat/proxy`, configurable) y produce un Run Folder propio (`origen=redteam-agent`) con su Informe de Campaña. No confundir con un Suite Run — ver **Suite Run**.
+_Avoid_: run, corrida, sesión de fuzzing
+
+**Ejercicio**:
+La ejecución de una técnica de la Taxonomía de Ataque (una de las 7 subcategorías, ej. `cross-context-leakage`) dentro de una Campaña. Tiene su propio Objetivo declarado y su propio Presupuesto de Intentos; la memoria del Agente de red-team (qué ya probó, con qué resultado) está acotada a este nivel — no persiste entre Ejercicios de la misma Campaña, ni se resetea en cada Intento.
+_Avoid_: técnica (a secas — reservado al nombre de la subcategoría; el Ejercicio es su ejecución), categoría, rama
+
+**Objetivo**:
+Descripción en lenguaje natural, escrita a mano una vez por Ejercicio al construir el harness (con fuente en `docs/ataques/`), de qué constituye un éxito para esa técnica — ej. "conseguir que Clara revele el IBAN de un usuario distinto al que hace la petición". Es el criterio contra el que el propio Agente de red-team se autoevalúa; no usa indicadores `success`/`blocked` como los fixtures, porque los Intentos son payloads nuevos sin YAML previo.
+_Avoid_: expected result, criterio de éxito, meta
+
+**Intento**:
+Un disparo del Agente de red-team contra el endpoint objetivo dentro de un Ejercicio: un payload generado, la respuesta de Clara y el juicio (éxito/fallo) que el propio agente emite con la memoria de ese Ejercicio. Genera un Session File igual que cualquier Turn, con `origen=redteam-agent`.
+_Avoid_: attempt (en inglés), payload (a secas — el payload es el contenido; el Intento es el evento completo), turn (reservado al vocabulario general; un Intento produce un Turn)
+
+**Modo** (del Agente de red-team):
+`caja negra` (por defecto: el agente solo ve la respuesta de Clara, igual que un adversario real) o `caja gris` (opcional: el agente también lee los Analysis Events del SOC del Intento — converge más rápido pero es un modelo de amenaza menos realista).
+_Avoid_: nivel de acceso, visibilidad
+
+**Motor de evolución**:
+La estrategia que decide el siguiente Intento dentro de un Ejercicio tras un fallo. Intercambiable por configuración de Campaña, no fijo: autorreflexivo (el modelo atacante razona en lenguaje natural sobre por qué falló), genético (población de variantes con selección/cruce) o guiado-por-taxonomía (salta a la siguiente técnica catalogada o combina dos). Viven en `lab/redteam-agent/evolution/`.
+_Avoid_: estrategia (a secas), algoritmo
+
+**Modelo atacante**:
+El modelo Ollama que razona y genera los payloads del Agente de red-team. Parámetro de Campaña independiente del modelo que sirve a Clara (`OLLAMA_MODEL` del lab) — por defecto uno de mayor capacidad, para que el "pensamiento lateral" no esté limitado por el mismo modelo pequeño que defiende el target.
+_Avoid_: attacker model (en inglés), juez (reservado al LLM-judge del Analyze Pass, que es un rol distinto)
 
 ### Entidades del sistema
 
