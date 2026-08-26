@@ -1,0 +1,13 @@
+# Override para el profile Ollama en Docker.
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.ollama.yml --profile ollama up -d
+#
+# Sobreescribe OLLAMA_MODEL a qwen3.5:4b (más ligero que el 9b local)
+# y apunta al servicio ollama interno en lugar de host.docker.internal.
+
+services:
+  backend:
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      OLLAMA_MODEL: qwen3.5:4b

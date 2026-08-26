@@ -1,0 +1,64 @@
+# ============================================================
+# PromptGuard FinTech Lab - entorno de laboratorio
+#
+# Arquitectura por defecto:
+#   Frontend -> Backend (FastAPI/Clara) -> Ollama | OpenRouter | proxy custom
+#
+# El backend habla con un endpoint OpenAI-compatible y el proveedor
+# se selecciona por entorno:
+#   - LLM_PROVIDER=ollama
+#   - LLM_PROVIDER=openrouter
+#   - LLM_PROVIDER=custom
+#
+# Para OpenRouter o un proxy custom, solo cambia las variables del .env.
+# ============================================================
+
+services:
+  backend:
+    build: ./backend
+    container_name: promptguard-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      APP_MODE: ${APP_MODE:-secure}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      AUDIT_DIR: /app/audit/sessions
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/config:/app/config
+      - ./backend/tests:/app/tests
+      - ./audit:/app/audit
+      - ./scripts:/app/scripts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: promptguard-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-8000}
+    volumes:
+      - ./frontend/src:/app/src
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    container_name: promptguard-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    profiles:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

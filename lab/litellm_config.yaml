@@ -1,0 +1,63 @@
+# PromptGuard FinTech Lab — LiteLLM proxy config (experimental)
+# ------------------------------------------------------------
+# Este archivo no forma parte del arranque por defecto.
+# Sirve como ejemplo si el equipo quiere usar LiteLLM u otro proxy
+# OpenAI-compatible en modo custom:
+#
+#   LLM_PROVIDER=custom
+#   LLM_BASE_URL=http://localhost:4000/v1
+#   LLM_MODEL=clara-local
+#
+# En ese caso, el backend ya no necesita saber si debajo hay Ollama,
+# OpenRouter o cualquier otro proveedor.
+
+model_list:
+
+  # === Perfil LOCAL (Ollama en el host) ===
+  # Requisito: `ollama serve` corriendo + modelo descargado
+  - model_name: clara-local
+    litellm_params:
+      model: ollama/qwen3.5:9b
+      api_base: http://host.docker.internal:11434
+      # Ollama no requiere api_key pero LiteLLM pide una. Cualquier string vale.
+      api_key: ollama
+
+  # === Perfil CLOUD (OpenRouter) ===
+  # Requisito: OPENROUTER_API_KEY válida en lab/.env
+  # Modelos gratuitos a junio 2026 (verifica en openrouter.ai/models):
+  #   - meta-llama/llama-3.3-70b-instruct:free
+  #   - google/gemini-2.0-flash-exp:free
+  #   - qwen/qwen-2.5-72b-instruct:free
+  - model_name: clara-cloud
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # === Perfil AUTO (Ollama → fallback OpenRouter) ===
+  # Útil cuando varios miembros del equipo pueden no tener Ollama descargado.
+  # Si Ollama falla (modelo no cargado, Ollama caído), reintentar con cloud.
+  - model_name: clara-auto
+    litellm_params:
+      model: ollama/qwen3.5:9b
+      api_base: http://host.docker.internal:11434
+      api_key: ollama
+
+# Fallbacks globales: cualquier fallo de red del modelo primario
+# intenta la alternativa cloud. Para que funcione el modo auto,
+# los fallbacks se aplican sobre el model_name.
+litellm_settings:
+  drop_params: true
+  num_retries: 2
+  request_timeout: 90
+  telemetry: false
+  # fallbacks se definen a nivel de modelo
+  fallbacks:
+    - clara-auto: ["clara-cloud"]
+
+router_settings:
+  routing_strategy: simple-shuffle
+
+general_settings:
+  master_key: sk-litellm-master-key
+  database_url: ""    # sin persistencia (lab)
+  disable_spend_logs: true
