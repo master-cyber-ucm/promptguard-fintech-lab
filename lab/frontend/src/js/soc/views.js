@@ -162,8 +162,13 @@ window.SOC = window.SOC || {};
     subtitulo: 'Flujo cronológico de turnos. Cada fila lleva la cadena de los seis componentes: ' +
                'relleno = evaluó, hueco punteado = no evaluó.',
     filtros: {},
-    render: function (el) {
+    render: function (el, params) {
       var self = this;
+      // Una corrida no debe obligar a recordar y reintroducir su identificador en
+      // el stream. El enlace desde Corridas llega aquí con el filtro ya aplicado;
+      // la persona revisora puede abrir después cada Turn y su Session File.
+      var runId = params && params.get('run_id');
+      if (runId) self.filtros = { run_id: runId };
       el.innerHTML =
         '<section class="panel">' +
           barraFiltros(self.filtros) +
@@ -722,8 +727,10 @@ window.SOC = window.SOC || {};
       '<th style="text-align:right">Turnos</th><th style="text-align:right">Sesiones</th>' +
       '<th style="text-align:right">Bloqueos</th><th style="text-align:right">Vulnerables</th>' +
       '</tr></thead><tbody>' + runs.map(function (r) {
+        var href = '#/eventos?run_id=' + encodeURIComponent(r.run_id);
         return '<tr>' +
-          '<td class="mono" style="font-size:12px">' + esc(r.run_id) + '</td>' +
+          '<td class="mono" style="font-size:12px"><a class="run-link" href="' + href +
+            '" title="Abrir los Turns de esta corrida">' + esc(r.run_id) + '</a></td>' +
           '<td>' + esc(r.origen) + '</td>' +
           '<td class="mono" style="font-size:11.5px">' + ui.fecha(r.inicio) + '</td>' +
           '<td class="num">' + r.turnos + '</td>' +
