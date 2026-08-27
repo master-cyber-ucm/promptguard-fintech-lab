@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -33,7 +34,9 @@ import httpx
 import yaml
 
 HERE = Path(__file__).resolve().parent
-FIXTURES_DIR = HERE.parent / "backend" / "tests" / "fixtures"
+# En Docker los fixtures están montados en /app/tests; fuera del contenedor se
+# conservan bajo lab/backend/tests. La variable permite usar ambos contextos.
+FIXTURES_DIR = Path(os.environ.get("FIXTURES_DIR", str(HERE.parent / "backend" / "tests" / "fixtures")))
 RUNS_DIR = HERE.parent / "audit" / "runs"
 AUDIT_RUNS_DIR_CONTAINER = "/app/audit/runs"
 

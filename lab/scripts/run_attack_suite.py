@@ -28,6 +28,7 @@ Uso:
   python run_attack_suite.py --kind attack-prompts     # solo ataques
   python run_attack_suite.py --type INDIRECT_INJECTION
   python run_attack_suite.py --id atk_035
+  python run_attack_suite.py --id atk_001_admin --id leg_024 --endpoint complex-with-context --endpoint proxy --baseline-pure
   python run_attack_suite.py --repeat 5                # 5 repeticiones por fixture
   python run_attack_suite.py --user usr_002
 """
@@ -50,7 +51,14 @@ from fixture_loader import load_prompts
 
 RUNS_DIR = HERE.parent / "audit" / "runs"
 # henri-tfm/ vive fuera de lab/ — HERE = lab/scripts, .parent.parent = raíz del repo.
-PAYLOADS_DIR = HERE.parent.parent / "henri-tfm" / "01-ataque" / "payloads"
+# En local se resuelve desde la raíz del repositorio; Docker aporta la misma
+# carpeta de payloads en una ruta explícita y de solo lectura.
+PAYLOADS_DIR = Path(
+    os.environ.get(
+        "PAYLOADS_DIR",
+        str(HERE.parent.parent / "henri-tfm" / "01-ataque" / "payloads"),
+    )
+)
 
 # El backend corre en un contenedor con ./audit:/app/audit montado (lab/docker-compose.yml).
 # `audit_subdir` viaja en la petición y lo usa `append_turn()` DENTRO del contenedor — tiene que
@@ -144,10 +152,16 @@ async def _run_fixture(
     audit_subdir: str,
     *,
     repeat: int = 1,
+    vulnerable: bool = False,
 ) -> dict:
     start = time.time()
     error: str | None = None
     last_response = ""
+    # Los fixtures documentales no recorren los pasos JSON y, por tanto, no
+    # llegan a inicializar la sesión local de ese bloque. Mantener un valor
+    # vacío permite que el runner informe la respuesta (o el error) sin caer
+    # al construir su resumen.
+    session_id: str | None = None
 
     if fixture.get("document"):
         last_response, error = await _run_document_fixture(
@@ -170,6 +184,7 @@ async def _run_fixture(
                         "fixture_kind": fixture.get("kind"),
                         "fixture_expected_result": fixture.get("expected_result"),
                         "audit_subdir": audit_subdir,
+                        "vulnerable": vulnerable,
                     }
                     if session_id:
                         body["session_id"] = session_id
@@ -213,7 +228,10 @@ async def main():
     parser = argparse.ArgumentParser(description="PromptGuard suite runner")
     parser.add_argument("--kind", choices=ALL_KINDS, help="Ejecutar solo este kind")
     parser.add_argument("--type", dest="attack_type", help="Filtrar por attack_type")
-    parser.add_argument("--id", dest="fixture_id", help="Ejecutar un fixture concreto")
+    parser.add_argument(
+        "--id", dest="fixture_ids", action="append", metavar="FIXTURE_ID",
+        help="Ejecutar un fixture concreto; se puede repetir para una corrida curada",
+    )
     parser.add_argument("--user", default="usr_001")
     parser.add_argument("--host", default=os.environ.get("SUITE_HOST", "localhost"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("SUITE_PORT", "8000")))
@@ -227,6 +245,13 @@ async def main():
     )
     parser.add_argument("--repeat", type=int, default=1, metavar="N",
                         help="Repetir cada fixture N veces (default: 1)")
+    parser.add_argument(
+        "--baseline-pure", action="store_true",
+        help=(
+            "Envía vulnerable=true solo a endpoints JSON baseline (nunca a proxy) para "
+            "comparar una línea base indefensa real con el pipeline defendido."
+        ),
+    )
     args = parser.parse_args()
 
     api_base = f"http://{args.host}:{args.port}"
@@ -239,10 +264,12 @@ async def main():
 
     kinds = [args.kind] if args.kind else ALL_KINDS
     fixtures: list[dict] = []
-    for k in kinds:
-        fixtures.extend(
-            load_prompts(kind=k, attack_type=args.attack_type, prompt_id=args.fixture_id)
-        )
+    fixture_ids = args.fixture_ids or [None]
+    for fixture_id in fixture_ids:
+        for k in kinds:
+            fixtures.extend(
+                load_prompts(kind=k, attack_type=args.attack_type, prompt_id=fixture_id)
+            )
 
     if not fixtures:
         print("No se encontraron fixtures con los filtros indicados.", file=sys.stderr)
@@ -271,7 +298,13 @@ async def main():
         # Cada fixture solo tiene UN endpoint válido: document-upload -> complex-with-document,
         # el resto -> los 3 endpoints JSON (nunca se cruzan, ver docstring del módulo).
         is_doc = bool(fixture.get("document"))
-        return sum(1 for name in endpoints if (name == DOCUMENT_ENDPOINT_NAME) == is_doc)
+        applicable = fixture.get("applicable_endpoints")
+        return sum(
+            1
+            for name in endpoints
+            if (name == DOCUMENT_ENDPOINT_NAME) == is_doc
+            and (not applicable or name in applicable or name == DOCUMENT_ENDPOINT_NAME)
+        )
 
     total = sum(_valid_endpoints_for(f) for f in fixtures) * args.repeat
 
@@ -282,6 +315,8 @@ async def main():
     _flush(f"  Fixtures  : {len(fixtures)} · Ejecuciones totales: {total}")
     if args.repeat > 1:
         _flush(f"  Repeticiones: {args.repeat}x por fixture")
+    if args.baseline_pure:
+        _flush("  Baseline  : puro (vulnerable=true solo fuera de proxy)")
     _flush(f"  Run Folder: {run_folder.relative_to(HERE.parent.parent)}")
     _flush(SEP2)
 
@@ -317,12 +352,17 @@ async def main():
                     continue
 
                 audit_subdir = f"{AUDIT_RUNS_DIR_CONTAINER}/{ts_file}/{ep_name}"
+                vulnerable = (
+                    args.baseline_pure
+                    and ep_name != "proxy"
+                    and ep_name != DOCUMENT_ENDPOINT_NAME
+                )
                 print(f"  ↳ {ep_name:<26}", end="", flush=True)
                 t0 = time.time()
 
                 result = await _run_fixture(
                     client, fixture, args.user, api_base, ep_path, audit_subdir,
-                    repeat=args.repeat,
+                    repeat=args.repeat, vulnerable=vulnerable,
                 )
 
                 elapsed_ms = (time.time() - t0) * 1000

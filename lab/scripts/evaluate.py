@@ -68,7 +68,12 @@ _RESPONSE_RE      = re.compile(
 _SYSTEM_PROMPT_RE = re.compile(r'### System Prompt\s+```\s*(.*?)\s*```', re.DOTALL)
 _USER_RE          = re.compile(r'\| Usuario \| `([^`]+)` \|')
 _TOOL_BLOCK_RE    = re.compile(r'### Tools invocadas\s+(.*?)(?=\n###|\Z)', re.DOTALL)
-_TOOL_ENTRY_RE    = re.compile(r'-\s+\*\*`([^`]+)`\*\*(?:\s+-\s+args:\s+`({.*?})`)?', re.DOTALL)
+_TOOL_ENTRY_RE    = re.compile(
+    r'-\s+\*\*`([^`]+)`\*\*'
+    r'(?:\s+-\s+args:\s+`({.*?})`)?'
+    r'(?:\s+-\s+resultado:\s+`({.*?})`)?',
+    re.DOTALL,
+)
 
 
 def _parse_tools(text: str) -> list[dict]:
@@ -82,7 +87,17 @@ def _parse_tools(text: str) -> list[dict]:
                 args = json.loads(tm.group(2)) if tm.group(2) else {}
             except json.JSONDecodeError:
                 args = {}
-            tools.append({"tool": tm.group(1), "args": args})
+            try:
+                result = json.loads(tm.group(3)) if tm.group(3) else {}
+            except json.JSONDecodeError:
+                result = {}
+            # El Session File serializa args y resultado como dos entradas con el
+            # mismo nombre de tool. Se recombinan aquí para que un resultado
+            # ``denied`` quede asociado a los argumentos que el Gatekeeper negó.
+            if result and not args and tools and tools[-1]["tool"] == tm.group(1) and not tools[-1]["result"]:
+                tools[-1]["result"] = result
+            else:
+                tools.append({"tool": tm.group(1), "args": args, "result": result})
     return tools
 
 
