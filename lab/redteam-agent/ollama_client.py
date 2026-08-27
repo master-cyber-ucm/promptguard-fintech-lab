@@ -9,10 +9,11 @@ import httpx
 
 
 class OllamaClient:
-    def __init__(self, base_url: str, model: str, temperature: float = 0.9) -> None:
+    def __init__(self, base_url: str, model: str, temperature: float = 0.9, max_tokens: int = 256) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.temperature = temperature
+        self.max_tokens = max_tokens
 
     def chat(self, messages: list[dict], *, temperature: float | None = None) -> str:
         """Envía `messages` ([{role, content}]) y devuelve el texto de la respuesta."""
@@ -22,7 +23,10 @@ class OllamaClient:
                 "model": self.model,
                 "messages": messages,
                 "stream": False,
-                "options": {"temperature": temperature if temperature is not None else self.temperature},
+                "options": {
+                    "temperature": temperature if temperature is not None else self.temperature,
+                    "num_predict": self.max_tokens,
+                },
             },
             # Modelos grandes en hardware sin GPU dedicada pueden tardar minutos por llamada
             # (medido: qwen3.5:9b ~170s en caliente, más bajo carga concurrente con el target) —

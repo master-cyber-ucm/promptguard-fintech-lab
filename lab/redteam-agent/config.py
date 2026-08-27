@@ -46,6 +46,7 @@ class CampaignConfig:
     ollama_host: str = "localhost"
     ollama_port: int = 11434
     temperature: float = 0.9
+    max_tokens_atacante: int = 256
 
     @property
     def api_base(self) -> str:
@@ -85,10 +86,13 @@ def parse_args(argv: list[str] | None = None) -> CampaignConfig:
     p.add_argument("--ollama-host", default="localhost")
     p.add_argument("--ollama-port", type=int, default=11434)
     p.add_argument("--temperature", type=float, default=0.9)
+    p.add_argument("--max-tokens", dest="max_tokens_atacante", type=int, default=256,
+                   help="Máximo de tokens por generación del atacante (default: 256)")
     ns = p.parse_args(argv)
     return CampaignConfig(
         target=ns.target, vulnerable=ns.vulnerable, modo=ns.modo, motor=ns.motor,
         attacker_model=ns.attacker_model, max_intentos_por_ejercicio=ns.max_intentos_por_ejercicio,
         user_id=ns.user_id, tecnicas=ns.tecnicas, host=ns.host, port=ns.port,
         ollama_host=ns.ollama_host, ollama_port=ns.ollama_port, temperature=ns.temperature,
+        max_tokens_atacante=ns.max_tokens_atacante,
     )
