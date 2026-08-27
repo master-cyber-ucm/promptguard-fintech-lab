@@ -126,17 +126,17 @@ Si `3000` u `8000` están ocupados: `make run BACKEND_PORT=9000 FRONTEND_PORT=40
 
 ```bash
 curl -s http://localhost:8000/api/v1/health
-# {"status":"ok","mode":"VULNERABLE","defenses":"NONE"}
+# {"status":"ok","posture":"endpoint-selected",...}
 
 curl -s http://localhost:8000/api/v1/health/llm
 # {"status":"ok","provider":"ollama","proxy":"http://ollama:11434/v1",
 #  "configured_model":"qwen2.5:3b","available_models":["qwen2.5:3b","qwen3.5:9b"]}
 ```
 
-`mode: VULNERABLE` es correcto y esperado: es el modo del **backend por
-defecto** (`APP_MODE=vulnerable` en `.env`). No significa que todos los
-endpoints estén sin protección — el nivel de defensa lo decide el
-**endpoint** que se llame (sección 3), no esta variable global.
+`posture: endpoint-selected` confirma que el proceso está disponible; no hay
+un modo global de aplicación. El nivel de defensa lo decide el **endpoint**
+que se llame (sección 3) y, para el baseline puro de los endpoints JSON, el
+campo `vulnerable=true` de la petición.
 
 ### Verificación — las cuatro superficies
 
