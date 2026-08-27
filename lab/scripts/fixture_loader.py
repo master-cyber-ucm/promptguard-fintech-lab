@@ -29,6 +29,12 @@ ATTACK_TYPE_BY_ATTACK = {
 
 PLACEHOLDER_RE = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
 
+# Los tres Kind válidos de un Fixture (ver CONTEXT.md). Cualquier .yaml que no cuelgue
+# directamente de uno de estos directorios no es un Fixture — ej. llm10_scenarios.yaml,
+# que vive en la raíz de fixtures/ con un esquema propio (`scenarios:`) para
+# run_llm10_suite.py y no debe entrar en el árbol que cargan run_attack_suite.py/evaluate.py.
+FIXTURE_KIND_DIRS = {"attack-prompts", "legitimate-prompts", "navi-prompts"}
+
 
 def _load_yaml(path: Path) -> dict:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -93,6 +99,8 @@ def normalize_prompt(data: dict, source_file: Path | None = None) -> dict:
 def iter_prompt_files(root: Path = FIXTURES_DIR, kind: str | None = None) -> Iterable[Path]:
     for path in root.rglob("*.yaml"):
         if path.name == "README.md":
+            continue
+        if path.parent.name not in FIXTURE_KIND_DIRS:
             continue
         if kind and kind not in path.parts:
             continue
