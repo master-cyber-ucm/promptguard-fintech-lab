@@ -11,9 +11,12 @@ window.VB.API = {};
     var _backendPort = window.VB_BACKEND_PORT || 8000;
     var API_BASE = 'http://' + window.location.hostname + ':' + _backendPort;
 
-window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata, endpoint) {
+window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata, endpoint, vulnerable) {
         var chatEndpoint = endpoint || window.VB_CHAT_ENDPOINT || 'complex-with-context';
         var body = { user_id: userId, session_id: sessionId, message: message };
+        // El baseline puro se solicita explícitamente. No basta con elegir un endpoint
+        // baseline: sin este campo todavía se aplican guardias de salida transversales.
+        if (vulnerable) body.vulnerable = true;
         if (fixtureMetadata) {
             body.fixture_id = fixtureMetadata.fixture_id || null;
             body.fixture_kind = fixtureMetadata.fixture_kind || null;

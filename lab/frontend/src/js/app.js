@@ -143,6 +143,10 @@ async function handleSend() {
 
   const endpoint = modeSelectEl ? modeSelectEl.value : null;
   const isDocumentMode = endpoint === "complex-with-document";
+  // El Playground abre en baseline vulnerable para que la comparación con proxy
+  // sea real. Los tres endpoints JSON baseline necesitan el flag explícito para
+  // desactivar también las guardias transversales de salida.
+  const useVulnerableBaseline = !isDocumentMode && endpoint !== "proxy";
 
   const documentFile =
     isDocumentMode && documentInput ? documentInput.files[0] : null;
@@ -187,6 +191,7 @@ async function handleSend() {
           message,
           getActiveFixtureMeta(),
           endpoint,
+          useVulnerableBaseline,
         );
 
     if (response.session_id) sessionId = response.session_id;

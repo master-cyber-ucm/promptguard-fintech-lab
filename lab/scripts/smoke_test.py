@@ -46,7 +46,7 @@ async def check_backend(client: httpx.AsyncClient, base: str):
         r = await client.get(f"{base}/api/v1/health", timeout=5.0)
         r.raise_for_status()
         data = r.json()
-        return {"ok": True, "msg": f"Backend up. mode={data.get('mode')} defenses={data.get('defenses')}"}
+        return {"ok": True, "msg": f"Backend up. posture={data.get('posture')}"}
     except Exception as e:
         return {"ok": False, "msg": f"Backend no responde: {e}",
                 "hint": "Arranca el stack: `cd lab && docker compose up --build`"}

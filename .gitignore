@@ -36,6 +36,10 @@ htmlcov/
 # Audit session files (generated, not committed)
 lab/audit/
 
+# Informes intermedios del agente de red-team; los Run Folders auditados son la
+# evidencia canónica y estos cuadernos se regeneran en cada Campaña.
+lab/redteam-agent/ejercicios/*/[0-9]*_redteam-agent.md
+
 # Documentos Word del TFM (edición local, fuera del repo)
 *.docx
 .~lock.*#

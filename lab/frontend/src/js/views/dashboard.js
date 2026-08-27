@@ -209,7 +209,9 @@ window.VB.Views = window.VB.Views || {};
             sending = true;
             sendBtn.disabled = true;
 
-            VB.API.sendMessage(user.id, sessionId, msg)
+            // La banca simulada representa la superficie de cliente: siempre usa
+            // el proxy defendido, no el endpoint baseline del Playground.
+            VB.API.sendMessage(user.id, sessionId, msg, null, 'proxy')
                 .then(function(resp) {
                     if (resp.session_id) sessionId = resp.session_id;
                     var el = document.getElementById(lid);

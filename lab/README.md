@@ -51,7 +51,7 @@ make run BACKEND_PORT=9000 FRONTEND_PORT=4000
 
 ```bash
 # 1. Generar .env
-printf 'APP_MODE=vulnerable\nLOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=qwen2.5:3b\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=8000\nFRONTEND_PORT=3000\n' > .env
+printf 'LOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=qwen2.5:3b\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=8000\nFRONTEND_PORT=3000\n' > .env
 
 # 2. Levantar Ollama y descargar el modelo
 docker compose --profile ollama up -d ollama

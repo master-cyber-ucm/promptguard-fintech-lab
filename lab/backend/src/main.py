@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     llm_config = resolve_llm_config()
-    logger.info("PromptGuard Lab arrancado — MODO VULNERABLE (sin defensas)")
+    logger.info("PromptGuard Lab arrancado — postura seleccionada por endpoint/petición")
     logger.info("  Proveedor: %s  Modelo: %s  Endpoint: %s",
                 llm_config.provider, llm_config.model_name, llm_config.base_url)
     logger.info("  AUDIT_DIR: %s", os.environ.get("AUDIT_DIR", "(default)"))
@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PromptGuard FinTech Lab",
-    description="VerdaBank chatbot vulnerable - sin protecciones de seguridad",
+    description="Laboratorio de seguridad LLM con baseline y proxy seleccionados por petición",
     version="0.2.0",
     lifespan=lifespan,
 )
@@ -97,8 +97,8 @@ async def root():
     llm_config = resolve_llm_config()
     return {
         "app": "PromptGuard FinTech Lab",
-        "status": "VULNERABLE",
-        "message": "Este es el estado pre-PromptGuard. Sin defensas activas.",
+        "status": "READY",
+        "message": "La postura se selecciona por endpoint y por el campo vulnerable de cada petición.",
         "version": "0.2.0",
         "provider": llm_config.provider,
         "model": llm_config.model_name,

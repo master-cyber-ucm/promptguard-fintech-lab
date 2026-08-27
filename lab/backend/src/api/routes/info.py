@@ -14,8 +14,12 @@ router = APIRouter(tags=["info"])
 
 @router.get("/health")
 async def health():
-    """Health check del sistema."""
-    return {"status": "ok", "mode": "VULNERABLE", "defenses": "NONE"}
+    """Health check del proceso; la postura se decide por endpoint y petición."""
+    return {
+        "status": "ok",
+        "posture": "endpoint-selected",
+        "message": "La defensa depende del endpoint llamado y del campo vulnerable de la petición.",
+    }
 
 
 @router.get("/accounts")

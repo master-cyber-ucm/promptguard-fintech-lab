@@ -22,17 +22,21 @@ services:
     env_file:
       - .env
     environment:
-      APP_MODE: ${APP_MODE:-vulnerable}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       AUDIT_DIR: /app/audit/sessions
       SOC_DOCS_DIR: /app/docs
       SOC_DB_PATH: /app/audit/soc.db
+      PAYLOADS_DIR: /app/henri-tfm/01-ataque/payloads
+      # Dentro del contenedor backend, Ollama vive en el servicio Docker, no en localhost.
+      JUDGE_BASE_URL: ${JUDGE_BASE_URL:-http://ollama:11434}
     volumes:
       - ./backend/src:/app/src
       - ./backend/config:/app/config
       - ./backend/tests:/app/tests
       - ./audit:/app/audit
       - ./scripts:/app/scripts
+      # Ficheros reales usados por los fixtures de inyección indirecta.
+      - ../henri-tfm:/app/henri-tfm:ro
       # Base de conocimiento del SOC: los 60 documentos de ataque y 12 de defensa que
       # el panel enlaza desde cada evento. Solo lectura — el SOC nunca los modifica.
       - ../docs:/app/docs:ro
@@ -48,6 +52,7 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       BACKEND_PORT: ${BACKEND_PORT:-8000}
+      CHAT_ENDPOINT: ${CHAT_ENDPOINT:-proxy}
     volumes:
       - ./frontend/src:/app/src
     depends_on:

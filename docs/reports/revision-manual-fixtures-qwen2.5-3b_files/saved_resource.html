@@ -283,7 +283,7 @@
     <div><dt>Modelo juez</dt><dd>qwen3.5:9b</dd></div>
     <div><dt>Fixtures probadas</dt><dd>88 / 88</dd></div>
     <div><dt>Protocolo</dt><dd>5× por fixture · 3 endpoints</dd></div>
-    <div><dt>Modo</dt><dd>APP_MODE=vulnerable · defensas=NONE</dd></div>
+    <div><dt>Configuración</dt><dd>endpoint baseline · defensas=NONE</dd></div>
   </dl>
 </header>
 
@@ -689,7 +689,7 @@
 </section>
 
 <footer>
-  <p><strong>Alcance:</strong> 88 fixtures (65 ataque + 15 legítimos + 15 navi… los conteos exactos por kind varían por categoría, ver tablas) evaluadas contra <code>qwen2.5:3b</code> vía Ollama, sin proxy de defensa activo (<code>APP_MODE=vulnerable</code>). Evaluación determinista (validación de argumentos de tool-calling + contenido de respuesta) donde el fixture lo define; juez <code>qwen3.5:9b</code> para el resto.</p>
+  <p><strong>Alcance:</strong> 88 fixtures (65 ataque + 15 legítimos + 15 navi… los conteos exactos por kind varían por categoría, ver tablas) evaluadas contra <code>qwen2.5:3b</code> vía Ollama, usando el endpoint baseline sin proxy de defensa activo. Evaluación determinista (validación de argumentos de tool-calling + contenido de respuesta) donde el fixture lo define; juez <code>qwen3.5:9b</code> para el resto.</p>
   <p><strong>No cubierto en esta pasada:</strong> comportamiento con el proxy de defensa activo (aún no implementado); fixtures multi-step con memoria de conversación real (requiere cambio de arquitectura en el backend); otros modelos candidatos del catálogo.</p>
 </footer>
 

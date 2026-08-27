@@ -13,4 +13,4 @@ EXPOSE 3000
 
 # http-server with SPA fallback: all unknown routes → index.html
 # playground.html served directly
-CMD sh -c "echo \"window.VB_BACKEND_PORT = ${BACKEND_PORT:-8000}; window.VB_CHAT_ENDPOINT = '${CHAT_ENDPOINT:-complex-with-context}';\" > /app/src/js/config.js && npx http-server src -p 3000 -c-1 --cors"
+CMD sh -c "echo \"window.VB_BACKEND_PORT = ${BACKEND_PORT:-8000}; window.VB_CHAT_ENDPOINT = '${CHAT_ENDPOINT:-proxy}';\" > /app/src/js/config.js && npx http-server src -p 3000 -c-1 --cors"

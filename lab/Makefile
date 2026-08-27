@@ -34,7 +34,7 @@ MODELS_FILE   ?= models.txt
 # ──────────────────────────────────────────────────────────────────────────────
 
 run:
-	@printf 'APP_MODE=vulnerable\nLOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=$(RUN_MODEL)\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=$(BACKEND_PORT)\nFRONTEND_PORT=$(FRONTEND_PORT)\n' > .env
+	@printf 'LOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=$(RUN_MODEL)\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=$(BACKEND_PORT)\nFRONTEND_PORT=$(FRONTEND_PORT)\n' > .env
 	@echo ".env configurado → modelo $(RUN_MODEL) | backend :$(BACKEND_PORT) | frontend :$(FRONTEND_PORT)"
 	$(COMPOSE) --profile ollama up -d ollama
 	@echo "Descargando modelo $(RUN_MODEL) (solo la primera vez)..."
@@ -136,7 +136,7 @@ eval:
 		echo ""; \
 		exit 1; \
 	fi
-	@printf 'APP_MODE=vulnerable\nLOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=$(MODEL)\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=$(BACKEND_PORT)\nFRONTEND_PORT=$(FRONTEND_PORT)\n' > .env
+	@printf 'LOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://ollama:11434/v1\nOLLAMA_MODEL=$(MODEL)\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=$(BACKEND_PORT)\nFRONTEND_PORT=$(FRONTEND_PORT)\n' > .env
 	@echo ""
 	@echo "  ▶ Modelo    : $(MODEL)"
 	@echo "  ▶ Descargando modelo en ollama (si no existe)..."
@@ -190,7 +190,7 @@ eval-local:
 		echo ""; \
 		exit 1; \
 	fi
-	@printf 'APP_MODE=vulnerable\nLOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://host.docker.internal:11434/v1\nOLLAMA_MODEL=$(MODEL)\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=$(BACKEND_PORT)\nFRONTEND_PORT=$(FRONTEND_PORT)\n' > .env
+	@printf 'LOG_LEVEL=INFO\nLLM_PROVIDER=ollama\nOLLAMA_BASE_URL=http://host.docker.internal:11434/v1\nOLLAMA_MODEL=$(MODEL)\nOLLAMA_API_KEY=ollama\nBACKEND_PORT=$(BACKEND_PORT)\nFRONTEND_PORT=$(FRONTEND_PORT)\n' > .env
 	@echo ""
 	@echo "  ▶ Modelo    : $(MODEL)"
 	@echo "  ▶ Descargando modelo en ollama local (si no existe)..."
