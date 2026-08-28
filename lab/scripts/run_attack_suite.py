@@ -59,6 +59,11 @@ PAYLOADS_DIR = Path(
         str(HERE.parent.parent / "henri-tfm" / "01-ataque" / "payloads"),
     )
 )
+# Algunos Turns llaman varias tools y cada llamada puede consumir la salida máxima
+# del modelo. 90 s bastaba para una respuesta simple, pero no para esos casos y
+# dejaba el trabajo del backend vivo sin que el runner esperase su Session File.
+# El límite sigue siendo configurable para entornos donde se prefiera fallar antes.
+REQUEST_TIMEOUT = float(os.environ.get("SUITE_REQUEST_TIMEOUT", "300"))
 
 # El backend corre en un contenedor con ./audit:/app/audit montado (lab/docker-compose.yml).
 # `audit_subdir` viaja en la petición y lo usa `append_turn()` DENTRO del contenedor — tiene que
@@ -132,7 +137,7 @@ async def _run_document_fixture(
                         "audit_subdir": audit_subdir,
                     },
                     files={"document": (doc_path.name, f, content_type)},
-                    timeout=90.0,
+                    timeout=REQUEST_TIMEOUT,
                 )
             data = resp.json()
             last_response = data.get("response", "")
@@ -189,7 +194,7 @@ async def _run_fixture(
                     if session_id:
                         body["session_id"] = session_id
                     resp = await client.post(
-                        f"{api_base}{endpoint_path}", json=body, timeout=90.0
+                        f"{api_base}{endpoint_path}", json=body, timeout=REQUEST_TIMEOUT
                     )
                     data = resp.json()
                     last_response = data.get("response", "")
@@ -225,6 +230,7 @@ def _flush(text: str) -> None:
 
 
 async def main():
+    global REQUEST_TIMEOUT
     parser = argparse.ArgumentParser(description="PromptGuard suite runner")
     parser.add_argument("--kind", choices=ALL_KINDS, help="Ejecutar solo este kind")
     parser.add_argument("--type", dest="attack_type", help="Filtrar por attack_type")
@@ -246,6 +252,20 @@ async def main():
     parser.add_argument("--repeat", type=int, default=1, metavar="N",
                         help="Repetir cada fixture N veces (default: 1)")
     parser.add_argument(
+        "--timeout", type=float, default=REQUEST_TIMEOUT, metavar="SEGUNDOS",
+        help=(
+            "Timeout por petición HTTP al backend (default: %(default)s). "
+            "Auméntalo para fixtures que requieren varias tools."
+        ),
+    )
+    parser.add_argument(
+        "--resume-run", metavar="RUN_FOLDER",
+        help=(
+            "Reanudar una corrida en lab/audit/runs/<RUN_FOLDER>. Solo admite el "
+            "nombre de carpeta; útil para completar combinaciones sin crear otro Run Folder."
+        ),
+    )
+    parser.add_argument(
         "--baseline-pure", action="store_true",
         help=(
             "Envía vulnerable=true solo a endpoints JSON baseline (nunca a proxy) para "
@@ -253,6 +273,8 @@ async def main():
         ),
     )
     args = parser.parse_args()
+
+    REQUEST_TIMEOUT = args.timeout
 
     api_base = f"http://{args.host}:{args.port}"
 
@@ -287,7 +309,13 @@ async def main():
 
     run_ts    = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     model_slug = (model_info.get("model") or "unknown").replace(":", "-").replace("/", "-")
-    ts_file   = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + f"_{model_slug}"
+    if args.resume_run:
+        resume_path = Path(args.resume_run)
+        if resume_path.name != args.resume_run or args.resume_run in {".", ".."}:
+            parser.error("--resume-run debe ser solo el nombre de un Run Folder")
+        ts_file = args.resume_run
+    else:
+        ts_file = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + f"_{model_slug}"
     run_folder = RUNS_DIR / ts_file
 
     # Create run folder and endpoint subdirs
@@ -306,13 +334,23 @@ async def main():
             and (not applicable or name in applicable or name == DOCUMENT_ENDPOINT_NAME)
         )
 
+    # Una ejecución es una combinación fixture-endpoint. No equivale siempre a
+    # una petición HTTP: los fixtures multi-turn envían un turno por cada step.
+    # Exponer ambas cifras hace que el coste de una corrida completa sea
+    # auditable y evita documentar una estimación engañosa.
     total = sum(_valid_endpoints_for(f) for f in fixtures) * args.repeat
+    requests_total = sum(
+        _valid_endpoints_for(f)
+        * (1 if f.get("document") else len(f.get("rendered_steps", [])))
+        for f in fixtures
+    ) * args.repeat
 
     _flush(SEP2)
     _flush(f"  🎯 PromptGuard Suite Run · {run_ts}")
     _flush(f"  Modelo    : {model_info.get('model')} ({model_info.get('provider')})")
     _flush(f"  Endpoints : {', '.join(endpoints)}")
     _flush(f"  Fixtures  : {len(fixtures)} · Ejecuciones totales: {total}")
+    _flush(f"  Peticiones HTTP al backend: {requests_total}")
     if args.repeat > 1:
         _flush(f"  Repeticiones: {args.repeat}x por fixture")
     if args.baseline_pure:

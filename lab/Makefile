@@ -24,7 +24,7 @@ REPEAT        ?= 1
 MODELS_FILE   ?= models.txt
 
 .PHONY: up down restart restart-backend restart-front \
-        logs logs-backend run suite \
+        logs logs-backend run suite check-suite \
         evaluate report eval-all-steps \
         eval eval-all eval-local eval-all-local \
         smoke test help
@@ -81,6 +81,15 @@ suite:
 		-e FIXTURES_DIR=$(FIXTURES) \
 		backend \
 		python scripts/run_attack_suite.py --repeat $(REPEAT) $(ARGS)
+
+# Comprueba que cada combinación fixture-endpoint esperada dejó evidencia.
+#   make check-suite RUN=20260827_133926_qwen2.5-3b
+check-suite:
+	@if [ -z "$(RUN)" ]; then echo "RUN es obligatorio: make check-suite RUN=<Run Folder>"; exit 2; fi
+	$(COMPOSE) exec \
+		-e FIXTURES_DIR=$(FIXTURES) \
+		backend \
+		python scripts/check_suite_run.py --run $(RUN)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Evaluación
