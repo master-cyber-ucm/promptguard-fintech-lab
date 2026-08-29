@@ -23,7 +23,7 @@ rules:
     description: "Intento de redefinir el rol del asistente"
 
   - name: "new_persona"
-    pattern: '(?i)(DAN|do\s+anything\s+now|sin\s+restricciones|unrestricted|jailbreak|jail\s+break)'
+    pattern: '(?i)(\bDAN\b|do\s+anything\s+now|sin\s+restricciones|unrestricted|jailbreak|jail\s+break)'
     action: "BLOCK"
     severity: "CRITICAL"
     description: "Patrones de jailbreak conocidos (DAN, etc.)"
