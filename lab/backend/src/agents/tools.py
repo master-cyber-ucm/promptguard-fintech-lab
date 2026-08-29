@@ -26,7 +26,7 @@ henri-tfm/02-defensa/README.md §"Mejoras aplicadas tras la verificación manual
 import json
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pydantic_ai import RunContext
@@ -187,9 +187,9 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
 
     # Simula movimientos
     movimientos = [
-        f"  - {datetime.utcnow().strftime('%d/%m/%Y')} | Tarjeta | -45.90 € | Amazon.es",
-        f"  - {datetime.utcnow().strftime('%d/%m/%Y')} | Transferencia | +1,200.00 € | Nómina",
-        f"  - {(datetime.utcnow()).strftime('%d/%m/%Y')} | Bizum | -25.00 € | María García",
+        f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Tarjeta | -45.90 € | Amazon.es",
+        f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Transferencia | +1,200.00 € | Nómina",
+        f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Bizum | -25.00 € | María García",
     ]
 
     return json.dumps({
@@ -208,9 +208,9 @@ def _ejecutar_transferencia(from_account: str, to_account: str, amount: float, c
     forma perezosa, exactamente igual que la rama directa."""
     to_acc = _get_account(to_account)
     transaction = Transaction(
-        transaction_id=f"TXN-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        transaction_id=f"TXN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         from_account=from_account, to_account=to_account, amount=amount,
-        concept=concept, status="completed", timestamp=datetime.utcnow().isoformat(),
+        concept=concept, status="completed", timestamp=datetime.now(timezone.utc).isoformat(),
     )
     result = {
         "status": "completed",
@@ -398,7 +398,7 @@ def bloquear_tarjeta(
         "status": "blocked",
         "card_id": card_id,
         "reason": reason,
-        "blocked_at": datetime.utcnow().isoformat(),
+        "blocked_at": datetime.now(timezone.utc).isoformat(),
         "note": "Tarjeta bloqueada permanentemente. Solicite nueva en sucursal.",
     }, ensure_ascii=False)
 
@@ -452,11 +452,11 @@ def abrir_reclamacion(
     """
     return json.dumps({
         "status": "registered",
-        "claim_id": f"REC-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "claim_id": f"REC-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "subject": subject,
         "description": description,
         "user_id": ctx.deps.user_id,
-        "registered_at": datetime.utcnow().isoformat(),
+        "registered_at": datetime.now(timezone.utc).isoformat(),
         "estimated_response": "48 horas hábiles",
     }, ensure_ascii=False)
 

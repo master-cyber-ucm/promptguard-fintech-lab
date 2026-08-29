@@ -29,23 +29,9 @@ motivo para contener caracteres de ancho cero ni palabras que mezclen alfabeto l
 from __future__ import annotations
 
 import re
-from functools import lru_cache
-from pathlib import Path
-
-import yaml
 
 from ..models.interaction import PromptDecision
-
-RULES_PATH = Path(__file__).parent.parent.parent / "config" / "rules" / "injection_signatures.yaml"
-
-
-@lru_cache(maxsize=1)
-def _rules() -> list[dict]:
-    data = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8"))
-    return data["rules"]
-
-
-_SEVERITY_ORDER = {"ALLOW": 0, "SUSPICIOUS": 1, "BLOCK": 2}
+from .injection_rules import evaluate_injection_rules
 
 # Caracteres de ancho cero — invisibles al renderizar (con una fuente que los soporte), sin
 # ningún uso legítimo esperable en un documento financiero en español. Ver hallazgo del motor de
@@ -98,20 +84,9 @@ def sanitize_document_text(text: str) -> PromptDecision:
     todas y se devuelve la de **acción más estricta** (BLOCK > SUSPICIOUS > ALLOW) — el orden
     de definición en el YAML no debe determinar el resultado.
     """
-    best: PromptDecision | None = None
-    for rule in _rules():
-        if not re.search(rule["pattern"], text):
-            continue
-        candidate = PromptDecision(
-            action=rule["action"],
-            confidence=1.0,
-            layer=1,
-            reason=rule["description"],
-            attack_type=rule["name"],
-            matched_rule=rule["name"],
-        )
-        if best is None or _SEVERITY_ORDER[candidate.action] > _SEVERITY_ORDER[best.action]:
-            best = candidate
+    best = evaluate_injection_rules(text, conceal_reason=False)
+    if best.action == "ALLOW":
+        best = None
 
     obfuscation = _detect_invisible_chars(text) or _detect_mixed_script_word(text)
     if obfuscation is not None:
@@ -126,7 +101,7 @@ def sanitize_document_text(text: str) -> PromptDecision:
             attack_type="character_obfuscation",
             matched_rule=obfuscation,
         )
-        if best is None or _SEVERITY_ORDER[candidate.action] > _SEVERITY_ORDER[best.action]:
+        if best is None or candidate.action == "BLOCK":
             best = candidate
 
     return best or PromptDecision(action="ALLOW", confidence=1.0, layer=1)
