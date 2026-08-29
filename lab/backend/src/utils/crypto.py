@@ -8,7 +8,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -61,7 +61,7 @@ def generate_audit_id() -> str:
 
     Formato: aud_<timestamp>_<hash6>
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     timestamp = now.strftime("%Y%m%d%H%M%S")
     random_part = os.urandom(3).hex()
     return f"aud_{timestamp}_{random_part}"
