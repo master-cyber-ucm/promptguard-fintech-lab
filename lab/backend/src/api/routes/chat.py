@@ -218,11 +218,15 @@ async def _process_chat(
     # `request.vulnerable` lo salta por completo: en modo baseline indefenso no hay ninguna capa
     # de entrada, igual que no hay ninguna de salida.
     if proxy_enabled and not request.vulnerable:
-        stage_ctx = StageContext(
-            text=full_message, user_id=request.user_id, session_id=session_id,
-            collector=collector,
-        )
         for stage in (_INPUT_SANITIZER, _PII_SHIELD):
+            # El sanitizer solo debe observar texto no confiable. Incluir el bloque de
+            # identidad entre turnos rompería la detección de payload splitting; PII
+            # Shield sí necesita el mensaje completo porque protege el contexto inyectado.
+            stage_text = request.message if stage is _INPUT_SANITIZER else full_message
+            stage_ctx = StageContext(
+                text=stage_text, user_id=request.user_id, session_id=session_id,
+                collector=collector,
+            )
             t_stage = time.time()
             decision = stage.evaluate(stage_ctx)
             # SOC: se registra SIEMPRE, también cuando la acción es ALLOW. Antes este
