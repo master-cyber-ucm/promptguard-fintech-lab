@@ -25,7 +25,7 @@ MODELS_FILE   ?= models.txt
 
 .PHONY: up down restart restart-backend restart-front \
         logs logs-backend run suite check-suite \
-        evaluate report eval-all-steps \
+        evaluate report final-report eval-all-steps \
         eval eval-all eval-local eval-all-local \
         smoke test help
 
@@ -124,6 +124,12 @@ report:
 		$(if $(RUN),--run $(RUN),) \
 		$(if $(FORCE),--force,) \
 		$(ARGS)
+
+# Consolida Run Folders ya evaluados.
+final-report:
+	@if [ -z "$(RUNS)" ]; then echo "RUNS es obligatorio: make final-report RUNS='run_a run_b'"; exit 2; fi
+	$(COMPOSE) exec backend python scripts/final_report.py \
+		$(foreach run,$(RUNS),--run $(run)) --output audit/final-results.md
 
 # Encadena evaluate + report sobre todos los runs pendientes
 eval-all-steps:
@@ -273,6 +279,7 @@ help:
 	@echo "  make report                            Genera run.md + run.json"
 	@echo "  make report FORCE=1                    Regenera todos los reports"
 	@echo "  make report RUN=audit/runs/X/          Run específico"
+	@echo "  make final-report RUNS='X Y'           Consolida runs en audit/final-results.md"
 	@echo "  make eval-all-steps                    evaluate + report (pendientes)"
 	@echo ""
 	@echo "  Por modelo (ollama Docker)"
