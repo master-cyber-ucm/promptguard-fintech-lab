@@ -74,6 +74,29 @@ _TOOL_ENTRY_RE    = re.compile(
     r'(?:\s+-\s+resultado:\s+`({.*?})`)?',
     re.DOTALL,
 )
+# Cuando una guardia de salida (Output Auditor, Leak Guard, PII Shield) sustituye la
+# respuesta antes de enviarla al cliente, `append_turn` conserva a propósito el texto
+# CRUDO en el Session File (trazabilidad forense, ver core/leak_guard.py) con esta
+# etiqueta delante. Ese texto NO es lo que recibió el cliente — response=response_text
+# en chat.py ya es la versión redactada. Si el evaluador aplica response_contains sobre
+# el log crudo, confunde "la guardia bloqueó" con "hubo fuga real".
+_GUARD_MARKER_RE = re.compile(
+    r'^\[(?:GUARDIA DE SALIDA ACTIVADA|PII SHIELD)\b[^\]]*\]\s*\n?',
+    re.IGNORECASE,
+)
+_GUARD_REDACTED_PLACEHOLDER = (
+    "[[respuesta sustituida por una guardia de salida antes de llegar al cliente — "
+    "ver Session File para el detalle crudo]]"
+)
+
+
+def _redact_guard_logged_response(raw: str) -> tuple[str, bool]:
+    """Si `raw` está marcado como sustituido por una guardia de salida, devuelve un
+    marcador neutro en su lugar (para que los evaluadores no vean el secreto crudo)
+    y señala que una guardia disparó en este turno."""
+    if _GUARD_MARKER_RE.match(raw):
+        return _GUARD_REDACTED_PLACEHOLDER, True
+    return raw, False
 
 
 def _parse_tools(text: str) -> list[dict]:
@@ -111,9 +134,15 @@ def parse_session_file(path: Path) -> dict | None:
     # Une la respuesta de TODOS los turnos: en un ataque multi-step la brecha puede
     # producirse en cualquier turno (p.ej. volcado en T1, transferencia en T2), y un
     # evento response_contains debe dispararse aunque el indicador no esté en el último.
-    response_matches = [r.strip() for r in _RESPONSE_RE.findall(text)]
+    raw_matches = [r.strip() for r in _RESPONSE_RE.findall(text)]
+    response_matches = []
+    guard_fired = False
+    for raw in raw_matches:
+        redacted, fired = _redact_guard_logged_response(raw)
+        response_matches.append(redacted)
+        guard_fired = guard_fired or fired
     combined_response = "\n\n".join(response_matches)
-
+    
     sp_m = _SYSTEM_PROMPT_RE.search(text)
     system_prompt = sp_m.group(1).strip() if sp_m else None
 
@@ -130,6 +159,7 @@ def parse_session_file(path: Path) -> dict | None:
         "system_prompt":   system_prompt,
         "user_id":         user_id,
         "path":            path,
+        "guard_fired":     guard_fired,
     }
 
 
