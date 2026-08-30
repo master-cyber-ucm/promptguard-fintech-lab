@@ -69,6 +69,7 @@ from src.core.budget_guard import default_guard
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
 from src.core.document_sanitizer import sanitize_document_text
 from src.core.document_structural_detector import detect_hiding_techniques
+from src.core.client_messages import client_message_for
 from src.core.input_sanitizer import InputSanitizerStage
 from src.core.leak_guard import confidential_leak_guard, verified_ibans_from_tools
 from src.core.pii_shield import PIIShieldStage, redact_foreign_pii
@@ -128,6 +129,7 @@ class ChatResponse(BaseModel):
     endpoint: str
     audit_file: Optional[str] = None
     error: Optional[str] = None
+    block_code: Optional[str] = None
 
 
 # --- Helpers ---
@@ -254,10 +256,13 @@ async def _process_chat(
                 "[%s]%s ✗ BLOQUEADO por %s: %s",
                 session_id, fixture_tag, stage.name, decision.reason,
             )
+            client_response = client_message_for(stage.name)
             audit_path = append_turn(
                 session_id=session_id, user_id=request.user_id, model=f"proxy-{stage.name}",
                 prompt=full_message, thinking=None, tools=[],
-                response=f"[BLOCKED_BY_{stage.name.upper()}] {decision.reason}",
+                response=client_response,
+                raw_response=f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}",
+                defense_decisions=[{"component": stage.name, "action": "BLOCK", "reason": decision.reason}],
                 latency_ms=latency_ms,
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
@@ -265,16 +270,16 @@ async def _process_chat(
             )
             collector.flush(
                 prompt=full_message,
-                respuesta=f"[BLOCKED_BY_{stage.name.upper()}] {decision.reason}",
+                respuesta=client_response,
                 modelo=f"proxy-{stage.name}", latencia_total_ms=latency_ms,
                 audit_file=audit_path.name,
             )
             return ChatResponse(
-                user_id=request.user_id, message=request.message, response="",
+                user_id=request.user_id, message=request.message, response=client_response,
                 model=f"proxy-{stage.name}", latency_ms=round(latency_ms, 1),
                 session_id=session_id, tools_used=[], endpoint=endpoint_name,
                 audit_file=audit_path.name,
-                error=f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}",
+                block_code="REQUEST_NOT_PROCESSED",
             )
 
     # --- Rate Limiter + Budget Guard (#8/#9, LLM10:2025 — Unbounded Consumption).
@@ -321,24 +326,27 @@ async def _process_chat(
         def _bloquear_por_infraestructura(componente: str, razon: str) -> ChatResponse:
             latency_ms = (time.time() - start_time) * 1000
             logger.warning("[%s]%s ✗ BLOQUEADO por %s: %s", session_id, fixture_tag, componente, razon)
+            client_response = client_message_for(componente)
             audit_path = append_turn(
                 session_id=session_id, user_id=request.user_id, model=f"proxy-{componente}",
                 prompt=full_message, thinking=None, tools=[],
-                response=f"[BLOCKED_BY_{componente.upper()}] {razon}",
+                response=client_response,
+                raw_response=f"BLOCKED_BY_{componente.upper()}: {razon}",
+                defense_decisions=[{"component": componente, "action": "BLOCK", "reason": razon}],
                 latency_ms=latency_ms,
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
                 audit_subdir=request.audit_subdir,
             )
             collector.flush(
-                prompt=full_message, respuesta=f"[BLOCKED_BY_{componente.upper()}] {razon}",
+                prompt=full_message, respuesta=client_response,
                 modelo=f"proxy-{componente}", latencia_total_ms=latency_ms, audit_file=audit_path.name,
             )
             return ChatResponse(
-                user_id=request.user_id, message=request.message, response="",
+                user_id=request.user_id, message=request.message, response=client_response,
                 model=f"proxy-{componente}", latency_ms=round(latency_ms, 1),
                 session_id=session_id, tools_used=[], endpoint=endpoint_name,
-                audit_file=audit_path.name, error=f"BLOCKED_BY_{componente.upper()}: {razon}",
+                audit_file=audit_path.name, block_code="REQUEST_NOT_PROCESSED",
             )
 
         t_rl = time.time()
