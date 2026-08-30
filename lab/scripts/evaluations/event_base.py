@@ -10,6 +10,9 @@ class Event(ABC):
     @abstractmethod
     def describe(self) -> str: ...
 
+    def inconclusive_reason(self, response: str, tools: list[dict]) -> str | None:
+        return None
+
     @classmethod
     @abstractmethod
     def from_dict(cls, data: dict) -> "Event": ...
