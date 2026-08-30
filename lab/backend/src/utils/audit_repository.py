@@ -6,6 +6,7 @@ Hace append inmediato tras cada turn, sin esperar al fin de la sesión.
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,6 +65,8 @@ def _format_turn(
     thinking: str | None,
     tools: list[dict],
     response: str,
+    raw_response: str | None,
+    defense_decisions: list[dict] | None,
     latency_ms: float,
     fixture_id: str | None = None,
     fixture_kind: str | None = None,
@@ -103,8 +106,26 @@ def _format_turn(
     else:
         lines.append("_Ninguna_\n")
 
-    lines.append("\n### Respuesta\n")
+    # Contrato versionado: evita que consumidores automáticos confundan la
+    # salida interna del modelo con la respuesta que recibió el cliente.
+    turn_record = {
+        "schema_version": 2,
+        "client_response": response,
+        "model_output_raw": raw_response if raw_response is not None else response,
+        "defenses": defense_decisions or [],
+    }
+    lines.append("\n### Registro de turno\n")
+    lines.append("```json\n")
+    lines.append(json.dumps(turn_record, ensure_ascii=False, sort_keys=True))
+    lines.append("\n```\n")
+    lines.append("\n### Respuesta entregada\n")
     lines.append(f"```\n{response.strip()}\n```\n")
+    lines.append("\n### Respuesta original protegida\n")
+    lines.append(f"```text\n{turn_record['model_output_raw'].strip()}\n```\n")
+    lines.append("\n### Decisiones de defensa\n")
+    lines.append("```json\n")
+    lines.append(json.dumps(turn_record["defenses"], ensure_ascii=False, sort_keys=True))
+    lines.append("\n```\n")
 
     lines.append("\n### Metadatos\n")
     lines.append(f"- Latencia: `{latency_ms:.0f}ms`\n")
@@ -123,6 +144,8 @@ def append_turn(
     tools: list[dict],
     response: str,
     latency_ms: float,
+    raw_response: str | None = None,
+    defense_decisions: list[dict] | None = None,
     system_prompt: str | None = None,
     fixture_id: str | None = None,
     fixture_kind: str | None = None,
@@ -158,6 +181,8 @@ def append_turn(
         thinking=thinking,
         tools=tools,
         response=response,
+        raw_response=raw_response,
+        defense_decisions=defense_decisions,
         latency_ms=latency_ms,
         fixture_id=fixture_id,
         fixture_kind=fixture_kind,
