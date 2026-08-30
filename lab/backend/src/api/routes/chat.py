@@ -31,8 +31,8 @@ Progresión de menor a mayor defensa:
       Análisis completo de la defensa en henri-tfm/02-defensa/README.md.
 
   POST /api/v1/chat/proxy
-      Pipeline PromptGuard completo: Input Sanitizer (esqueleto no-op) -> PII Shield
-      (real, entrada + salida) -> Clara + Tool Gatekeeper (real) -> Output Auditor (real)
+      Pipeline PromptGuard completo: Input Sanitizer -> PII Shield (entrada + salida)
+      -> Clara + Tool Gatekeeper -> Output Auditor (real)
       -> Compliance Logger (firma HMAC). `SHADOW_MODE=true` en el entorno decide pero no
       bloquea. Ver src/core/base.py y el epic "Implementación de proxy base".
 
@@ -212,8 +212,7 @@ async def _process_chat(
     else:
         full_message = request.message
 
-    # --- Pipeline del proxy: Input Sanitizer -> PII Shield (esqueleto no-op, ver
-    # src/core/input_sanitizer.py y pii_shield.py) — solo corre en /chat/proxy.
+    # --- Pipeline del proxy: Input Sanitizer -> PII Shield — solo corre en /chat/proxy.
     # SHADOW_MODE=true: decide pero no bloquea (ver src/core/base.py).
     # `request.vulnerable` lo salta por completo: en modo baseline indefenso no hay ninguna capa
     # de entrada, igual que no hay ninguna de salida.
@@ -732,19 +731,19 @@ async def chat_complex_with_context(request: ChatRequest):
 async def chat_proxy(request: ChatRequest):
     """Proxy PromptGuard — pipeline completo de defensa.
 
-    Input Sanitizer (esqueleto no-op) -> PII Shield (esqueleto no-op) -> Clara +
-    Tool Gatekeeper (RunContext[Deps], real — valida propiedad de cuenta/tarjeta) ->
-    Output Auditor (real — LLM07) -> Compliance Logger (firma HMAC del Session File).
+    Input Sanitizer (firmas, normalización y memoria de sesión) -> PII Shield
+    (entrada + salida) -> Clara + Tool Gatekeeper (RunContext[Deps] — valida propiedad
+    de cuenta/tarjeta) -> Output Auditor (LLM07) -> Compliance Logger (firma HMAC del
+    Session File).
 
     Mismo patrón que el resto de endpoints (`_process_chat` parametrizable con un
     flag) en vez de una ruta nueva por combinación de defensas — decisión landed en
     el epic "Implementación de proxy base". `SHADOW_MODE=true` en el entorno hace que
     el pipeline decida pero no bloquee (ver `src/core/base.py`).
 
-    Input Sanitizer y PII Shield son esqueletos ALLOW-siempre por ahora — su lógica
-    real vive en epics propios ("Defensa — Prompt Injection Directa" y "Defensa — PII
-    Harvesting vía Contexto"); están ya enganchados aquí para que activarla después
-    no requiera tocar el orquestador.
+    Son controles de reducción de riesgo, no una garantía de detección semántica total:
+    el Input Sanitizer se apoya en firmas y el PII Shield documenta sus límites en
+    ``src/core/pii_shield.py``.
     """
     return await _process_chat(
         request, "proxy",

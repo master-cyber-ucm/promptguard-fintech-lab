@@ -31,7 +31,7 @@ window.SOC = window.SOC || {};
 
   window.SOC.api = {
     base: BASE,
-    overview: function () { return get('/overview'); },
+    overview: function (endpoint) { return get('/overview', { endpoint: endpoint }); },
     turns: function (params) { return get('/turns', params); },
     turn: function (id) { return get('/turns/' + id); },
     session: function (id) { return get('/sessions/' + encodeURIComponent(id)); },

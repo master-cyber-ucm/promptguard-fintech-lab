@@ -218,12 +218,55 @@ def test_overview_responde_con_la_base_vacia(cliente):
     assert len(d["cobertura"]) >= 7
 
 
-def test_la_cobertura_marca_prompt_injection_directa_sin_defensa(cliente):
-    """El Input Sanitizer sigue siendo un esqueleto y el panel tiene que decirlo."""
+def test_la_matriz_de_bloqueos_incluye_prompt_injection_directa(cliente):
+    """La matriz incluye todos los vectores, incluso sin actividad todavía."""
     filas = cliente.get("/api/v1/soc/overview").json()["cobertura"]
     directa = next(f for f in filas if f["subcategoria"] == "directa")
-    assert directa["implementada"] is False
-    assert directa["componente"] == "input_sanitizer"
+    assert directa["turnos"] == 0
+    assert directa["no_bloqueados"] == 0
+    assert directa["bloqueos_por_componente"] == {}
+
+
+def test_la_matriz_cuenta_turnos_por_componente_y_sin_bloqueo(cliente):
+    categoria = "LLM01-prompt-injection"
+    subcategoria = "directa"
+    store.record_turn(
+        turno=_turno(categoria=categoria, subcategoria=subcategoria),
+        eventos=[{"componente": "input_sanitizer", "objetivo": "prompt", "accion": "BLOCK"}],
+    )
+    store.record_turn(
+        turno=_turno(session_id="ses_2", categoria=categoria, subcategoria=subcategoria),
+        eventos=[{"componente": "output_auditor", "objetivo": "respuesta", "accion": "BLOCK"}],
+    )
+    store.record_turn(
+        turno=_turno(session_id="ses_3", categoria=categoria, subcategoria=subcategoria),
+        eventos=[{"componente": "input_sanitizer", "objetivo": "prompt", "accion": "ALLOW"}],
+    )
+
+    filas = cliente.get("/api/v1/soc/overview").json()["cobertura"]
+    directa = next(f for f in filas if f["categoria"] == categoria and f["subcategoria"] == subcategoria)
+    assert directa["turnos"] == 3
+    assert directa["bloqueos_por_componente"] == {"input_sanitizer": 1, "output_auditor": 1}
+    assert directa["no_bloqueados"] == 1
+
+
+def test_overview_filtra_agregados_y_matriz_por_endpoint(cliente):
+    categoria, subcategoria = "LLM01-prompt-injection", "directa"
+    store.record_turn(
+        turno=_turno(endpoint="proxy", categoria=categoria, subcategoria=subcategoria),
+        eventos=[{"componente": "input_sanitizer", "objetivo": "prompt", "accion": "BLOCK"}],
+    )
+    store.record_turn(
+        turno=_turno(endpoint="simple-prompt", categoria=categoria, subcategoria=subcategoria),
+        eventos=[{"componente": "output_auditor", "objetivo": "respuesta", "accion": "BLOCK"}],
+    )
+
+    data = cliente.get("/api/v1/soc/overview?endpoint=proxy").json()
+    directa = next(f for f in data["cobertura"] if f["subcategoria"] == subcategoria)
+    assert data["totales"]["turnos"] == 1
+    assert data["totales"]["eventos"] == 1
+    assert directa["turnos"] == 1
+    assert directa["bloqueos_por_componente"] == {"input_sanitizer": 1}
 
 
 def test_turno_inexistente_devuelve_404(cliente):
