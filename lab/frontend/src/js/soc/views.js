@@ -159,25 +159,54 @@ window.SOC = window.SOC || {};
 
   V.eventos = {
     titulo: 'Eventos',
-    subtitulo: 'Flujo cronológico de turnos. Cada fila lleva la cadena de los seis componentes: ' +
-               'relleno = evaluó, hueco punteado = no evaluó.',
+    subtitulo: 'Registro cronológico de los turnos procesados por el proxy. Cada fila permite revisar su contexto y resultado.',
+    leyenda:
+      '<section class="component-note" aria-label="Nota sobre la columna Componentes">' +
+        '<strong class="component-note-title">Nota sobre la columna Componentes</strong>' +
+        '<p>Resume, en el orden del pipeline, el estado con que cada defensa procesó el turno.</p>' +
+        '<div class="legend-values"><span class="legend-label">Valores:</span>' +
+          '<span class="legend-status"><i class="allow"></i>ALLOW · evaluó sin bloquear</span>' +
+          '<span class="legend-status"><i class="susp"></i>SUSPICIOUS · requiere revisión</span>' +
+          '<span class="legend-status"><i class="block"></i>BLOCK · detuvo el turno</span>' +
+          '<span class="legend-status"><i class="absent"></i>no evaluó</span>' +
+        '</div>' +
+        '<ul class="legend-components">' +
+          '<li><code>input_sanitizer</code> detecta inyección directa en el prompt de entrada.</li>' +
+          '<li><code>pii_shield</code> redacta datos personales y financieros sensibles.</li>' +
+          '<li><code>document_sanitizer</code> neutraliza instrucciones maliciosas dentro de documentos.</li>' +
+          '<li><code>tool_gatekeeper</code> valida permisos y límites antes de ejecutar herramientas.</li>' +
+          '<li><code>output_auditor</code> detecta filtraciones del prompt de sistema y de configuración.</li>' +
+          '<li><code>leak_guard</code> bloquea IBANes ajenos y fugas de datos confidenciales.</li>' +
+        '</ul>' +
+      '</section>',
     filtros: {},
+    filtrosAbiertos: false,
+    pagina: 0,
+    cursores: [null],
     render: function (el, params) {
       var self = this;
       // Una corrida no debe obligar a recordar y reintroducir su identificador en
       // el stream. El enlace desde Corridas llega aquí con el filtro ya aplicado;
       // la persona revisora puede abrir después cada Turn y su Session File.
       var runId = params && params.get('run_id');
-      if (runId) self.filtros = { run_id: runId };
+      if (runId && self.filtros.run_id !== runId) {
+        self.filtros = { run_id: runId };
+        reiniciarPaginacion(self);
+      }
       el.innerHTML =
         '<section class="panel">' +
           barraFiltros(self.filtros) +
+          cabeceraTurnos() +
           '<div class="stream" id="stream">' + esqueleto() + '</div>' +
         '</section>';
 
       cablearFiltros(el, self);
 
-      return api.turns(Object.assign({ limit: 60 }, self.filtros)).then(function (d) {
+      var consulta = Object.assign({ limit: PAGINA }, self.filtros);
+      var before = self.cursores[self.pagina];
+      if (before) consulta.before = before;
+
+      return api.turns(consulta).then(function (d) {
         var stream = el.querySelector('#stream');
         if (!d.turnos.length) {
           stream.innerHTML = ui.vacio(
@@ -197,14 +226,13 @@ window.SOC = window.SOC || {};
         }
         stream.innerHTML = d.turnos.map(function (t) { return filaTurno(t); }).join('');
         cablearTurnos(stream);
-        self.techo = PAGINA;
-        pintarPie(el, self, d.turnos.length === PAGINA);
+        pintarPaginacion(el, self, d.turnos, d.has_more);
       });
     },
-    /** Inserción incremental: nunca se repinta el stream entero. */
+    /** Inserción incremental solo en la primera página, que representa el vivo. */
     onTurns: function (nuevos) {
       var stream = document.querySelector('#stream');
-      if (!stream || !nuevos.length) return;
+      if (!stream || !nuevos.length || this.pagina !== 0) return;
       var vacia = stream.querySelector('.empty');
       if (vacia) stream.innerHTML = '';
       // Llegan de más reciente a más antiguo; se insertan arriba en orden inverso
@@ -216,115 +244,162 @@ window.SOC = window.SOC || {};
         stream.insertBefore(nodo, stream.firstChild);
         cablearTurnos(nodo.parentNode, nodo);
       });
-      // Techo del DOM: una corrida entera son 400+ turnos y el navegador no tiene
-      // por qué cargar con todos. El techo crece con lo que el usuario haya paginado
-      // a mano — recortar por debajo le borraría justo lo que acaba de pedir.
-      var techo = Math.max(250, (this.techo || 0) + 60);
-      while (stream.children.length > techo) stream.removeChild(stream.lastElementChild);
+      // La primera página siempre contiene exactamente PAGINA filas como máximo.
+      while (stream.children.length > PAGINA) stream.removeChild(stream.lastElementChild);
     }
   };
 
   var PAGINA = 60;
 
-  /**
-   * Pie de paginación del stream.
-   *
-   * Se pagina hacia atrás con el cursor `before`, no con offset: el stream crece por
-   * arriba mientras lo miras, y un `offset` numérico iría desplazándose y repetiría
-   * filas cada vez que entrara un turno nuevo.
-   *
-   * Botón explícito en vez de scroll infinito, porque el scroll infinito pelearía con
-   * la inserción en vivo por arriba: cargar al llegar abajo y que a la vez te empujen
-   * contenido desde arriba hace que la lista salte bajo el dedo.
-   */
-  function pintarPie(el, vista, hayMas) {
+  /** Paginación por cursor: cada página reemplaza por completo la anterior. */
+  function pintarPaginacion(el, vista, turnos, haySiguiente) {
     var stream = el.querySelector('#stream');
     if (!stream) return;
-    var viejo = el.querySelector('#stream-pie');
+    var viejo = el.querySelector('#stream-paginacion');
     if (viejo) viejo.remove();
 
-    var n = stream.querySelectorAll('details.turn').length;
-    var pie = document.createElement('div');
-    pie.id = 'stream-pie';
+    var hayAnterior = vista.pagina > 0;
+    if (haySiguiente === undefined) haySiguiente = turnos.length === PAGINA;
+    var pie = document.createElement('nav');
+    pie.id = 'stream-paginacion';
     pie.className = 'stream-pie';
-    pie.innerHTML = hayMas
-      ? '<button class="btn" id="btn-mas">Cargar 60 más</button>' +
-        '<span class="mono">' + n + ' turnos mostrados</span>'
-      : '<span class="mono">' + n + ' turnos · no hay más que cargar</span>';
+    pie.setAttribute('aria-label', 'Paginación de eventos');
+    pie.innerHTML =
+      '<button class="btn" id="btn-anterior"' + (hayAnterior ? '' : ' disabled') + '>Anterior</button>' +
+      '<span class="mono">Página ' + (vista.pagina + 1) + ' · ' + turnos.length + ' turnos</span>' +
+      '<button class="btn" id="btn-siguiente"' + (haySiguiente ? '' : ' disabled') + '>Siguiente</button>';
     stream.parentNode.appendChild(pie);
 
-    var btn = pie.querySelector('#btn-mas');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      var filas = stream.querySelectorAll('details.turn');
-      if (!filas.length) return;
-      var ultimo = +filas[filas.length - 1].dataset.id;
-      btn.disabled = true;
-      btn.textContent = 'Cargando…';
-      api.turns(Object.assign({ before: ultimo, limit: PAGINA }, vista.filtros))
-        .then(function (d) {
-          // Se añaden por ABAJO: los turnos nuevos siguen entrando por arriba sin
-          // que una cosa pise a la otra.
-          d.turnos.forEach(function (t) {
-            var wrap = document.createElement('div');
-            wrap.innerHTML = filaTurno(t);
-            var nodo = wrap.firstElementChild;
-            stream.appendChild(nodo);
-            cablearTurnos(stream, nodo);
-          });
-          vista.techo = (vista.techo || PAGINA) + d.turnos.length;
-          pintarPie(el, vista, d.turnos.length === PAGINA);
-        })
-        .catch(function (e) {
-          btn.disabled = false;
-          btn.textContent = 'Reintentar';
-          pie.insertAdjacentHTML('beforeend',
-            '<span class="mono" style="color:var(--block)">' + esc(e.message) + '</span>');
-        });
+    pie.querySelector('#btn-anterior').addEventListener('click', function () {
+      vista.pagina--;
+      window.SOC.app.rerender();
     });
+    pie.querySelector('#btn-siguiente').addEventListener('click', function () {
+      vista.cursores[vista.pagina + 1] = turnos[turnos.length - 1].id;
+      vista.pagina++;
+      window.SOC.app.rerender();
+    });
+  }
+
+  function reiniciarPaginacion(vista) {
+    vista.pagina = 0;
+    vista.cursores = [null];
+  }
+
+  function etiquetaComponente(componente) {
+    var etiquetas = {
+      input_sanitizer: 'Filtro de entrada',
+      pii_shield: 'Protección de datos',
+      document_sanitizer: 'Filtro de documentos',
+      tool_gatekeeper: 'Control de herramientas',
+      output_auditor: 'Auditor de salida',
+      leak_guard: 'Guardia de fugas'
+    };
+    return etiquetas[componente] || componente;
+  }
+
+  function etiquetaCanal(endpoint) {
+    var etiquetas = {
+      'simple-prompt': 'Prompt simple',
+      'complex-prompt': 'Prompt avanzado',
+      'complex-with-context': 'Con contexto',
+      'proxy': 'Proxy protegido',
+      'complex-with-document': 'Documento adjunto'
+    };
+    return etiquetas[endpoint] || endpoint || '—';
   }
 
   function barraFiltros(f) {
     var opt = function (v, txt, sel) {
       return '<option value="' + esc(v) + '"' + (sel === v ? ' selected' : '') + '>' + esc(txt) + '</option>';
     };
+    var accion = function (valor, texto) {
+      return '<button class="btn filter-quick' + (f.accion === valor ? ' is-active' : '') +
+        '" data-accion="' + (valor || '') + '">' + texto + '</button>';
+    };
+    var endpoints = {
+      'simple-prompt': 'Prompt simple',
+      'complex-prompt': 'Prompt avanzado',
+      'complex-with-context': 'Con contexto',
+      'proxy': 'Proxy protegido',
+      'complex-with-document': 'Documento adjunto'
+    };
+    var taxonomias = [
+      'LLM01-prompt-injection', 'LLM02-sensitive-information-disclosure',
+      'LLM06-excessive-agency', 'LLM07-system-prompt-leakage', '_extensiones'
+    ];
     return '<div class="filters">' +
-      '<select id="f-endpoint" aria-label="Filtrar por endpoint">' +
-        opt('', 'Todos los endpoints', f.endpoint) +
-        ['simple-prompt', 'complex-prompt', 'complex-with-context', 'proxy', 'complex-with-document']
-          .map(function (e) { return opt(e, e, f.endpoint); }).join('') +
-      '</select>' +
-      '<select id="f-origen" aria-label="Filtrar por origen">' +
-        opt('', 'Cualquier origen', f.origen) + opt('interactivo', 'Interactivo', f.origen) +
-        opt('suite', 'Suite', f.origen) + opt('redteam-agent', 'Agente de red-team', f.origen) +
-      '</select>' +
-      '<select id="f-componente" aria-label="Filtrar por componente">' +
-        opt('', 'Cualquier componente', f.componente) +
-        ui.COMPONENTES.map(function (c) { return opt(c, c, f.componente); }).join('') +
-      '</select>' +
-      '<select id="f-accion" aria-label="Filtrar por acción">' +
-        opt('', 'Cualquier acción', f.accion) + opt('ALLOW', 'ALLOW', f.accion) +
-        opt('SUSPICIOUS', 'SUSPICIOUS', f.accion) + opt('BLOCK', 'BLOCK', f.accion) +
-      '</select>' +
       '<input id="f-texto" type="search" placeholder="Buscar en prompt o respuesta…" value="' +
         esc(f.texto || '') + '" aria-label="Buscar texto" />' +
+      '<div class="filter-quick-group" role="group" aria-label="Filtrar por decisión">' +
+        accion('', 'Todos') + accion('BLOCK', 'Con bloqueos') + accion('SUSPICIOUS', 'Con sospechas') +
+      '</div>' +
       '<div class="spacer"></div>' +
+      '<button class="btn" id="btn-mas-filtros" aria-expanded="' + Boolean(V.eventos.filtrosAbiertos) + '">Más filtros</button>' +
       '<button class="btn" id="btn-pausa" aria-pressed="false">Pausar</button>' +
+      (V.eventos.filtrosAbiertos
+        ? '<div class="filters-advanced">' +
+            '<label>Canal <select id="f-endpoint">' +
+              opt('', 'Todos', f.endpoint) + Object.keys(endpoints).map(function (e) { return opt(e, endpoints[e], f.endpoint); }).join('') +
+            '</select></label>' +
+            '<label>Tipo de ejecución <select id="f-origen">' +
+              opt('', 'Todos', f.origen) + opt('interactivo', 'Manual', f.origen) +
+              opt('suite', 'Suite', f.origen) + opt('redteam-agent', 'Agente red-team', f.origen) +
+            '</select></label>' +
+            '<label>Taxonomía <select id="f-categoria">' +
+              opt('', 'Todas', f.categoria) + taxonomias.map(function (c) { return opt(c, ui.vector(c), f.categoria); }).join('') +
+            '</select></label>' +
+            '<label>Defensa <select id="f-componente">' +
+              opt('', 'Todas', f.componente) + ui.COMPONENTES.map(function (c) { return opt(c, etiquetaComponente(c), f.componente); }).join('') +
+            '</select></label>' +
+            '<label>Usuario <input id="f-user" value="' + esc(f.user_id || '') + '" placeholder="p. ej., usr_001" /></label>' +
+            '<label>Corrida <input id="f-run" value="' + esc(f.run_id || '') + '" placeholder="ID de corrida" /></label>' +
+            '<button class="btn subtle" id="btn-limpiar-filtros">Limpiar filtros</button>' +
+          '</div>'
+        : '') +
     '</div>';
   }
 
   function cablearFiltros(el, vista) {
     var mapa = { 'f-endpoint': 'endpoint', 'f-origen': 'origen', 'f-componente': 'componente',
-                 'f-accion': 'accion', 'f-texto': 'texto' };
+                 'f-categoria': 'categoria', 'f-user': 'user_id', 'f-run': 'run_id' };
     Object.keys(mapa).forEach(function (id) {
       var nodo = el.querySelector('#' + id);
       if (!nodo) return;
-      var evento = nodo.tagName === 'INPUT' ? 'change' : 'change';
-      nodo.addEventListener(evento, function () {
+      nodo.addEventListener('change', function () {
         var v = nodo.value.trim();
         if (v) vista.filtros[mapa[id]] = v; else delete vista.filtros[mapa[id]];
+        reiniciarPaginacion(vista);
         window.SOC.app.rerender();
       });
+    });
+    var busqueda = el.querySelector('#f-texto');
+    busqueda.addEventListener('input', function () {
+      clearTimeout(vista.busquedaTimer);
+      vista.busquedaTimer = setTimeout(function () {
+        var v = busqueda.value.trim();
+        if (v) vista.filtros.texto = v; else delete vista.filtros.texto;
+        reiniciarPaginacion(vista);
+        window.SOC.app.rerender();
+      }, 300);
+    });
+    Array.prototype.forEach.call(el.querySelectorAll('[data-accion]'), function (boton) {
+      boton.addEventListener('click', function () {
+        var accion = boton.dataset.accion;
+        if (accion) vista.filtros.accion = accion; else delete vista.filtros.accion;
+        reiniciarPaginacion(vista);
+        window.SOC.app.rerender();
+      });
+    });
+    el.querySelector('#btn-mas-filtros').addEventListener('click', function () {
+      vista.filtrosAbiertos = !vista.filtrosAbiertos;
+      window.SOC.app.rerender();
+    });
+    var limpiar = el.querySelector('#btn-limpiar-filtros');
+    if (limpiar) limpiar.addEventListener('click', function () {
+      vista.filtros = {};
+      reiniciarPaginacion(vista);
+      window.SOC.app.rerender();
     });
     var pausa = el.querySelector('#btn-pausa');
     if (pausa) {
@@ -342,26 +417,64 @@ window.SOC = window.SOC || {};
   }
 
   function filaTurno(t, nuevo) {
-    var etiquetaFixture = t.fixture_id
-      ? '<span class="turn-badge">' + esc(t.fixture_id) + '</span>'
-      : '<span class="turn-badge">libre</span>';
-    if (t.vulnerable) etiquetaFixture = '<span class="turn-badge vuln">VULNERABLE</span>';
-
+    var origen = origenTurno(t);
+    var decision = decisionTurno(t.eventos);
+    var canal = etiquetaCanal(t.endpoint);
     return '<details class="turn' + (nuevo ? ' is-new' : '') + '" data-id="' + t.id +
              '" data-session="' + esc(t.session_id) + '">' +
       '<summary class="turn-row">' +
         '<span class="turn-time">' + ui.hora(t.ts) + '</span>' +
-        '<span class="turn-endpoint">' + esc(t.endpoint) + '</span>' +
-        '<span class="turn-user mono">' + esc(t.user_id) + '</span>' +
+        '<span class="turn-endpoint" title="' + esc(t.endpoint) + '">' + esc(canal) + '</span>' +
+        '<span class="turn-origin" title="' + esc(origen) + '">' + esc(origen) + '</span>' +
         '<span class="turn-prompt">' +
           esc(ui.recorta(ui.mensajeReal(t.prompt).replace(/\s+/g, ' '), 150)) + '</span>' +
+        '<span class="turn-decision">' + ui.tag(decision) + '</span>' +
         ui.chain(t.eventos) +
         '<span class="turn-lat">' + ui.ms(t.latencia_total_ms) + '</span>' +
-        etiquetaFixture +
         '<span class="turn-caret" aria-hidden="true">›</span>' +
       '</summary>' +
       '<div class="trace" data-cargado="0"></div>' +
     '</details>';
+  }
+
+  function decisionTurno(eventos) {
+    var rango = { ALLOW: 1, SUSPICIOUS: 2, BLOCK: 3 };
+    return (eventos || []).reduce(function (peor, evento) {
+      return (rango[evento.accion] || 0) > (rango[peor] || 0) ? evento.accion : peor;
+    }, 'SIN EVALUACIÓN');
+  }
+
+  function origenTurno(t) {
+    if (t.fixture_id) {
+      var prefijos = {
+        'attack-prompts': 'fix',
+        'legitimate-prompts': 'leg',
+        'navi-prompts': 'navi'
+      };
+      var prefijo = prefijos[t.fixture_kind];
+      if (!prefijo) {
+        prefijo = /^leg_/i.test(t.fixture_id) ? 'leg' :
+          (/^navi_/i.test(t.fixture_id) ? 'navi' : 'fix');
+      }
+      var taxonomia = [t.categoria, t.subcategoria].filter(Boolean).join('/');
+      return prefijo + '/' + (taxonomia || t.fixture_id);
+    }
+    if (t.origen === 'redteam-agent') return 'redteam/' + (t.run_id || 'agent');
+    if (t.origen === 'suite') return 'suite/' + (t.run_id || 'sin-fixture');
+    return 'manual';
+  }
+
+  function cabeceraTurnos() {
+    return '<div class="turn-head">' +
+      '<span>Hora</span>' +
+      '<span>Canal</span>' +
+      '<span>Caso</span>' +
+      '<span>Prompt</span>' +
+      '<span>Decisión</span>' +
+      '<span>Defensas</span>' +
+      '<span>Tiempo</span>' +
+      '<span aria-hidden="true"></span>' +
+    '</div>';
   }
 
   function cablearTurnos(raiz, soloNodo) {
@@ -387,6 +500,8 @@ window.SOC = window.SOC || {};
   function traza(t) {
     var postura = '<div class="posture' + (t.vulnerable ? ' is-vulnerable' : '') + '">' +
       '<strong>Postura:</strong> ' + esc(t.postura || 'sin registrar') +
+      ' · <strong>Usuario:</strong> ' + esc(t.user_id || 'sin registrar') +
+      (t.fixture_id ? ' · <strong>Fixture:</strong> ' + esc(t.fixture_id) : '') +
       (t.categoria ? ' · <strong>Taxonomía:</strong> ' + esc(t.categoria) + '/' + esc(t.subcategoria) : '') +
     '</div>';
 
@@ -752,7 +867,10 @@ window.SOC = window.SOC || {};
           '</div>' +
         '</div>' +
         '<div class="panel-body flush">' + estaciones(l.componentes) + '</div>' +
-        '<div class="panel-body"><table class="coverage"><tbody>' +
+        '<div class="panel-body"><table class="coverage"><thead><tr>' +
+          '<th>Taxonomía</th><th style="text-align:right">Turnos</th>' +
+          '<th style="text-align:right">Bloqueos</th>' +
+        '</tr></thead><tbody>' +
           l.por_taxonomia.map(function (g) {
             return '<tr><td class="vector">' + esc(ui.vector(g.categoria)) +
               '<span class="sub">' + esc(g.subcategoria || '—') + '</span></td>' +
@@ -784,7 +902,7 @@ window.SOC = window.SOC || {};
           }).join('') + '</div>';
 
         var cuerpo = d.alertas.length
-          ? '<div class="alerts">' + d.alertas.map(alerta).join('') + '</div>'
+          ? '<div class="alerts">' + cabeceraAlertas() + d.alertas.map(alerta).join('') + '</div>'
           : ui.vacio('Sin alertas',
               self.estado ? 'No hay alertas en estado «' + esc(self.estado) + '».'
                           : 'Ningún componente ha bloqueado ni marcado como sospechoso todavía.');
@@ -830,6 +948,13 @@ window.SOC = window.SOC || {};
         (a.estado !== 'nueva'
           ? '<button class="btn subtle" data-alert-id="' + a.id + '" data-nuevo="nueva">Reabrir</button>' : '') +
       '</div></div>';
+  }
+
+  function cabeceraAlertas() {
+    return '<div class="alert-head">' +
+      '<span>Severidad</span><span>Componente / acción</span>' +
+      '<span>Hallazgo</span><span>Acciones</span>' +
+    '</div>';
   }
 
   // ======================================================================

@@ -131,12 +131,17 @@ def turns(
     texto: Optional[str] = None,
 ):
     """Stream de turnos. `since` es el cursor del polling incremental del frontend."""
+    # Para la navegación histórica pedimos una fila adicional: permite saber si hay
+    # una página siguiente sin contar toda la tabla. El polling incremental mantiene
+    # exactamente su límite para no saltarse un turno entre sondeos.
+    es_paginacion = since is None
     filas = store.list_turns(
-        since=since, before=before, limit=limit, componente=componente,
+        since=since, before=before, limit=limit + 1 if es_paginacion else limit, componente=componente,
         accion=accion, texto=texto, endpoint=endpoint, origen=origen, run_id=run_id,
         session_id=session_id, user_id=user_id, categoria=categoria, fixture_id=fixture_id,
     )
-    return {"turnos": filas, "cursor": store.totals()["cursor"]}
+    has_more = es_paginacion and len(filas) > limit
+    return {"turnos": filas[:limit], "cursor": store.totals()["cursor"], "has_more": has_more}
 
 
 @router.get("/turns/{turn_id}")
