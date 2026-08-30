@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ejecuta la suite completa de fixtures contra todos los endpoints de Clara.
+"""Ejecuta la suite completa de fixtures contra los endpoints de Clara.
 
 Envía los fixtures al backend y persiste los Session Files en el Run Folder.
 No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pass.
@@ -30,6 +30,8 @@ Uso:
   python run_attack_suite.py --id atk_035
   python run_attack_suite.py --id atk_001_admin --id leg_024 --endpoint complex-with-context --endpoint proxy --baseline-pure
   python run_attack_suite.py --repeat 5                # 5 repeticiones por fixture
+  python run_attack_suite.py --proxy-profile baseline --proxy-profile gatekeeper \\
+      --proxy-profile output --proxy-profile full --repeat 5
   python run_attack_suite.py --user usr_002
 """
 
@@ -37,9 +39,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
+import json
 import os
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -89,6 +94,8 @@ CHAT_ENDPOINTS: dict[str, str] = {
     DOCUMENT_ENDPOINT_NAME: "/api/v1/chat/complex-with-document",
 }
 
+PROXY_PROFILES = ("baseline", "gatekeeper", "output", "full")
+
 DOCUMENT_CONTENT_TYPES: dict[str, str] = {
     ".pdf":  "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -109,20 +116,27 @@ async def _run_document_fixture(
     audit_subdir: str,
     *,
     repeat: int = 1,
-) -> tuple[str, str | None]:
+) -> list[dict]:
     """Envía un fixture `type: document-upload` vía multipart, adjuntando el archivo real de
-    `henri-tfm/01-ataque/payloads/`. Devuelve (última respuesta, último error)."""
+    `henri-tfm/01-ataque/payloads/`. Devuelve el detalle de cada repetición."""
     doc_name = fixture["document"]
     doc_path = PAYLOADS_DIR / doc_name
     if not doc_path.is_file():
-        return "", f"Documento no encontrado: {doc_path}"
+        return [
+            {"attempt": attempt_number, "latency_ms": 0.0, "response_preview": "",
+             "error": f"Documento no encontrado: {doc_path}", "session_id": ""}
+            for attempt_number in range(1, repeat + 1)
+        ]
     content_type = DOCUMENT_CONTENT_TYPES.get(doc_path.suffix.lower(), "application/octet-stream")
 
-    session_id = f"suite_{fixture['id']}_{int(time.time())}"
-    last_response = ""
-    error: str | None = None
-
-    for _ in range(repeat):
+    attempts: list[dict] = []
+    for attempt_number in range(1, repeat + 1):
+        # Una repetición debe producir evidencia independiente; un id único evita
+        # que las cinco peticiones se agreguen en un único Session File documental.
+        session_id = f"suite_{fixture['id']}_{int(time.time() * 1000)}_{attempt_number}"
+        last_response = ""
+        error: str | None = None
+        started_at = time.time()
         try:
             with open(doc_path, "rb") as f:
                 resp = await client.post(
@@ -144,8 +158,15 @@ async def _run_document_fixture(
             error = data.get("error") or None
         except Exception as exc:
             error = str(exc)
+        attempts.append({
+            "attempt": attempt_number,
+            "latency_ms": round((time.time() - started_at) * 1000, 1),
+            "response_preview": last_response[:120].replace("\n", " "),
+            "error": error,
+            "session_id": session_id,
+        })
 
-    return last_response, error
+    return attempts
 
 
 async def _run_fixture(
@@ -158,28 +179,26 @@ async def _run_fixture(
     *,
     repeat: int = 1,
     vulnerable: bool = False,
+    proxy_profile: str | None = None,
 ) -> dict:
-    start = time.time()
-    error: str | None = None
-    last_response = ""
-    # Los fixtures documentales no recorren los pasos JSON y, por tanto, no
-    # llegan a inicializar la sesión local de ese bloque. Mantener un valor
-    # vacío permite que el runner informe la respuesta (o el error) sin caer
-    # al construir su resumen.
-    session_id: str | None = None
+    attempts: list[dict] = []
 
     if fixture.get("document"):
-        last_response, error = await _run_document_fixture(
+        attempts = await _run_document_fixture(
             client, fixture, user_id, api_base, endpoint_path, audit_subdir, repeat=repeat,
         )
     else:
-        for _ in range(repeat):
+        for attempt_number in range(1, repeat + 1):
             # Cada --repeat arranca una conversación nueva; dentro de la misma
             # repetición, los pasos de un fixture multi-step SÍ comparten memoria
             # real (session_store.py en el backend) — el primer step no manda
             # session_id (Clara abre sesión nueva), los siguientes reutilizan el
             # id que devuelve la API.
             session_id: str | None = None
+            last_response = ""
+            error: str | None = None
+            block_code: str | None = None
+            started_at = time.time()
             try:
                 for step in fixture.get("rendered_steps", []):
                     body = {
@@ -191,6 +210,8 @@ async def _run_fixture(
                         "audit_subdir": audit_subdir,
                         "vulnerable": vulnerable,
                     }
+                    if proxy_profile:
+                        body["proxy_profile"] = proxy_profile
                     if session_id:
                         body["session_id"] = session_id
                     resp = await client.post(
@@ -199,21 +220,33 @@ async def _run_fixture(
                     data = resp.json()
                     last_response = data.get("response", "")
                     error = data.get("error") or None
+                    block_code = data.get("block_code") or None
                     returned_id = data.get("session_id")
                     if returned_id:
                         session_id = returned_id
             except Exception as exc:
                 error = str(exc)
+            attempts.append({
+                "attempt": attempt_number,
+                "latency_ms": round((time.time() - started_at) * 1000, 1),
+                "response_preview": last_response[:120].replace("\n", " "),
+                "error": error,
+                "block_code": block_code,
+                "session_id": session_id or "",
+            })
 
-    latency_ms = (time.time() - start) * 1000
+    outcomes = Counter(_attempt_outcome(attempt) for attempt in attempts)
+    last_attempt = attempts[-1]
     return {
         "id": fixture.get("id"),
         "name": fixture.get("name"),
         "kind": fixture.get("kind"),
-        "latency_ms": round(latency_ms, 1),
-        "response_preview": last_response[:120].replace("\n", " "),
-        "error": error,
-        "session_id": session_id or "",
+        "latency_ms": round(sum(attempt["latency_ms"] for attempt in attempts), 1),
+        "response_preview": last_attempt["response_preview"],
+        "error": last_attempt["error"],
+        "session_id": last_attempt["session_id"],
+        "attempts": attempts,
+        "outcomes": dict(outcomes),
     }
 
 
@@ -229,6 +262,33 @@ def _flush(text: str) -> None:
     print(text, flush=True)
 
 
+def _attempt_outcome(attempt: dict) -> str:
+    """Clasifica un intento sin confundir un bloqueo esperado con un fallo técnico."""
+    if attempt.get("block_code"):
+        return "blocked"
+    error = attempt.get("error") or ""
+    if not error:
+        return "ok"
+    if error.startswith("BLOCKED_BY_"):
+        return "blocked"
+    return "error"
+
+
+def _repeat_log_summary(result: dict) -> str:
+    """Resumen compacto y completo de todos los intentos de un endpoint."""
+    attempts = result["attempts"]
+    total = len(attempts)
+    outcomes = Counter(_attempt_outcome(attempt) for attempt in attempts)
+    latencies = [attempt["latency_ms"] for attempt in attempts]
+    latency = f"{min(latencies):.0f}–{max(latencies):.0f}ms"
+    parts = [f"✓ {outcomes['ok']}/{total}"]
+    if outcomes["blocked"]:
+        parts.append(f"BLOQUEADO {outcomes['blocked']}/{total}")
+    if outcomes["error"]:
+        parts.append(f"ERROR {outcomes['error']}/{total}")
+    return " · ".join(parts) + f"  {latency}"
+
+
 async def main():
     global REQUEST_TIMEOUT
     parser = argparse.ArgumentParser(description="PromptGuard suite runner")
@@ -237,6 +297,18 @@ async def main():
     parser.add_argument(
         "--id", dest="fixture_ids", action="append", metavar="FIXTURE_ID",
         help="Ejecutar un fixture concreto; se puede repetir para una corrida curada",
+    )
+    parser.add_argument(
+        "--proxy-profile",
+        choices=PROXY_PROFILES,
+        action="append",
+        dest="proxy_profiles",
+        metavar="PROFILE",
+        help=(
+            "Ejecuta el endpoint proxy con uno o varios perfiles experimentales. "
+            "baseline=sin defensas; gatekeeper=autorización; output=gatekeeper+controles "
+            "de salida; full=proxy completo. Sin este flag se conserva el proxy normal."
+        ),
     )
     parser.add_argument("--user", default="usr_001")
     parser.add_argument("--host", default=os.environ.get("SUITE_HOST", "localhost"))
@@ -283,6 +355,19 @@ async def main():
         if args.endpoints
         else CHAT_ENDPOINTS
     )
+    # La suite general conserva el directorio histórico `proxy`. Al pedir perfiles,
+    # cada configuración recibe un directorio propio para que report.py no mezcle
+    # resultados de posturas defensivas diferentes.
+    proxy_profile_by_target: dict[str, str | None] = {name: None for name in endpoints}
+    if args.proxy_profiles:
+        if "proxy" not in endpoints:
+            parser.error("--proxy-profile requiere incluir --endpoint proxy (o no filtrar endpoints)")
+        proxy_path = endpoints.pop("proxy")
+        proxy_profile_by_target.pop("proxy", None)
+        for profile in dict.fromkeys(args.proxy_profiles):
+            target = f"proxy-{profile}"
+            endpoints[target] = proxy_path
+            proxy_profile_by_target[target] = profile
 
     kinds = [args.kind] if args.kind else ALL_KINDS
     fixtures: list[dict] = []
@@ -318,7 +403,7 @@ async def main():
         ts_file = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + f"_{model_slug}"
     run_folder = RUNS_DIR / ts_file
 
-    # Create run folder and endpoint subdirs
+    # Create run folder and endpoint/profile subdirs
     for ep_name in endpoints:
         (run_folder / ep_name).mkdir(parents=True, exist_ok=True)
 
@@ -330,8 +415,12 @@ async def main():
         return sum(
             1
             for name in endpoints
-            if (name == DOCUMENT_ENDPOINT_NAME) == is_doc
-            and (not applicable or name in applicable or name == DOCUMENT_ENDPOINT_NAME)
+            if (("proxy" if name.startswith("proxy-") else name) == DOCUMENT_ENDPOINT_NAME) == is_doc
+            and (
+                not applicable
+                or ("proxy" if name.startswith("proxy-") else name) in applicable
+                or name == DOCUMENT_ENDPOINT_NAME
+            )
         )
 
     # Una ejecución es una combinación fixture-endpoint. No equivale siempre a
@@ -355,10 +444,50 @@ async def main():
         _flush(f"  Repeticiones: {args.repeat}x por fixture")
     if args.baseline_pure:
         _flush("  Baseline  : puro (vulnerable=true solo fuera de proxy)")
+    if args.proxy_profiles:
+        _flush(f"  Perfiles proxy: {', '.join(dict.fromkeys(args.proxy_profiles))}")
     _flush(f"  Run Folder: {run_folder.relative_to(HERE.parent.parent)}")
     _flush(SEP2)
 
+    # Manifiesto versionado: describe la intención experimental, no etiquetas de
+    # pipeline que puedan aparecer en sesiones bloqueadas antes de invocar al LLM.
+    manifest_path = run_folder / "suite-config.json"
+    # Una recuperación suele ejecutar un subconjunto de targets. El manifiesto
+    # debe describir la campaña completa original, no ese subconjunto; de otro
+    # modo check-suite dejaría de exigir evidencia de los restantes endpoints.
+    if not (args.resume_run and manifest_path.is_file()):
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "run_started_at": run_ts,
+                    # `model` se conserva durante una versión para lectores históricos.
+                    "model": model_info.get("model"),
+                    "requested_model": model_info.get("model"),
+                    "provider": model_info.get("provider"),
+                    "defense_version": os.environ.get("DEFENSE_VERSION", "dev"),
+                    "fixtures_sha256": hashlib.sha256(
+                        json.dumps(fixtures, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+                    ).hexdigest(),
+                    "repeat": args.repeat,
+                    "targets": list(endpoints),
+                    "proxy_profiles": {
+                        target: profile
+                        for target, profile in proxy_profile_by_target.items()
+                        if profile is not None
+                    },
+                    "baseline_pure": args.baseline_pure,
+                    "fixture_count": len(fixtures),
+                    "http_requests_expected": requests_total,
+                },
+                indent=2,
+                ensure_ascii=False,
+            ) + "\n",
+            encoding="utf-8",
+        )
+
     errors = 0
+    blocked = 0
     sent   = 0
 
     async with httpx.AsyncClient() as client:
@@ -383,38 +512,41 @@ async def main():
             for ep_name, ep_path in endpoints.items():
                 # Cada fixture solo va a su endpoint válido: document-upload -> siempre
                 # complex-with-document; el resto -> nunca complex-with-document.
-                if is_document_fixture != (ep_name == DOCUMENT_ENDPOINT_NAME):
+                canonical_endpoint = "proxy" if ep_name.startswith("proxy-") else ep_name
+                if is_document_fixture != (canonical_endpoint == DOCUMENT_ENDPOINT_NAME):
                     continue
-                if applicable and ep_name not in applicable and ep_name != DOCUMENT_ENDPOINT_NAME:
+                if applicable and canonical_endpoint not in applicable and canonical_endpoint != DOCUMENT_ENDPOINT_NAME:
                     print(f"  ↳ {ep_name:<26}⏭  N/A para este fixture (applicable_endpoints)", flush=True)
                     continue
 
                 audit_subdir = f"{AUDIT_RUNS_DIR_CONTAINER}/{ts_file}/{ep_name}"
                 vulnerable = (
                     args.baseline_pure
-                    and ep_name != "proxy"
+                    and canonical_endpoint != "proxy"
                     and ep_name != DOCUMENT_ENDPOINT_NAME
                 )
                 print(f"  ↳ {ep_name:<26}", end="", flush=True)
-                t0 = time.time()
-
                 result = await _run_fixture(
                     client, fixture, args.user, api_base, ep_path, audit_subdir,
-                    repeat=args.repeat, vulnerable=vulnerable,
+                    repeat=args.repeat,
+                    vulnerable=vulnerable,
+                    proxy_profile=proxy_profile_by_target.get(ep_name),
                 )
 
-                elapsed_ms = (time.time() - t0) * 1000
-                if result["error"]:
-                    errors += 1
-                    print(f"❌ ERROR  {elapsed_ms:>7.0f}ms  {result['error'][:60]}", flush=True)
-                else:
-                    sent += 1
-                    preview = result["response_preview"][:60]
-                    print(f"✓        {elapsed_ms:>7.0f}ms  «{preview}»", flush=True)
+                outcomes = Counter(_attempt_outcome(attempt) for attempt in result["attempts"])
+                sent += outcomes["ok"]
+                blocked += outcomes["blocked"]
+                errors += outcomes["error"]
+                summary = _repeat_log_summary(result)
+                preview = result["response_preview"][:60]
+                print(f"{summary}  «{preview}»", flush=True)
 
     _flush("")
     _flush(SEP2)
-    _flush(f"  SUITE COMPLETADA — {sent} enviados · {errors} errores")
+    _flush(
+        f"  SUITE COMPLETADA — {sent} correctos · {blocked} bloqueados"
+        f" · {errors} errores técnicos"
+    )
     _flush(f"  Run Folder : {run_folder.relative_to(HERE.parent.parent)}")
     _flush(f"  Siguiente  : python scripts/evaluate.py --run {run_folder}")
     _flush(SEP2)
