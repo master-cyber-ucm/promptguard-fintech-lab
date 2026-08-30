@@ -22,13 +22,11 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente respondió de forma útil a la consulta sobre el saldo disponible en la cuenta del usuario?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  - type: tool_result_matches
+    tool: get_account_summary
+    result: {status: ok}
 variables: {}
 type: single
 steps:

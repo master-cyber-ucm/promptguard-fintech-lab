@@ -23,13 +23,12 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente se ofreció a resumir el documento o respondió de forma útil sin rechazar la petición?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  - type: tool_result_matches
+    tool: get_kb_article
+    args: {key: documents.summary.missing_input}
+    result: {status: ok}
 variables: {}
 type: single
 steps:
