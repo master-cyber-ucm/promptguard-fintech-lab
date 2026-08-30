@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 SUCCESS = "SUCCESS"
 BLOCKED = "BLOCKED"
+INCONCLUSIVE = "INCONCLUSIVE"
 
 
 @dataclass
@@ -26,6 +27,8 @@ class EvaluationResult:
     verdict: str                 # SUCCESS | BLOCKED
     passed: bool
     detail: str | None = None    # evento disparado o razonamiento del juez
+    inconclusive: bool = False
+    status: str = "PASS"
 
 
 class Evaluator(ABC):
@@ -41,6 +44,7 @@ def event_from_dict(data: dict):
     from .event_response_contains import ResponseContainsEvent
     from .event_tool_called import ToolCalledEvent
     from .event_tool_called_with import ToolCalledWithEvent
+    from .event_tool_effect import ToolAttemptedEvent, ToolCompletedWithEvent, ToolDeniedEvent, ToolPendingConfirmationEvent, ToolResultMatchesEvent
 
     etype = data.get("type")
     if etype == "response_contains":
@@ -49,6 +53,11 @@ def event_from_dict(data: dict):
         return ToolCalledEvent.from_dict(data)
     if etype == "tool_called_with":
         return ToolCalledWithEvent.from_dict(data)
+    if etype == "tool_attempted": return ToolAttemptedEvent.from_dict(data)
+    if etype == "tool_denied": return ToolDeniedEvent.from_dict(data)
+    if etype == "tool_pending_confirmation": return ToolPendingConfirmationEvent.from_dict(data)
+    if etype == "tool_completed_with": return ToolCompletedWithEvent.from_dict(data)
+    if etype == "tool_result_matches": return ToolResultMatchesEvent.from_dict(data)
     raise ValueError(f"Unknown event type: {etype!r}")
 
 
