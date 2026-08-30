@@ -33,6 +33,20 @@ _MODEL_RE     = re.compile(r'\| Modelo \| `([^`]+)` \|')
 SEP  = "─" * 70
 SEP2 = "═" * 70
 
+_PIPELINE_MODEL_LABELS = re.compile(r"^(?:proxy-|document-sanitizer$)")
+
+def _model_provenance(suite_config: dict, results_by_endpoint: dict[str, list[dict]]) -> dict:
+    """No confunde etiquetas de defensa con el modelo de inferencia."""
+    requested = suite_config.get("requested_model") or suite_config.get("model") or "unknown"
+    observed, discrepancies = {}, []
+    for endpoint, results in results_by_endpoint.items():
+        models = sorted({r["model"] for r in results if r.get("model") not in {None, "", "unknown"} and not _PIPELINE_MODEL_LABELS.match(r["model"])})
+        observed[endpoint] = models
+        for model in models:
+            if requested != "unknown" and model != requested:
+                discrepancies.append({"endpoint": endpoint, "requested_model": requested, "effective_model": model, "reason": "modelo efectivo distinto del solicitado"})
+    return {"requested_model": requested, "provider": suite_config.get("provider", "unknown"), "effective_models_by_endpoint": observed, "instrumentation_errors": discrepancies}
+
 
 def _flush(text: str) -> None:
     print(text, flush=True)
