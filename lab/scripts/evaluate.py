@@ -58,9 +58,6 @@ def _user_context(user_id: str) -> str | None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 _FIXTURE_RE       = re.compile(r'\*\*Fixture\*\*:\s*`([^`]+)`\s*·\s*([^\s·]+)\s*·\s*expected:\s*`([^`]+)`')
-# Captura el contenido entre la fence de apertura de "### Respuesta" y la fence de
-# cierre que precede al siguiente encabezado de sección (### / ## / --- / EOF).
-# El lookahead evita truncar respuestas que contienen fences de código anidadas.
 _TURN_RECORD_RE   = re.compile(r'### Registro de turno\s+```json\s*\n(.*?)\n```', re.DOTALL)
 _SYSTEM_PROMPT_RE = re.compile(r'### System Prompt\s+```\s*(.*?)\s*```', re.DOTALL)
 _USER_RE          = re.compile(r'\| Usuario \| `([^`]+)` \|')
@@ -115,16 +112,26 @@ def parse_session_file(path: Path) -> dict | None:
             record = json.loads(raw_record)
         except json.JSONDecodeError as exc:
             raise SessionFormatError(f"{path}: Registro de turno JSON inválido") from exc
-        if (record.get("schema_version") != 2 or not isinstance(record.get("client_response"), str)
-                or not isinstance(record.get("model_output_raw"), str) or not isinstance(record.get("defenses"), list)):
+        if (
+            record.get("schema_version") != 2
+            or not isinstance(record.get("client_response"), str)
+            or not isinstance(record.get("model_output_raw"), str)
+            or not isinstance(record.get("defenses"), list)
+        ):
             raise SessionFormatError(f"{path}: Registro de turno incompatible (se requiere schema_version=2)")
         records.append(record)
-    if not records:
-        raise SessionFormatError(f"{path}: Session File legado sin Registro de turno v2; migra o vuelve a ejecutar la suite")
 
-    # La evaluación sólo consume la respuesta entregada; la salida original se
-    # conserva para observabilidad, sin contaminar el veredicto.
+    # Las sesiones antiguas mezclan salida cruda y entregada en «Respuesta». No
+    # existe una inferencia segura: se rechazan explícitamente en vez de evaluarlas.
+    if not records:
+        raise SessionFormatError(
+            f"{path}: Session File legado sin Registro de turno v2; migra o vuelve a ejecutar la suite"
+        )
+
+    # Une las respuestas de TODOS los turnos entregadas al cliente. La salida cruda
+    # queda disponible sólo para la métrica diagnóstica, nunca para el evaluador.
     response_matches = [record["client_response"].strip() for record in records]
+    raw_response_matches = [record["model_output_raw"].strip() for record in records]
     combined_response = "\n\n".join(response_matches)
 
     sp_m = _SYSTEM_PROMPT_RE.search(text)
@@ -139,8 +146,8 @@ def parse_session_file(path: Path) -> dict | None:
         "expected_result": expected_result,
         "response":        combined_response,
         "last_response":   response_matches[-1] if response_matches else "",
-        "raw_response":    "\n\n".join(record["model_output_raw"].strip() for record in records),
-        "defenses":        [d for record in records for d in record["defenses"]],
+        "raw_response":    "\n\n".join(raw_response_matches),
+        "defenses":        [decision for record in records for decision in record["defenses"]],
         "tools":           _parse_tools(text),
         "system_prompt":   system_prompt,
         "user_id":         user_id,
@@ -149,13 +156,43 @@ def parse_session_file(path: Path) -> dict | None:
 
 
 def leak_metrics(fixture: dict, parsed_session: dict) -> tuple[bool, bool]:
-    """Distingue generación interna de fuga realmente expuesta al cliente."""
-    indicators = [str(e["value"]) for e in (fixture.get("evaluation") or {}).get("events", [])
-                  if e.get("type") == "response_contains" and e.get("value")]
+    """Distingue presión interna de exposición real para eventos de contenido."""
+    indicators = [
+        str(event["value"])
+        for event in (fixture.get("evaluation") or {}).get("events", [])
+        if event.get("type") == "response_contains" and event.get("value")
+    ]
+    raw_response = parsed_session["raw_response"].lower()
+    client_response = parsed_session["response"].lower()
     return (
-        any(value.lower() in parsed_session["raw_response"].lower() for value in indicators),
-        any(value.lower() in parsed_session["response"].lower() for value in indicators),
+        any(indicator.lower() in raw_response for indicator in indicators),
+        any(indicator.lower() in client_response for indicator in indicators),
     )
+
+
+def tool_outcome_metrics(tools: list[dict]) -> dict[str, int]:
+    """Telemetría de herramientas independiente del veredicto de seguridad."""
+    outcomes = {
+        "attempted": len(tools), "denied": 0, "pending_confirmation": 0,
+        "completed": 0, "failed": 0, "unknown": 0,
+    }
+    for tool in tools:
+        result = tool.get("result")
+        if not isinstance(result, dict):
+            outcomes["unknown"] += 1
+            continue
+        status = str(result.get("status", "")).lower()
+        if status == "denied":
+            outcomes["denied"] += 1
+        elif status == "pending_confirmation":
+            outcomes["pending_confirmation"] += 1
+        elif status in {"completed", "blocked", "ok"}:
+            outcomes["completed"] += 1
+        elif status in {"failed", "error"}:
+            outcomes["failed"] += 1
+        elif not status:
+            outcomes["unknown"] += 1
+    return outcomes
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -193,9 +230,12 @@ def append_eval(
     detail: str | None,
     model_attempted_leak: bool,
     client_exposed_leak: bool,
+    tool_outcomes: dict[str, int],
+    inconclusive: bool,
+    status: str,
 ) -> None:
     ts   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    icon = "✅" if passed else "❌"
+    icon = "⚠️" if inconclusive else "✅" if passed else "❌"
 
     data = {
         "fixture_id":      fixture_id,
@@ -207,6 +247,9 @@ def append_eval(
         "detail":          detail or "",
         "model_attempted_leak": model_attempted_leak,
         "client_exposed_leak": client_exposed_leak,
+        "tool_outcomes": tool_outcomes,
+        "inconclusive": inconclusive,
+        "status": status,
     }
 
     lines = [
@@ -228,6 +271,7 @@ def append_eval(
         f"**Detalle:** {detail[:300] if detail else '—'}",
         "",
         f"**Fuga generada por el modelo:** `{model_attempted_leak}` · **Fuga expuesta al cliente:** `{client_exposed_leak}`",
+        f"**Tools:** intentos=`{tool_outcomes['attempted']}` · denegadas=`{tool_outcomes['denied']}` · pendientes=`{tool_outcomes['pending_confirmation']}` · ejecutadas=`{tool_outcomes['completed']}` · fallidas=`{tool_outcomes['failed']}` · desconocidas=`{tool_outcomes['unknown']}`",
         "",
     ]
 
@@ -273,7 +317,11 @@ async def process_run(
                 _flush(f"  ↷  {sf.name} — ya evaluado, skip")
                 continue
 
-            parsed = parse_session_file(sf)
+            try:
+                parsed = parse_session_file(sf)
+            except SessionFormatError as exc:
+                _flush(f"  ⚠ {exc}")
+                continue
             if parsed is None:
                 _flush(f"  ⚠ {sf.name} — sin metadatos de fixture")
                 continue
@@ -304,9 +352,11 @@ async def process_run(
                 client=client,
             )
             result = await evaluator.evaluate(ctx)
-            model_attempted_leak, client_exposed_leak = leak_metrics(fixture, parsed)
 
-            icon = "✅" if result.passed else "❌"
+            model_attempted_leak, client_exposed_leak = leak_metrics(fixture, parsed)
+            tool_outcomes = tool_outcome_metrics(parsed["tools"])
+
+            icon = "⚠️" if result.inconclusive else "✅" if result.passed else "❌"
             _flush(f"  {icon}  {parsed['fixture_id']:<35} {result.verdict:<8}  [{method}]")
 
             append_eval(
@@ -320,6 +370,9 @@ async def process_run(
                 detail=result.detail,
                 model_attempted_leak=model_attempted_leak,
                 client_exposed_leak=client_exposed_leak,
+                tool_outcomes=tool_outcomes,
+                inconclusive=result.inconclusive,
+                status=result.status,
             )
 
 

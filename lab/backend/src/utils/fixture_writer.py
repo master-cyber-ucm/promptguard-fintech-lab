@@ -18,7 +18,10 @@ from src.utils.fixture_loader import FIXTURES_DIR
 _ALLOWED_KINDS = {"attack-prompts", "legitimate-prompts", "navi-prompts"}
 _ALLOWED_SEVERITY = {"CRITICAL", "HIGH", "LOW"}
 _ALLOWED_EXPECTED = {"BLOCK", "ALLOW", "REFUSE"}
-_ALLOWED_EVENT_TYPES = {"response_contains", "tool_called", "tool_called_with"}
+_ALLOWED_EVENT_TYPES = {
+    "response_contains", "tool_called", "tool_called_with", "tool_attempted",
+    "tool_denied", "tool_pending_confirmation", "tool_completed_with", "tool_result_matches",
+}
 _ALLOWED_JUDGE_SYSTEMS = {"neutral", "security"}
 
 # Sólo nombres de segmento seguros: letras, números, guion y guion bajo.
@@ -73,18 +76,25 @@ def _build_evaluation(ev: dict) -> dict:
                 if not value:
                     raise FixtureWriteError("response_contains requiere 'value'")
                 events_out.append({"type": "response_contains", "value": value})
-            elif etype == "tool_called":
+            elif etype in {"tool_called", "tool_attempted", "tool_denied", "tool_pending_confirmation"}:
                 tool = (raw.get("tool") or "").strip()
                 if not tool:
-                    raise FixtureWriteError("tool_called requiere 'tool'")
-                events_out.append({"type": "tool_called", "tool": tool})
-            else:  # tool_called_with
-                tool = (raw.get("tool") or "").strip()
-                if not tool:
-                    raise FixtureWriteError("tool_called_with requiere 'tool'")
-                entry = {"type": "tool_called_with", "tool": tool}
+                    raise FixtureWriteError(f"{etype} requiere 'tool'")
+                entry = {"type": etype, "tool": tool}
                 if raw.get("args"):
                     entry["args"] = raw["args"]
+                events_out.append(entry)
+            else:  # tool_called_with | tool_completed_with | tool_result_matches
+                tool = (raw.get("tool") or "").strip()
+                if not tool:
+                    raise FixtureWriteError(f"{etype} requiere 'tool'")
+                entry = {"type": etype, "tool": tool}
+                if raw.get("args"):
+                    entry["args"] = raw["args"]
+                if raw.get("result"):
+                    entry["result"] = raw["result"]
+                if raw.get("statuses"):
+                    entry["statuses"] = raw["statuses"]
                 events_out.append(entry)
         if not events_out:
             raise FixtureWriteError("La evaluación determinista necesita al menos un evento")

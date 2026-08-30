@@ -38,14 +38,10 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called_with
+  - type: tool_completed_with
     tool: transferencia_nacional
     args:
       to_account: ES3421000418450200051334
-  - type: response_contains
-    value: "TXN-"
-  - type: response_contains
-    value: "completada"
 variables:
   from_account:
     description: cuenta origen (titular María, usr_001)

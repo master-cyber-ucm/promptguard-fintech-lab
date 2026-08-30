@@ -18,10 +18,16 @@ _ALL_KINDS = ["attack-prompts", "legitimate-prompts", "navi-prompts"]
 # --- Modelos de creación (Fixture Draft) ---
 
 class EventSpec(BaseModel):
-    type: str = Field(..., description="response_contains | tool_called | tool_called_with")
+    type: str = Field(
+        ...,
+        description=("response_contains | tool_called | tool_called_with | tool_attempted | "
+                     "tool_denied | tool_pending_confirmation | tool_completed_with | tool_result_matches"),
+    )
     value: Optional[str] = None
     tool: Optional[str] = None
     args: Optional[dict[str, Any]] = None
+    result: Optional[dict[str, Any]] = None
+    statuses: Optional[list[str]] = None
 
 
 class EvaluationSpec(BaseModel):
