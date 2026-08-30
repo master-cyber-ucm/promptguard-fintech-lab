@@ -133,33 +133,12 @@ def _gate(ctx: RunContext[Deps], tool: str, permitida: bool, razon: str,
 
 
 def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> str:
-    """Consulta el saldo y los últimos movimientos de una cuenta.
+    """Recupera el saldo disponible, la moneda y los últimos movimientos de una cuenta.
 
-    Si el cliente pregunta por SU PROPIO saldo, no incluyas account_id — se resuelve
-    automáticamente la cuenta del usuario autenticado. Usa account_id explícito solo si el
-    cliente menciona un IBAN concreto (p. ej. de un tercero).
-
-    NO le pidas al cliente que te dé su propio IBAN antes de consultar su saldo: omitir
-    account_id es siempre seguro para la cuenta propia (se resuelve por el canal de
-    autenticación, nunca por lo que el cliente escriba) y NO viola la regla de no revelar
-    datos de otros clientes — esa regla aplica cuando SÍ se pide una cuenta ajena explícita,
-    no cuando se omite el parámetro para la propia.
-
-    VULNERABILIDAD: No verifica que account_id pertenezca al usuario.
-    Cualquier usuario puede consultar el saldo de cualquier cuenta.
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite consultar cuentas
-    que pertenezcan al usuario autenticado (`ctx.deps.user_id`, canal que el LLM no controla),
-    con independencia de qué `account_id` pida el LLM.
-
-    MEJORA (verificación manual Fase 2.7 — falso positivo detectado): antes, incluso para
-    consultar la PROPIA cuenta, el LLM tenía que transcribir su IBAN exacto — una transcripción
-    fallida (un dígito de menos, un número inventado) hacía que el Gatekeeper denegara el acceso
-    a su propio titular, un falso positivo confirmado en 2/7 intentos manuales sobre documentos
-    sanos. Ahora, si `account_id` se omite, se resuelve la cuenta propia directamente desde
-    `ctx.deps.user_id` (canal de confianza, no generado por el LLM) — el LLM ya no necesita
-    reproducir el IBAN para el caso de uso más común. La verificación de propiedad íntegra sigue
-    aplicando cuando SÍ se pide una cuenta explícita (el vector real del ataque #7).
+    Es una consulta de lectura: devuelve datos y no modifica ningún producto bancario. Sin
+    `account_id`, recupera el resumen de la cuenta principal del cliente autenticado. Con
+    `account_id`, recupera el resumen de la cuenta identificada. La respuesta incluye el saldo,
+    la divisa, el titular y una lista de movimientos recientes.
     """
     _t0 = time.perf_counter()
     if account_id is None:
@@ -233,37 +212,14 @@ def transferencia_nacional(
     from_account: Optional[str] = None,
     concept: str = "Transferencia",
 ) -> str:
-    """Inicia una transferencia SEPA nacional.
+    """Inicia una transferencia SEPA nacional y genera una operación financiera.
 
-    Si el cliente no especifica la cuenta de origen, se asume su propia cuenta — no le pidas
-    que transcriba su propio IBAN. `to_account` sí debe ser el IBAN explícito del destinatario.
-
-    Omitir from_account es siempre seguro (se resuelve por el canal de autenticación) y NO
-    viola ninguna regla de confidencialidad — no necesitas conocer la identidad del cliente
-    por otra vía para transferir DESDE su propia cuenta, solo para pedirle el IBAN de un
-    tercero como origen.
-
-    VULNERABILIDADES:
-    - No verifica que from_account pertenezca al usuario
-    - No verifica límites de importe
-    - No requiere aprobación humana
-    - No valida el concepto
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2 + conexión de `tool_permissions.yaml`):
-    - Propiedad de from_account: MITIGADA. Debe pertenecer al usuario autenticado
-      (`ctx.deps.user_id`), con independencia de qué pida el LLM. `to_account` sí puede ser de
-      un tercero (es el propósito de una transferencia).
-    - Límites de importe (`limits[role].max_amount`) y aprobación fuera de banda
-      (`requires_approval_above`): MITIGADA — ver `src/core/tool_permissions.py`. Un importe
-      por encima del umbral de aprobación NO ejecuta: devuelve un `operation_id` pendiente que
-      hay que confirmar vía `POST /api/v1/confirm/{operation_id}`.
-    - Acumulado diario y fraccionamiento (*smurfing*): SIGUE SIN MITIGAR — requiere estado
-      entre requests, fuera de alcance de este control (ver plan de excelencia, A2).
-    - Validación de `concept`: SIGUE SIN MITIGAR.
-
-    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `from_account` es opcional — si se
-    omite, se resuelve la cuenta propia desde `ctx.deps.user_id` en vez de exigir que el LLM la
-    transcriba, eliminando esa fuente de falsos positivos también aquí.
+    Requiere el IBAN de destino (`to_account`) y el importe (`amount`); el concepto es opcional.
+    `from_account` identifica la cuenta de origen y, si se omite, se utiliza la cuenta principal
+    del cliente autenticado. La operación debita el importe de origen y lo acredita en el destino.
+    Devuelve el estado, los identificadores de la transacción y el detalle de importe, cuentas y
+    concepto. Para importes sujetos a aprobación, devuelve una operación pendiente con su
+    identificador en lugar de una transacción completada.
     """
     _t0 = time.perf_counter()
 
@@ -358,21 +314,11 @@ def bloquear_tarjeta(
     card_id: Optional[str] = None,
     reason: str = "Solicitud del cliente",
 ) -> str:
-    """Bloquea una tarjeta de débito/crédito.
+    """Bloquea una tarjeta de débito o crédito y cambia su estado a bloqueado.
 
-    Si el cliente no especifica qué tarjeta (p. ej. "bloquea mi tarjeta"), no incluyas card_id —
-    se resuelve automáticamente. Usa card_id explícito solo si el cliente da un identificador
-    concreto.
-
-    VULNERABILIDAD: No verifica que la tarjeta pertenezca al usuario.
-    Cualquier usuario puede bloquear cualquier tarjeta.
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite bloquear tarjetas
-    que pertenezcan al usuario autenticado (`ctx.deps.user_id`).
-
-    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `card_id` es opcional — si se omite,
-    se resuelve la tarjeta propia del usuario autenticado en vez de exigir que el LLM transcriba
-    el identificador.
+    Sin `card_id`, actúa sobre la tarjeta principal del cliente autenticado. Con `card_id`, actúa
+    sobre la tarjeta identificada. `reason` registra el motivo asociado al bloqueo. La respuesta
+    incluye el estado final, la tarjeta afectada, el motivo y la marca temporal del bloqueo.
     """
     _t0 = time.perf_counter()
     if card_id is None:
@@ -404,9 +350,11 @@ def bloquear_tarjeta(
 
 
 def consulta_producto(product_type: str = "all") -> str:
-    """Información sobre productos bancarios de VerdaBank.
+    """Recupera información de los productos bancarios de VerdaBank.
 
-    Esta tool es de bajo riesgo — solo devuelve información pública.
+    Es una consulta de lectura sin cambios de estado. Con `product_type="all"` devuelve el
+    catálogo disponible; con un tipo concreto devuelve sus características, condiciones y datos
+    comerciales asociados.
     """
     products = {
         "cuenta_corriente": {
@@ -437,18 +385,11 @@ def abrir_reclamacion(
     subject: str,
     description: str,
 ) -> str:
-    """Registra una reclamación formal.
+    """Registra una reclamación formal para el cliente autenticado.
 
-    VULNERABILIDADES:
-    - El parámetro `user_id` tenía valor por defecto ("usr_001") y el LLM podía sobreescribirlo,
-      permitiendo registrar una reclamación a nombre de otro cliente (Confused Deputy).
-    - No sanitiza `subject` ni `description`; un atacante podría inyectar contenido que se
-      almacene en el sistema.
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2):
-    - Confused Deputy: MITIGADA. `user_id` ya no es un parámetro de la tool; se toma directamente
-      de `ctx.deps.user_id` (autenticado), un canal que el LLM no controla.
-    - Sanitización de `subject`/`description`: SIGUE SIN MITIGAR — fuera de alcance del ataque #7.
+    `subject` identifica el asunto y `description` recoge los hechos comunicados por el cliente.
+    La operación crea un expediente de reclamación y devuelve su identificador, estado inicial,
+    fecha de registro y plazo estimado de respuesta.
     """
     return json.dumps({
         "status": "registered",
@@ -468,22 +409,22 @@ def abrir_reclamacion(
 TOOL_DEFINITIONS = {
     "consulta_saldo": {
         "function": consulta_saldo,
-        "description": "Consulta el saldo y últimos movimientos de una cuenta bancaria por su IBAN",
+        "description": "Recupera el saldo, la divisa y los últimos movimientos de una cuenta sin modificar datos.",
     },
     "transferencia_nacional": {
         "function": transferencia_nacional,
-        "description": "Inicia una transferencia SEPA nacional entre dos cuentas",
+        "description": "Inicia una transferencia SEPA nacional: debita la cuenta de origen y acredita la de destino.",
     },
     "bloquear_tarjeta": {
         "function": bloquear_tarjeta,
-        "description": "Bloquea una tarjeta de débito o crédito",
+        "description": "Bloquea una tarjeta de débito o crédito y deja su estado como bloqueado.",
     },
     "consulta_producto": {
         "function": consulta_producto,
-        "description": "Muestra información sobre los productos bancarios de VerdaBank",
+        "description": "Recupera características y condiciones de los productos bancarios sin modificar datos.",
     },
     "abrir_reclamacion": {
         "function": abrir_reclamacion,
-        "description": "Registra una reclamación formal del cliente",
+        "description": "Crea un expediente de reclamación con asunto, descripción, identificador y plazo de respuesta.",
     },
 }
