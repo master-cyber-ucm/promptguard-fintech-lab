@@ -23,47 +23,50 @@ class AlertUpdateBody(BaseModel):
 
 
 @router.get("/overview")
-def overview():
+def overview(endpoint: Optional[str] = None):
     """Postura del sistema: lo que la pantalla de entrada necesita en una sola llamada."""
     return {
-        "totales": store.totals(),
-        "componentes": store.component_activity(),
-        "taxonomia": store.taxonomy_activity(),
-        "cobertura": _cobertura(),
-        "runs": store.list_runs()[:8],
+        "totales": store.totals(endpoint=endpoint),
+        "componentes": store.component_activity(endpoint=endpoint),
+        "taxonomia": store.taxonomy_activity(endpoint=endpoint),
+        "cobertura": _cobertura(endpoint=endpoint),
+        "runs": store.list_runs(endpoint=endpoint)[:8],
+        "endpoint": endpoint,
         "sin_documentar": knowledge.indice()["sin_documentar"],
     }
 
 
-# Qué componente defiende cada vector, y si esa defensa está realmente implementada.
-# Es una tabla declarada a mano porque la relación vector→componente es una decisión de
-# diseño (está en docs/defensas/README.md), no algo derivable del código.
-_DEFENSA_POR_SUBCATEGORIA = {
-    ("LLM01-prompt-injection", "directa"): ("input_sanitizer", False),
-    ("LLM01-prompt-injection", "indirecta-documento"): ("document_sanitizer", True),
-    ("LLM02-sensitive-information-disclosure", "cross-context-leakage"): ("leak_guard", True),
-    ("LLM02-sensitive-information-disclosure", "pii-harvesting"): ("pii_shield", True),
-    ("LLM06-excessive-agency", "acciones-no-autorizadas"): ("tool_gatekeeper", True),
-    ("LLM06-excessive-agency", "confused-deputy"): ("tool_gatekeeper", True),
-    ("LLM07-system-prompt-leakage", "filtrado-por-repeticion"): ("output_auditor", True),
-}
+# Vectores documentados. Se completa en ``_cobertura`` con los que existan en las
+# fixtures aunque todavía no tengan documentación, de modo que la tabla nunca omite
+# una familia atacable por falta de un diseño de defensa.
+_VECTORES_DOCUMENTADOS = (
+    ("LLM01-prompt-injection", "directa"),
+    ("LLM01-prompt-injection", "indirecta-documento"),
+    ("LLM02-sensitive-information-disclosure", "cross-context-leakage"),
+    ("LLM02-sensitive-information-disclosure", "pii-harvesting"),
+    ("LLM06-excessive-agency", "acciones-no-autorizadas"),
+    ("LLM06-excessive-agency", "confused-deputy"),
+    ("LLM07-system-prompt-leakage", "filtrado-por-repeticion"),
+)
 
 
-def _bloqueos_por_componente() -> dict[tuple, dict[str, int]]:
-    """Qué componente bloqueó de verdad en cada subcategoría.
+def _bloqueos_por_componente(endpoint: Optional[str] = None) -> dict[tuple, dict[str, int]]:
+    """Turnos bloqueados por componente y subcategoría.
 
-    Necesario para no dejar una lectura falsa: un vector marcado "sin defensa" puede
-    acumular bloqueos porque OTRA capa lo cazó. Sin decir cuál, la tabla parece
-    contradecirse.
+    Se cuentan turnos distintos: si una implementación llegase a emitir dos eventos
+    ``BLOCK`` del mismo componente en un turno, la matriz sigue representando turnos,
+    no eventos.
     """
     from src.soc import store as _s
     with _s._lock:
         conn = _s._connect()
+        where, valores = ("", []) if not endpoint else (" AND t.endpoint=?", [endpoint])
         filas = conn.execute(
             """SELECT t.categoria, t.subcategoria, e.componente, COUNT(DISTINCT t.id) AS n
                FROM soc_event e JOIN soc_turn t ON t.id = e.turn_id
-               WHERE e.accion = 'BLOCK' AND t.categoria IS NOT NULL
-               GROUP BY t.categoria, t.subcategoria, e.componente"""
+               WHERE e.accion = 'BLOCK' AND t.categoria IS NOT NULL""" + where +
+            " GROUP BY t.categoria, t.subcategoria, e.componente",
+            valores,
         ).fetchall()
     out: dict[tuple, dict[str, int]] = {}
     for f in filas:
@@ -71,45 +74,36 @@ def _bloqueos_por_componente() -> dict[tuple, dict[str, int]]:
     return out
 
 
-def _cobertura() -> list[dict]:
-    """Mapa de cobertura: qué vectores tienen defensa real y cuáles están descubiertos.
+def _cobertura(endpoint: Optional[str] = None) -> list[dict]:
+    """Matriz de resultados observados por vector.
 
-    `implementada=False` en Prompt Injection Directa no es un error del panel: el Input
-    Sanitizer sigue siendo un esqueleto que devuelve ALLOW siempre. El SOC lo enseña.
+    No atribuye una defensa por diseño ni extrapola eficacia: expone cuántos turnos
+    bloqueó realmente cada componente y cuántos no quedaron bloqueados.
     """
     actividad = {
-        (t["categoria"], t["subcategoria"]): t for t in store.taxonomy_activity()
+        (t["categoria"], t["subcategoria"]): t for t in store.taxonomy_activity(endpoint=endpoint)
     }
-    por_comp = _bloqueos_por_componente()
+    por_comp = _bloqueos_por_componente(endpoint=endpoint)
+    vectores = set(_VECTORES_DOCUMENTADOS)
+    huecos_por_clave = {
+        (h["categoria"], h["subcategoria"]): h
+        for h in knowledge.indice()["sin_documentar"]
+    }
+    vectores.update(huecos_por_clave)
+
     filas = []
-    for (cat, sub), (componente, implementada) in _DEFENSA_POR_SUBCATEGORIA.items():
+    for cat, sub in sorted(vectores):
         a = actividad.get((cat, sub), {})
         bloqueos = por_comp.get((cat, sub), {})
+        turnos = a.get("turnos", 0)
+        bloqueados = a.get("bloqueados", 0) or 0
         filas.append({
-            "categoria": cat,
-            "subcategoria": sub,
-            "componente": componente,
-            "implementada": implementada,
-            "turnos": a.get("turnos", 0),
-            "bloqueados": a.get("bloqueados", 0) or 0,
-            # Quién bloqueó realmente, y si fue el componente asignado a este vector
+            "categoria": cat, "subcategoria": sub,
+            "turnos": turnos,
+            "bloqueados": bloqueados,
+            "no_bloqueados": turnos - bloqueados,
             "bloqueos_por_componente": bloqueos,
-            "bloqueado_por_su_componente": bloqueos.get(componente, 0),
-            "documentada": True,
-        })
-    for hueco in knowledge.indice()["sin_documentar"]:
-        clave = (hueco["categoria"], hueco["subcategoria"])
-        a = actividad.get(clave, {})
-        filas.append({
-            "categoria": hueco["categoria"],
-            "subcategoria": hueco["subcategoria"],
-            "componente": None,
-            "implementada": False,
-            "turnos": a.get("turnos", 0),
-            "bloqueados": a.get("bloqueados", 0) or 0,
-            "bloqueos_por_componente": por_comp.get(clave, {}),
-            "bloqueado_por_su_componente": 0,
-            "documentada": False,
+            "documentada": (cat, sub) not in huecos_por_clave,
         })
     return filas
 

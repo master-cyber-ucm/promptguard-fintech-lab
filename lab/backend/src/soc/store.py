@@ -472,18 +472,27 @@ def component_activity(**filtros) -> list[dict]:
     return list(por_componente.values())
 
 
-def taxonomy_activity() -> list[dict]:
+def taxonomy_activity(endpoint: Optional[str] = None) -> list[dict]:
+    where, valores = ("WHERE categoria IS NOT NULL", [])
+    if endpoint:
+        where += " AND endpoint=?"
+        valores.append(endpoint)
     with _lock:
         conn = _connect()
         filas = conn.execute(
             """SELECT categoria, subcategoria, COUNT(*) AS turnos, SUM(bloqueado) AS bloqueados
-               FROM soc_turn WHERE categoria IS NOT NULL
-               GROUP BY categoria, subcategoria ORDER BY categoria, subcategoria"""
+               FROM soc_turn """ + where +
+            " GROUP BY categoria, subcategoria ORDER BY categoria, subcategoria",
+            valores,
         ).fetchall()
     return [dict(f) for f in filas]
 
 
-def list_runs() -> list[dict]:
+def list_runs(endpoint: Optional[str] = None) -> list[dict]:
+    where, valores = ("WHERE run_id IS NOT NULL", [])
+    if endpoint:
+        where += " AND endpoint=?"
+        valores.append(endpoint)
     with _lock:
         conn = _connect()
         filas = conn.execute(
@@ -491,8 +500,9 @@ def list_runs() -> list[dict]:
                       COUNT(*) AS turnos, SUM(bloqueado) AS bloqueados,
                       SUM(vulnerable) AS vulnerables,
                       COUNT(DISTINCT session_id) AS sesiones
-               FROM soc_turn WHERE run_id IS NOT NULL
-               GROUP BY run_id ORDER BY inicio DESC"""
+               FROM soc_turn """ + where +
+            " GROUP BY run_id ORDER BY inicio DESC",
+            valores,
         ).fetchall()
     return [dict(f) for f in filas]
 
@@ -514,18 +524,25 @@ def list_alerts(estado: Optional[str] = None, limit: int = 100) -> list[dict]:
     return [dict(f) for f in filas]
 
 
-def totals() -> dict:
+def totals(endpoint: Optional[str] = None) -> dict:
+    where, valores = ("", []) if not endpoint else (" WHERE endpoint=?", [endpoint])
     with _lock:
         conn = _connect()
         t = conn.execute(
             """SELECT COUNT(*) AS turnos, SUM(bloqueado) AS bloqueados,
                       SUM(vulnerable) AS vulnerables, AVG(latencia_total_ms) AS lat_media,
                       COUNT(DISTINCT session_id) AS sesiones, MAX(id) AS cursor
-               FROM soc_turn"""
+               FROM soc_turn""" + where,
+            valores,
         ).fetchone()
-        eventos = conn.execute("SELECT COUNT(*) AS n FROM soc_event").fetchone()["n"]
+        eventos = conn.execute(
+            "SELECT COUNT(*) AS n FROM soc_event e JOIN soc_turn t ON t.id=e.turn_id" + where,
+            valores,
+        ).fetchone()["n"]
         alertas = conn.execute(
-            "SELECT estado, COUNT(*) AS n FROM soc_alert GROUP BY estado"
+            "SELECT a.estado, COUNT(*) AS n FROM soc_alert a JOIN soc_turn t ON t.id=a.turn_id" +
+            where + " GROUP BY a.estado",
+            valores,
         ).fetchall()
     return {
         "turnos": t["turnos"] or 0,

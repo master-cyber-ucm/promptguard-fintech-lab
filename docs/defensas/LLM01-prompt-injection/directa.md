@@ -165,9 +165,9 @@ Prueba independiente y **la más importante del documento**: con el Input Saniti
 - [x] Invariantes definidos
 - [x] Diseño de las tres capas
 - [x] Firmas de capa 1 escritas (`injection_signatures.yaml`)
-- [ ] Normalización previa implementada
+- [x] Normalización previa implementada
 - [ ] Clasificador de capa 2 entrenado
 - [ ] Guard de capa 3 integrado en el pipeline
 - [ ] Umbrales calibrados contra fixtures legítimos
-- [ ] Validado contra los 8 fixtures de ataque
+- [x] Validado contra los fixtures de regresión de inyección directa
 - [ ] Prueba de la invariante I2 ejecutada
