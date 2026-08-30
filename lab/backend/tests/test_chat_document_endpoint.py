@@ -107,8 +107,9 @@ def test_documento_comprometido_es_bloqueado_por_sanitizer(tmp_path, client, fak
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["error"] is not None
-    assert "BLOCKED_BY_SANITIZER" in body["error"]
+    assert body["error"] is None
+    assert body["block_code"] == "REQUEST_NOT_PROCESSED"
+    assert "document_sanitizer" not in body["response"]
 
     # La defensa bloquea ANTES de invocar al agente/LLM — el ataque nunca llega tan lejos.
     assert fake_agent.received_messages == []
