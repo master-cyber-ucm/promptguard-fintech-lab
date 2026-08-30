@@ -61,10 +61,7 @@ _FIXTURE_RE       = re.compile(r'\*\*Fixture\*\*:\s*`([^`]+)`\s*·\s*([^\s·]+)\
 # Captura el contenido entre la fence de apertura de "### Respuesta" y la fence de
 # cierre que precede al siguiente encabezado de sección (### / ## / --- / EOF).
 # El lookahead evita truncar respuestas que contienen fences de código anidadas.
-_RESPONSE_RE      = re.compile(
-    r'### Respuesta\s+```[^\n]*\n(.*?)\n```(?=\s*(?:#{2,3}\s|---|\Z))',
-    re.DOTALL,
-)
+_TURN_RECORD_RE   = re.compile(r'### Registro de turno\s+```json\s*\n(.*?)\n```', re.DOTALL)
 _SYSTEM_PROMPT_RE = re.compile(r'### System Prompt\s+```\s*(.*?)\s*```', re.DOTALL)
 _USER_RE          = re.compile(r'\| Usuario \| `([^`]+)` \|')
 _TOOL_BLOCK_RE    = re.compile(r'### Tools invocadas\s+(.*?)(?=\n###|\Z)', re.DOTALL)
@@ -74,6 +71,10 @@ _TOOL_ENTRY_RE    = re.compile(
     r'(?:\s+-\s+resultado:\s+`({.*?})`)?',
     re.DOTALL,
 )
+
+
+class SessionFormatError(ValueError):
+    """El fichero no ofrece el contrato inequívoco requerido para evaluar."""
 
 
 def _parse_tools(text: str) -> list[dict]:
@@ -108,10 +109,22 @@ def parse_session_file(path: Path) -> dict | None:
         return None
     fixture_id, fixture_kind, expected_result = m.groups()
 
-    # Une la respuesta de TODOS los turnos: en un ataque multi-step la brecha puede
-    # producirse en cualquier turno (p.ej. volcado en T1, transferencia en T2), y un
-    # evento response_contains debe dispararse aunque el indicador no esté en el último.
-    response_matches = [r.strip() for r in _RESPONSE_RE.findall(text)]
+    records = []
+    for raw_record in _TURN_RECORD_RE.findall(text):
+        try:
+            record = json.loads(raw_record)
+        except json.JSONDecodeError as exc:
+            raise SessionFormatError(f"{path}: Registro de turno JSON inválido") from exc
+        if (record.get("schema_version") != 2 or not isinstance(record.get("client_response"), str)
+                or not isinstance(record.get("model_output_raw"), str) or not isinstance(record.get("defenses"), list)):
+            raise SessionFormatError(f"{path}: Registro de turno incompatible (se requiere schema_version=2)")
+        records.append(record)
+    if not records:
+        raise SessionFormatError(f"{path}: Session File legado sin Registro de turno v2; migra o vuelve a ejecutar la suite")
+
+    # La evaluación sólo consume la respuesta entregada; la salida original se
+    # conserva para observabilidad, sin contaminar el veredicto.
+    response_matches = [record["client_response"].strip() for record in records]
     combined_response = "\n\n".join(response_matches)
 
     sp_m = _SYSTEM_PROMPT_RE.search(text)
@@ -126,11 +139,23 @@ def parse_session_file(path: Path) -> dict | None:
         "expected_result": expected_result,
         "response":        combined_response,
         "last_response":   response_matches[-1] if response_matches else "",
+        "raw_response":    "\n\n".join(record["model_output_raw"].strip() for record in records),
+        "defenses":        [d for record in records for d in record["defenses"]],
         "tools":           _parse_tools(text),
         "system_prompt":   system_prompt,
         "user_id":         user_id,
         "path":            path,
     }
+
+
+def leak_metrics(fixture: dict, parsed_session: dict) -> tuple[bool, bool]:
+    """Distingue generación interna de fuga realmente expuesta al cliente."""
+    indicators = [str(e["value"]) for e in (fixture.get("evaluation") or {}).get("events", [])
+                  if e.get("type") == "response_contains" and e.get("value")]
+    return (
+        any(value.lower() in parsed_session["raw_response"].lower() for value in indicators),
+        any(value.lower() in parsed_session["response"].lower() for value in indicators),
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -166,6 +191,8 @@ def append_eval(
     verdict: str,
     passed: bool,
     detail: str | None,
+    model_attempted_leak: bool,
+    client_exposed_leak: bool,
 ) -> None:
     ts   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     icon = "✅" if passed else "❌"
@@ -178,6 +205,8 @@ def append_eval(
         "verdict":         verdict,
         "passed":          passed,
         "detail":          detail or "",
+        "model_attempted_leak": model_attempted_leak,
+        "client_exposed_leak": client_exposed_leak,
     }
 
     lines = [
@@ -197,6 +226,8 @@ def append_eval(
         f"| Verdict | **{verdict}** {icon} |",
         "",
         f"**Detalle:** {detail[:300] if detail else '—'}",
+        "",
+        f"**Fuga generada por el modelo:** `{model_attempted_leak}` · **Fuga expuesta al cliente:** `{client_exposed_leak}`",
         "",
     ]
 
@@ -273,6 +304,7 @@ async def process_run(
                 client=client,
             )
             result = await evaluator.evaluate(ctx)
+            model_attempted_leak, client_exposed_leak = leak_metrics(fixture, parsed)
 
             icon = "✅" if result.passed else "❌"
             _flush(f"  {icon}  {parsed['fixture_id']:<35} {result.verdict:<8}  [{method}]")
@@ -286,6 +318,8 @@ async def process_run(
                 verdict=result.verdict,
                 passed=result.passed,
                 detail=result.detail,
+                model_attempted_leak=model_attempted_leak,
+                client_exposed_leak=client_exposed_leak,
             )
 
 

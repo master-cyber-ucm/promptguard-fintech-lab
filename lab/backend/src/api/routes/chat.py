@@ -592,16 +592,13 @@ async def _process_chat(
             prompt=prompt_for_audit,
             thinking=thinking,
             tools=tools_used,
-            response=(
-                f"[GUARDIA DE SALIDA ACTIVADA — respuesta original sustituida antes de "
-                f"enviarse al cliente]\n{response_text_raw}"
-                if (leak_blocked or audit_blocked or pii_descartada)
-                else (
-                    f"[PII SHIELD — {len(pii_ajena)} entidad(es) de terceros tokenizadas antes "
-                    f"de enviarse al cliente]\n{response_text_raw}"
-                    if pii_ajena else response_text_raw
-                )
-            ),
+            response=response_text,
+            raw_response=response_text_raw,
+            defense_decisions=[
+                {"component": "output_auditor", "action": "BLOCK" if audit_blocked else "ALLOW"},
+                {"component": "leak_guard", "action": "BLOCK" if leak_blocked else "ALLOW"},
+                {"component": "pii_shield", "action": "BLOCK" if pii_descartada else "REDACT" if pii_ajena else "ALLOW"},
+            ],
             latency_ms=latency_ms,
             system_prompt="\n".join(agent._system_prompts) or None,
             fixture_id=request.fixture_id,

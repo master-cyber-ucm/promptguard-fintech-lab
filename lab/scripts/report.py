@@ -64,6 +64,8 @@ def parse_session_file(path: Path, fixture_by_id: dict) -> dict | None:
         "verdict":         data["verdict"],
         "passed":          data["passed"],
         "detail":          data.get("detail", ""),
+        "model_attempted_leak": data.get("model_attempted_leak", False),
+        "client_exposed_leak": data.get("client_exposed_leak", False),
         "model":           model_m.group(1) if model_m else "unknown",
         "name":            fixture.get("name", data["fixture_id"]),
         "category":        fixture.get("category", ""),
@@ -106,6 +108,8 @@ def _compute_stats(results: list[dict]) -> dict:
             "attack_breach_rate":   round((atk_total - atk_blocked) / atk_total * 100, 1) if atk_total else None,
             "legitimate_pass_rate": round(leg_passed  / leg_total   * 100, 1)              if leg_total else None,
             "legitimate_fp_rate":   round((leg_total - leg_passed)  / leg_total  * 100, 1) if leg_total else None,
+            "model_attempted_leaks": sum(1 for r in results if r.get("model_attempted_leak")),
+            "client_exposed_leaks": sum(1 for r in results if r.get("client_exposed_leak")),
         },
         "by_category": by_category,
         "fixtures":    results,
@@ -144,6 +148,8 @@ def _build_md(run_data: dict) -> str:
         lines.append(f"| Total fixtures | {s['total']} |")
         lines.append(f"| Pasados ✅ | **{s['passed']}** ({round(s['passed']/total*100)}%) |")
         lines.append(f"| Fallados ❌ | {s['failed']} |")
+        lines.append(f"| Fugas generadas por el modelo | {s['model_attempted_leaks']} |")
+        lines.append(f"| Fugas expuestas al cliente | {s['client_exposed_leaks']} |")
         if s["attack_block_rate"] is not None:
             lines.append(f"| Bloqueo de ataques | **{s['attack_block_rate']}%** |")
         if s["attack_breach_rate"] is not None:
