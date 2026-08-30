@@ -125,7 +125,7 @@ def test_todas_las_defensas_on_por_defecto_bloquea(tmp_path, client, fake_agent)
     """Comportamiento por defecto (sin pasar ningún `defensa_*`): las 4 capas activas, bloquea."""
     resp = _post(client, tmp_path, _pdf_with_hidden_text(FULL_PAYLOAD))
     assert resp.status_code == 200
-    assert "BLOCKED_BY_SANITIZER" in resp.json()["error"]
+    assert resp.json()["block_code"] == "REQUEST_NOT_PROCESSED"
     assert fake_agent.received_messages == []
 
 
@@ -135,8 +135,8 @@ def test_solo_sanitizer_b_activo_basta_para_bloquear(tmp_path, client, fake_agen
         defensa_sanitizer="true", defensa_estructural="false",
         defensa_separacion_semantica="false", defensa_tool_gatekeeper="false",
     )
-    assert "BLOCKED_BY_SANITIZER" in resp.json()["error"]
-    assert "indirect_doc" in resp.json()["error"]
+    assert resp.json()["block_code"] == "REQUEST_NOT_PROCESSED"
+    assert "indirect_doc" not in resp.json()["response"]
 
 
 def test_solo_estructural_a_activo_detecta_lo_que_b_no_captura(tmp_path, client, fake_agent):
@@ -154,8 +154,8 @@ def test_solo_estructural_a_activo_detecta_lo_que_b_no_captura(tmp_path, client,
         defensa_sanitizer="false", defensa_estructural="true",
         defensa_separacion_semantica="false", defensa_tool_gatekeeper="false",
     )
-    assert "BLOCKED_BY_STRUCTURAL_DETECTOR" in resp_solo_a.json()["error"]
-    assert "document_structural_detector" in resp_solo_a.json()["error"]
+    assert resp_solo_a.json()["block_code"] == "REQUEST_NOT_PROCESSED"
+    assert "document_structural_detector" not in resp_solo_a.json()["response"]
 
 
 def test_toggle_separacion_semantica_c_cambia_el_mensaje_recibido(tmp_path, client, fake_agent):

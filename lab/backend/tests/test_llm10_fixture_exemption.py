@@ -78,8 +78,8 @@ def test_sin_fixture_id_el_rate_limiter_protege_normalmente(client, tmp_path):
         _post_proxy(client, tmp_path, user_id="usr_001")
         _post_proxy(client, tmp_path, user_id="usr_001")
         resp = _post_proxy(client, tmp_path, user_id="usr_001")
-        assert resp["error"] is not None
-        assert "RATE_LIMITER" in resp["error"]
+        assert resp["error"] is None
+        assert resp["block_code"] == "REQUEST_NOT_PROCESSED"
     finally:
         default_limiter.max_requests = limiter_original
 
@@ -100,8 +100,8 @@ def test_con_fixture_id_el_rate_limiter_no_bloquea(client, tmp_path):
 def test_sin_fixture_id_el_budget_guard_protege_normalmente(client, tmp_path):
     default_guard.registrar_consumo("usr_003", default_guard.token_budget)  # agota el presupuesto
     resp = _post_proxy(client, tmp_path, user_id="usr_003")
-    assert resp["error"] is not None
-    assert "BUDGET_GUARD" in resp["error"]
+    assert resp["error"] is None
+    assert resp["block_code"] == "REQUEST_NOT_PROCESSED"
 
 
 def test_con_fixture_id_el_budget_guard_no_bloquea(client, tmp_path):

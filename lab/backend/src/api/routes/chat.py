@@ -116,6 +116,13 @@ class ChatRequest(BaseModel):
             "no cambia el comportamiento previo de ningún llamador que no lo pida explícitamente."
         ),
     )
+    proxy_profile: Optional[str] = Field(
+        default=None,
+        description=(
+            "Perfil experimental del proxy: baseline, gatekeeper, output o full. "
+            "Solo se usa en el laboratorio para ejecutar la suite comparativa."
+        ),
+    )
 
 
 class ChatResponse(BaseModel):
@@ -167,6 +174,9 @@ async def _process_chat(
     defensa_separacion_tool_framing: bool = False,
     defensa_tool_gatekeeper: bool = True,
     defensa_pii_shield: bool = False,
+    defensa_input_sanitizer: bool = True,
+    defensa_output_auditor: bool = True,
+    defensa_leak_guard: bool = True,
     proxy_enabled: bool = False,
     collector: Optional[SocCollector] = None,
 ) -> ChatResponse:
@@ -220,7 +230,12 @@ async def _process_chat(
     # `request.vulnerable` lo salta por completo: en modo baseline indefenso no hay ninguna capa
     # de entrada, igual que no hay ninguna de salida.
     if proxy_enabled and not request.vulnerable:
-        for stage in (_INPUT_SANITIZER, _PII_SHIELD):
+        stages = []
+        if defensa_input_sanitizer:
+            stages.append(_INPUT_SANITIZER)
+        if defensa_pii_shield:
+            stages.append(_PII_SHIELD)
+        for stage in stages:
             # El sanitizer solo debe observar texto no confiable. Incluir el bloque de
             # identidad entre turnos rompería la detección de payload splitting; PII
             # Shield sí necesita el mensaje completo porque protege el contexto inyectado.
@@ -257,12 +272,16 @@ async def _process_chat(
                 session_id, fixture_tag, stage.name, decision.reason,
             )
             client_response = client_message_for(stage.name)
+            technical_reason = f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}"
             audit_path = append_turn(
                 session_id=session_id, user_id=request.user_id, model=f"proxy-{stage.name}",
                 prompt=full_message, thinking=None, tools=[],
                 response=client_response,
-                raw_response=f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}",
-                defense_decisions=[{"component": stage.name, "action": "BLOCK", "reason": decision.reason}],
+                raw_response=technical_reason,
+                defense_decisions=[{
+                    "component": stage.name, "action": "BLOCK", "rule": decision.matched_rule,
+                    "reason": decision.reason,
+                }],
                 latency_ms=latency_ms,
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
@@ -327,12 +346,15 @@ async def _process_chat(
             latency_ms = (time.time() - start_time) * 1000
             logger.warning("[%s]%s ✗ BLOQUEADO por %s: %s", session_id, fixture_tag, componente, razon)
             client_response = client_message_for(componente)
+            technical_reason = f"BLOCKED_BY_{componente.upper()}: {razon}"
             audit_path = append_turn(
                 session_id=session_id, user_id=request.user_id, model=f"proxy-{componente}",
                 prompt=full_message, thinking=None, tools=[],
                 response=client_response,
-                raw_response=f"BLOCKED_BY_{componente.upper()}: {razon}",
-                defense_decisions=[{"component": componente, "action": "BLOCK", "reason": razon}],
+                raw_response=technical_reason,
+                defense_decisions=[{
+                    "component": componente, "action": "BLOCK", "reason": razon,
+                }],
                 latency_ms=latency_ms,
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
@@ -507,7 +529,7 @@ async def _process_chat(
         # los baseline "vulnerables" — de modo que una fuga del system prompt quedaba tapada aunque
         # ninguna otra defensa estuviera activa, y el ataque #5 medía 0% de éxito contra un entorno
         # supuestamente indefenso. `request.vulnerable=True` lo desactiva para tener línea base real.
-        if request.vulnerable:
+        if request.vulnerable or not defensa_output_auditor:
             response_text, audit_blocked = response_text_raw, False
         else:
             t_aud = time.time()
@@ -532,7 +554,7 @@ async def _process_chat(
         # "vulnerable puro" del estudio de ablación cuando defensa_tool_gatekeeper=False. En modo
         # vulnerable puro se desactiva también, con independencia del Gatekeeper.
         leak_blocked = False
-        if defensa_tool_gatekeeper and not request.vulnerable:
+        if defensa_leak_guard and defensa_tool_gatekeeper and not request.vulnerable:
             t_leak = time.time()
             response_text, leak_blocked = confidential_leak_guard(
                 response_text, tools_used, user.get("account_id", "")
@@ -603,9 +625,29 @@ async def _process_chat(
             response=response_text,
             raw_response=response_text_raw,
             defense_decisions=[
-                {"component": "output_auditor", "action": "BLOCK" if audit_blocked else "ALLOW"},
-                {"component": "leak_guard", "action": "BLOCK" if leak_blocked else "ALLOW"},
-                {"component": "pii_shield", "action": "BLOCK" if pii_descartada else "REDACT" if pii_ajena else "ALLOW"},
+                {
+                    "component": "output_auditor",
+                    "action": (
+                        "BLOCK" if audit_blocked else "ALLOW"
+                        if defensa_output_auditor and not request.vulnerable else "NOT_RUN"
+                    ),
+                },
+                {
+                    "component": "leak_guard",
+                    "action": (
+                        "BLOCK" if leak_blocked else "ALLOW"
+                        if defensa_leak_guard and defensa_tool_gatekeeper and not request.vulnerable
+                        else "NOT_RUN"
+                    ),
+                },
+                {
+                    "component": "pii_shield",
+                    "action": (
+                        "BLOCK" if pii_descartada else "REDACT" if pii_ajena else "ALLOW"
+                        if defensa_pii_shield and not request.vulnerable and not (leak_blocked or audit_blocked)
+                        else "SKIPPED" if defensa_pii_shield and not request.vulnerable else "NOT_RUN"
+                    ),
+                },
             ],
             latency_ms=latency_ms,
             system_prompt="\n".join(agent._system_prompts) or None,
@@ -751,12 +793,62 @@ async def chat_proxy(request: ChatRequest):
     Harvesting vía Contexto"); están ya enganchados aquí para que activarla después
     no requiera tocar el orquestador.
     """
+    profiles = {
+        "baseline": {
+            "vulnerable": True,
+            "defensa_tool_gatekeeper": False,
+            "defensa_pii_shield": False,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": False,
+            "defensa_leak_guard": False,
+        },
+        "gatekeeper": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": True,
+            "defensa_pii_shield": False,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": False,
+            "defensa_leak_guard": False,
+        },
+        "output": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": True,
+            "defensa_pii_shield": True,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": True,
+            "defensa_leak_guard": True,
+        },
+        "full": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": True,
+            "defensa_pii_shield": True,
+            "defensa_input_sanitizer": True,
+            "defensa_output_auditor": True,
+            "defensa_leak_guard": True,
+        },
+    }
+    profile = request.proxy_profile or "full"
+    if profile not in profiles:
+        raise HTTPException(
+            status_code=422,
+            detail=f"proxy_profile inválido: {profile}. Valores válidos: {', '.join(profiles)}",
+        )
+    settings = profiles[profile]
+    # El perfil es la única fuente de configuración para la suite: evita combinaciones
+    # opacas de flags y deja una postura reproducible en cada corrida.
+    # Conserva el contrato previo de /proxy: sin perfil explícito, el llamador
+    # todavía puede pedir `vulnerable=true` para la línea base histórica.
+    if request.proxy_profile:
+        request.vulnerable = settings["vulnerable"]
     return await _process_chat(
         request, "proxy",
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
-        defensa_tool_gatekeeper=True,
-        defensa_pii_shield=True,
+        defensa_tool_gatekeeper=settings["defensa_tool_gatekeeper"],
+        defensa_pii_shield=settings["defensa_pii_shield"],
+        defensa_input_sanitizer=settings["defensa_input_sanitizer"],
+        defensa_output_auditor=settings["defensa_output_auditor"],
+        defensa_leak_guard=settings["defensa_leak_guard"],
         proxy_enabled=True,
     )
 
@@ -903,6 +995,13 @@ async def chat_complex_with_document(
             session_id_final, decision.matched_rule,
             read_ms, extract_ms, sanitize_ms, structural_ms, defense_total_ms,
         )
+        client_response = client_message_for(decision.matched_rule or "document_sanitizer")
+        technical_reason = (
+            f"{blocked_by}: {decision.reason} (regla: {decision.matched_rule}) | "
+            f"latencia_defensa_ms: lectura={read_ms:.2f} extraccion={extract_ms:.2f} "
+            f"sanitizacion={sanitize_ms:.2f} estructural={structural_ms:.2f} total={defense_total_ms:.2f} | "
+            f"defensas_activas: {defensas_activas}"
+        )
         audit_path = append_turn(
             session_id=session_id_final,
             user_id=user_id,
@@ -910,13 +1009,12 @@ async def chat_complex_with_document(
             prompt=f"Documento adjunto por el cliente:\n{document_text}",
             thinking=None,
             tools=[],
-            response=(
-                f"[{blocked_by} — regla: {decision.matched_rule}] "
-                f"{decision.reason} | latencia real: lectura={read_ms:.2f}ms "
-                f"extracción={extract_ms:.2f}ms sanitización={sanitize_ms:.2f}ms "
-                f"estructural={structural_ms:.2f}ms total={defense_total_ms:.2f}ms | "
-                f"defensas_activas: {defensas_activas}"
-            ),
+            response=client_response,
+            raw_response=technical_reason,
+            defense_decisions=[{
+                "component": decision.matched_rule or "document_sanitizer", "action": "BLOCK",
+                "rule": decision.matched_rule, "reason": decision.reason,
+            }],
             latency_ms=defense_total_ms,
             fixture_id=fixture_id,
             fixture_kind=fixture_kind,
@@ -925,26 +1023,21 @@ async def chat_complex_with_document(
         )
         collector.flush(
             prompt=f"Documento adjunto por el cliente:\n{document_text}",
-            respuesta=f"[{blocked_by} — regla: {decision.matched_rule}] {decision.reason}",
+            respuesta=client_response,
             modelo="document-sanitizer", latencia_total_ms=defense_total_ms,
             audit_file=audit_path.name,
         )
         return ChatResponse(
             user_id=user_id,
             message=message,
-            response="",
+            response=client_response,
             model="document-sanitizer",
             latency_ms=round(defense_total_ms, 2),
             session_id=session_id_final,
             tools_used=[],
             endpoint="complex-with-document",
             audit_file=audit_path.name,
-            error=(
-                f"{blocked_by}: {decision.reason} (regla: {decision.matched_rule}) | "
-                f"latencia_defensa_ms: lectura={read_ms:.2f} extraccion={extract_ms:.2f} "
-                f"sanitizacion={sanitize_ms:.2f} estructural={structural_ms:.2f} total={defense_total_ms:.2f} | "
-                f"defensas_activas: {defensas_activas}"
-            ),
+            block_code="REQUEST_NOT_PROCESSED",
         )
 
     logger.info(
