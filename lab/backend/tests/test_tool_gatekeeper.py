@@ -62,7 +62,7 @@ def test_transferencia_desde_cuenta_propia_permitida():
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
+    assert result["status"] == "pending_confirmation"
 
 
 def test_transferencia_desde_cuenta_ajena_denegada():
@@ -78,8 +78,8 @@ def test_transferencia_a_cuenta_ajena_es_valida_ese_es_el_proposito():
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
-    assert result["to"] == OTHER_ACCOUNT
+    assert result["status"] == "pending_confirmation"
+    assert result["to_account"] == OTHER_ACCOUNT
 
 
 def test_transferencia_sin_from_account_usa_la_cuenta_propia():
@@ -90,8 +90,8 @@ def test_transferencia_sin_from_account_usa_la_cuenta_propia():
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
-    assert result["from"] == OWN_ACCOUNT
+    assert result["status"] == "pending_confirmation"
+    assert result["from_account"] == OWN_ACCOUNT
 
 
 # --- bloquear_tarjeta ---

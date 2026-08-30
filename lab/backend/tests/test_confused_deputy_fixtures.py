@@ -161,8 +161,8 @@ def test_leg_002_transferencia_a_tercero_desde_cuenta_propia_funciona(ctx_atacan
     resultado = transferencia_nacional(
         ctx_atacante, to_account=CUENTA_ANA, amount=50, from_account=CUENTA_ATACANTE
     )
-    assert '"status": "completed"' in resultado
-    assert "TXN-" in resultado
+    assert '"status": "pending_confirmation"' in resultado
+    assert '"operation_id"' in resultado
 
 
 def test_leg_002_bloqueo_de_tarjeta_propia_funciona(ctx_atacante):

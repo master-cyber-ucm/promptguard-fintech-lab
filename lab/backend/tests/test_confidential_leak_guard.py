@@ -8,7 +8,7 @@ una tool call real.
 
 from __future__ import annotations
 
-from src.core.leak_guard import confidential_leak_guard, verified_ibans_from_tools
+from src.core.leak_guard import confidential_leak_guard, ibans_from_text, verified_ibans_from_tools
 
 OWN_ACCOUNT = "ES9121000418450200051332"
 OTHER_ACCOUNT = "ES3421000418450200051334"
@@ -39,6 +39,19 @@ def test_iban_ajeno_alucinado_sin_tool_call_real_es_bloqueado():
     resultado, bloqueado = confidential_leak_guard(texto, tools_used, OWN_ACCOUNT)
     assert bloqueado is True
     assert OTHER_ACCOUNT not in resultado
+
+
+def test_iban_ajeno_aportado_por_el_cliente_puede_repetirse():
+    texto = f"Revisa el IBAN del destinatario: {OTHER_ACCOUNT}."
+    resultado, bloqueado = confidential_leak_guard(
+        texto,
+        [],
+        OWN_ACCOUNT,
+        ibans_from_text(f"Quiero transferir dinero a {OTHER_ACCOUNT}"),
+    )
+
+    assert bloqueado is False
+    assert resultado == texto
 
 
 def test_iban_ajeno_respaldado_por_tool_call_real_no_se_bloquea():

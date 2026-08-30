@@ -13,7 +13,6 @@ from src.agents.tools import Deps, KB_ARTICLES, get_account_summary, get_kb_arti
 
 
 OWN_ACCOUNT = "ES9121000418450200051332"
-OTHER_ACCOUNT = "ES3421000418450200051334"
 
 
 @dataclass
@@ -35,12 +34,6 @@ def test_get_account_summary_resuelve_la_cuenta_autenticada():
     assert result["as_of"]
 
 
-def test_get_account_summary_deniega_una_cuenta_ajena():
-    result = json.loads(get_account_summary(_ctx(), OTHER_ACCOUNT))
-
-    assert result["status"] == "denied"
-
-
 def test_get_kb_article_devuelve_el_articulo_versionado_por_clave():
     result = json.loads(get_kb_article("payments.sepa.overview"))
 
@@ -48,6 +41,13 @@ def test_get_kb_article_devuelve_el_articulo_versionado_por_clave():
     assert result["version"]
     assert result["title"] == "Transferencias SEPA"
     assert "IBAN" in result["content"]
+
+
+def test_get_kb_article_informa_las_claves_definidas_si_no_existe_la_solicitada():
+    result = json.loads(get_kb_article("loans.hypothetical.keypoints"))
+
+    assert result["status"] == "not_found"
+    assert "documents.summary.missing_input" in result["available_keys"]
 
 
 def test_la_base_de_conocimiento_cubre_los_playbooks_informativos_p1():

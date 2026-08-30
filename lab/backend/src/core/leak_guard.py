@@ -64,12 +64,21 @@ CONFIDENTIAL_LEAK_SAFE_MESSAGE = (
 )
 
 
+def ibans_from_text(text: str) -> frozenset[str]:
+    """Extrae IBANes normalizados que ya estaban presentes en un texto de entrada."""
+    return frozenset(_IBAN_PATTERN.findall(text.upper()))
+
+
 def confidential_leak_guard(
-    response_text: str, tools_used: list[dict], own_account: str
+    response_text: str,
+    tools_used: list[dict],
+    own_account: str,
+    user_provided_ibans: frozenset[str] = frozenset(),
 ) -> tuple[str, bool]:
     """Escanea `response_text` en busca de un IBAN español que no sea `own_account` ni esté
-    respaldado por un resultado real (no denegado) de `tools_used` en este mismo turno. Si
-    aparece uno, sustituye la respuesta completa por un mensaje genérico.
+    respaldado por un resultado real (no denegado) de `tools_used` en este mismo turno. Los
+    IBANes que el propio cliente ya incluyó en su mensaje también pueden repetirse: no son una
+    divulgación nueva. Si aparece un IBAN distinto, sustituye la respuesta por un mensaje seguro.
 
     Devuelve `(texto_final, huella_detectada)`.
     """
@@ -79,6 +88,7 @@ def confidential_leak_guard(
 
     ibans_verificados = {own_account.replace(" ", "").upper()}
     ibans_verificados.update(verified_ibans_from_tools(tools_used))
+    ibans_verificados.update(user_provided_ibans)
 
     if ibans_en_respuesta - ibans_verificados:
         return CONFIDENTIAL_LEAK_SAFE_MESSAGE, True

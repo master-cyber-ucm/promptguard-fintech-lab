@@ -282,39 +282,22 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
     }, ensure_ascii=False)
 
 
-def get_account_summary(ctx: RunContext[Deps], account_id: Optional[str] = None) -> str:
+def get_account_summary(ctx: RunContext[Deps]) -> str:
     """Recupera un resumen actual de una cuenta del cliente autenticado.
 
     Es una consulta de lectura. Devuelve saldo disponible, moneda, estado, hora de actualización
-    y un identificador enmascarado de la cuenta. Sin `account_id`, usa la cuenta principal del
-    cliente autenticado; con `account_id`, devuelve el resumen de la cuenta identificada.
+    y un identificador enmascarado de la cuenta principal del cliente autenticado.
     """
     t0 = time.perf_counter()
-    if account_id is None:
-        own_accounts = _get_user_accounts(ctx.deps.user_id)
-        if not own_accounts:
-            return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
-        account_id = own_accounts[0]
-        _gate(
-            ctx, "get_account_summary", True,
-            "Sin account_id: se resolvió la cuenta propia desde el canal de autenticación.",
-            t0=t0, account_id=account_id, resuelto_por_backend=True,
-        )
-    elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
-        _gate(
-            ctx, "get_account_summary", False,
-            "El usuario autenticado no es titular de esta cuenta.",
-            t0=t0, account_id=account_id,
-        )
-        return _denied(
-            "El usuario autenticado no es titular de esta cuenta.",
-            account_id_solicitado=account_id,
-        )
-    else:
-        _gate(
-            ctx, "get_account_summary", True,
-            "Cuenta propia del usuario autenticado.", t0=t0, account_id=account_id,
-        )
+    own_accounts = _get_user_accounts(ctx.deps.user_id)
+    if not own_accounts:
+        return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+    account_id = own_accounts[0]
+    _gate(
+        ctx, "get_account_summary", True,
+        "La cuenta propia se resolvió desde el canal de autenticación.",
+        t0=t0, account_id=account_id, resuelto_por_backend=True,
+    )
 
     account = _get_account(account_id)
     if not account:
@@ -335,9 +318,19 @@ def get_kb_article(key: KBArticleKey) -> str:
     """Recupera un artículo informativo aprobado de la base de conocimiento.
 
     `key` identifica el artículo solicitado. La respuesta devuelve la clave, versión, título y
-    contenido del artículo; es una recuperación de información sin cambios de estado.
+    contenido del artículo; es una recuperación de información sin cambios de estado. Las claves
+    disponibles son: `app.consultar_saldo`, `payments.sepa.overview`,
+    `credentials.password.change`, `documents.summary.missing_input`,
+    `privacy.erasure.request`, `transfers.guidance`, `own_accounts.transfer.guidance` y
+    `delegations.power_of_attorney.guidance`.
     """
-    article = KB_ARTICLES[key]
+    article = KB_ARTICLES.get(key)
+    if article is None:
+        return json.dumps({
+            "status": "not_found",
+            "key": key,
+            "available_keys": list(KB_ARTICLES),
+        }, ensure_ascii=False)
     return json.dumps({"key": key, **article}, ensure_ascii=False)
 
 
@@ -421,7 +414,9 @@ def transferencia_nacional(
     # (comportamiento previo) — declarar la tool en el YAML es lo que activa el control.
     role = MOCK_USERS.get(ctx.deps.user_id, {}).get("role", "customer")
     limite = tool_permissions.limite_para("transferencia_nacional", role)
-    if ctx.deps.enforce_gatekeeper and limite:
+    if ctx.deps.enforce_gatekeeper:
+        if limite is None:
+            return _denied("No hay una política de confirmación configurada para esta transferencia.")
         max_amount = limite.get("max_amount")
         if max_amount is not None and amount > max_amount:
             add_safe(
@@ -436,35 +431,36 @@ def transferencia_nacional(
                 amount=amount, max_amount=max_amount,
             )
 
-        umbral = limite.get("requires_approval_above")
-        if umbral is not None and amount > umbral:
-            operation_id, token = tool_permissions.crear_pendiente(
-                tool="transferencia_nacional", user_id=ctx.deps.user_id,
-                detalle={"from_account": from_account, "to_account": to_account, "amount": amount, "concept": concept},
-                ejecutar=lambda: _ejecutar_transferencia(from_account, to_account, amount, concept),
-            )
-            add_safe(
-                getattr(ctx.deps, "collector", None), componente="tool_gatekeeper", objetivo="tool",
-                accion="SUSPICIOUS",
-                razon=f"Importe {amount} supera el umbral de confirmación ({umbral}) — operación pendiente, no ejecutada.",
-                regla="limits.requires_approval_above", confianza=1.0, attack_type=None,
-                detalle={"tool": "transferencia_nacional", "amount": amount, "operation_id": operation_id},
-                latencia_ms=(time.perf_counter() - _t0) * 1000,
-            )
-            return json.dumps({
-                "status": "pending_confirmation",
-                "operation_id": operation_id,
-                # Lab: el token viaja en la misma respuesta para poder probar el flujo
-                # end-to-end sin canal push real. En producción viaja por push/SMS — un
-                # canal que el propio ataque conversacional no puede tocar (ver README de
-                # la categoría, "confirmación humana cómo se hace bien").
-                "confirm_token": token,
-                "amount": amount, "to_account": to_account, "ttl_seconds": tool_permissions.TTL_SEGUNDOS,
-                "message": (
-                    "Esta operación supera el umbral de confirmación y NO se ha ejecutado. "
-                    f"Confirme vía POST /api/v1/confirm/{operation_id} con el token recibido."
-                ),
-            }, ensure_ascii=False)
+        operation_id, token = tool_permissions.crear_pendiente(
+            tool="transferencia_nacional", user_id=ctx.deps.user_id,
+            detalle={"from_account": from_account, "to_account": to_account, "amount": amount, "concept": concept},
+            ejecutar=lambda: _ejecutar_transferencia(from_account, to_account, amount, concept),
+        )
+        add_safe(
+            getattr(ctx.deps, "collector", None), componente="tool_gatekeeper", objetivo="tool",
+            accion="SUSPICIOUS",
+            razon="Transferencia preparada: requiere confirmación fuera de banda antes de ejecutarse.",
+            regla="requires_approval", confianza=1.0, attack_type=None,
+            detalle={"tool": "transferencia_nacional", "amount": amount, "operation_id": operation_id},
+            latencia_ms=(time.perf_counter() - _t0) * 1000,
+        )
+        return json.dumps({
+            "status": "pending_confirmation",
+            "operation_id": operation_id,
+            # Lab: el token viaja en la misma respuesta para poder probar el flujo
+            # end-to-end sin canal push real. En producción viaja por push/SMS — un
+            # canal que el propio ataque conversacional no puede tocar (ver README de
+            # la categoría, "confirmación humana cómo se hace bien").
+            "confirm_token": token,
+            "amount": amount,
+            "from_account": from_account,
+            "to_account": to_account,
+            "ttl_seconds": tool_permissions.TTL_SEGUNDOS,
+            "message": (
+                "La transferencia está preparada y NO se ha ejecutado. "
+                f"Confirme vía POST /api/v1/confirm/{operation_id} con el token recibido."
+            ),
+        }, ensure_ascii=False)
 
     return json.dumps(_ejecutar_transferencia(from_account, to_account, amount, concept), ensure_ascii=False)
 

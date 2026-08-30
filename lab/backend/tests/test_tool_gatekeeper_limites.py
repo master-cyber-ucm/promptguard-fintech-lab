@@ -44,9 +44,9 @@ def _yaml_limpio():
     tool_permissions.limpiar_pendientes()
 
 
-def test_transferencia_bajo_el_umbral_ejecuta_sin_confirmacion():
+def test_transferencia_bajo_el_umbral_tambien_queda_pendiente():
     result = json.loads(transferencia_nacional(_ctx(), OTHER_BANK_ACCOUNT, 500.0))
-    assert result["status"] == "completed"
+    assert result["status"] == "pending_confirmation"
 
 
 def test_transferencia_sobre_umbral_de_aprobacion_queda_pendiente():

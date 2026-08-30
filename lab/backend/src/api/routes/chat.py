@@ -71,7 +71,11 @@ from src.core.document_sanitizer import sanitize_document_text
 from src.core.document_structural_detector import detect_hiding_techniques
 from src.core.client_messages import client_message_for
 from src.core.input_sanitizer import InputSanitizerStage
-from src.core.leak_guard import confidential_leak_guard, verified_ibans_from_tools
+from src.core.leak_guard import (
+    confidential_leak_guard,
+    ibans_from_text,
+    verified_ibans_from_tools,
+)
 from src.core.pii_shield import PIIShieldStage, redact_foreign_pii
 from src.core.rate_limiter import default_limiter
 from src.models.banking import MOCK_USERS
@@ -535,7 +539,10 @@ async def _process_chat(
         if defensa_tool_gatekeeper and not request.vulnerable:
             t_leak = time.time()
             response_text, leak_blocked = confidential_leak_guard(
-                response_text, tools_used, user.get("account_id", "")
+                response_text,
+                tools_used,
+                user.get("account_id", ""),
+                ibans_from_text(request.message),
             )
             add_safe(
                 collector, componente="leak_guard", objetivo="respuesta",
@@ -566,7 +573,9 @@ async def _process_chat(
             response_text, pii_ajena, pii_descartada = redact_foreign_pii(
                 response_text,
                 request.user_id,
-                verified_values=verified_ibans_from_tools(tools_used),
+                verified_values=(
+                    verified_ibans_from_tools(tools_used) | ibans_from_text(request.message)
+                ),
             )
             add_safe(
                 collector, componente="pii_shield", objetivo="respuesta",
