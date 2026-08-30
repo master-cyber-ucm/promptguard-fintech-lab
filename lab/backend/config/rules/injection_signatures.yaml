@@ -117,6 +117,7 @@ rules:
   # (los 5 variantes en PDF/DOCX/XLSX) y contra los 3 documentos sanos correspondientes (0 falsos
   # positivos).
   - name: "indirect_doc_authority_framing"
+    channels: ["document"]
     # (?m) — multilínea: '^' debe anclar al inicio de CUALQUIER línea del texto extraído (p. ej.
     # una fila de XLSX con "INSTRUCCION:" en medio del documento), no solo al inicio del string
     # completo. Bug encontrado en la validación 2.3: sin (?m) esta regla no bloqueaba el caso
@@ -127,12 +128,14 @@ rules:
     description: "Marco de autoridad falso típico de payloads embebidos en documentos ('nota del sistema', 'nota interna', 'SYSTEM:')"
 
   - name: "indirect_doc_concealment"
+    channels: ["document"]
     pattern: '(?i)no\s+(menciones|reveles)\s+(esta\s+)?(instrucci[oó]n|nota)'
     action: "BLOCK"
     severity: "CRITICAL"
     description: "Instrucción de auto-ocultación ('no menciones esta instrucción', 'no reveles esta nota')"
 
   - name: "indirect_doc_cross_account_request"
+    channels: ["document"]
     pattern: '(?i)consult\w*\s+.{0,60}?\bsaldo\b.{0,40}?\bcuenta\b|\bsaldo\b.{0,40}?\bcuenta\b.{0,60}?consult\w*'
     action: "BLOCK"
     severity: "CRITICAL"
