@@ -154,6 +154,27 @@ make suite ARGS="--id atk_004"                  # fixture concreto
 make suite ARGS="--concurrency 3"               # ejecución paralela
 ```
 
+### Matriz final de resultados
+
+`make suite` es la matriz que alimenta la memoria. Excluye el canal documental, conserva los
+escenarios `simple-prompt`, `complex-prompt` y `complex-with-context`, y ejecuta cuatro posturas
+del mismo proxy (`baseline`, `gatekeeper`, `output`, `full`).
+
+```bash
+make suite REPEAT=5
+make evaluate RUN=audit/runs/<RUN_FOLDER>
+make report RUN=audit/runs/<RUN_FOLDER>
+make final-report RUNS="<RUN_FOLDER_1> <RUN_FOLDER_2>"
+```
+
+El último comando genera `audit/final-results.md` y su equivalente JSON. Los perfiles del proxy
+son declarativos y quedan registrados en `suite-config.json` dentro de cada Run Folder; por tanto,
+el informe final puede citar exactamente qué defensas estaban activas en cada resultado.
+
+Para una combinación puntual no hace falta otro comando: por ejemplo,
+`make suite SUITE_ENDPOINTS="proxy" PROXY_PROFILES="baseline full"` ejecuta solo esas dos
+posturas del proxy.
+
 Los resultados se guardan en `lab/audit/runs/` (JSON + Markdown).
 
 ## Auditoría

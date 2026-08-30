@@ -22,6 +22,9 @@ FRONTEND_PORT ?= 3000
 JUDGE_TIMEOUT ?= 300
 REPEAT        ?= 1
 MODELS_FILE   ?= models.txt
+# Matriz principal del TFM: el canal documental queda fuera de la suite.
+SUITE_ENDPOINTS ?= simple-prompt complex-prompt complex-with-context proxy
+PROXY_PROFILES  ?= baseline full
 
 .PHONY: up down restart restart-backend restart-front \
         logs logs-backend run suite check-suite \
@@ -71,7 +74,10 @@ logs-backend:
 # Suite de ataques
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Envía los fixtures al agente y guarda Session Files en audit/runs/
+# Envía los fixtures al agente y guarda Session Files en audit/runs/. La matriz
+# incluye los tres escenarios de prompt y cuatro posturas del mismo proxy.
+# Se puede acotar sin crear comandos nuevos, p. ej.:
+#   make suite SUITE_ENDPOINTS="proxy" PROXY_PROFILES="baseline full"
 #   make suite
 #   make suite ARGS="--kind attack-prompts"
 #   make suite ARGS="--id atk_001"
@@ -80,7 +86,9 @@ suite:
 	$(COMPOSE) exec \
 		-e FIXTURES_DIR=$(FIXTURES) \
 		backend \
-		python scripts/run_attack_suite.py --repeat $(REPEAT) $(ARGS)
+		python scripts/run_attack_suite.py --repeat $(REPEAT) \
+			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
+			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) $(ARGS)
 
 # Comprueba que cada combinación fixture-endpoint esperada dejó evidencia.
 #   make check-suite RUN=20260827_133926_qwen2.5-3b
@@ -260,10 +268,11 @@ help:
 	@echo ""
 	@echo "  Suite de ataques"
 	@echo "  ─────────────────────────────────────────────────────────────────"
-	@echo "  make suite                             Todos los fixtures"
+	@echo "  make suite                             Matriz principal (sin documentos)"
 	@echo "  make suite ARGS='--kind attack-prompts'  Solo ataques"
 	@echo "  make suite ARGS='--id atk_001'           Un fixture concreto"
 	@echo "  make suite REPEAT=5                    5 repeticiones por fixture"
+	@echo "  make suite SUITE_ENDPOINTS='proxy' PROXY_PROFILES='baseline full'  Matriz acotada"
 	@echo ""
 	@echo "  Evaluación"
 	@echo "  ─────────────────────────────────────────────────────────────────"

@@ -12,6 +12,7 @@ por lo que también sirve para automatizar la recuperación de una corrida larga
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections import Counter
@@ -35,19 +36,37 @@ def _run_folder(name: str) -> Path:
     return RUNS_DIR / name
 
 
-def _expected_pairs() -> set[tuple[str, str]]:
+def _expected_pairs(targets: list[str] | None = None) -> set[tuple[str, str]]:
     fixtures = [fixture for kind in KINDS for fixture in load_prompts(kind=kind)]
+    targets = targets or list(CHAT_ENDPOINTS)
     pairs: set[tuple[str, str]] = set()
     for fixture in fixtures:
         applicable = fixture.get("applicable_endpoints")
         is_document = bool(fixture.get("document"))
-        for endpoint in CHAT_ENDPOINTS:
+        for target in targets:
+            endpoint = "proxy" if target.startswith("proxy-") else target
             if (endpoint == DOCUMENT_ENDPOINT_NAME) != is_document:
                 continue
             if applicable and endpoint not in applicable and endpoint != DOCUMENT_ENDPOINT_NAME:
                 continue
-            pairs.add((fixture["id"], endpoint))
+            pairs.add((fixture["id"], target))
     return pairs
+
+
+def _targets_from_manifest(folder: Path) -> list[str] | None:
+    """Usa exactamente la matriz con que se lanzó el Run Folder.
+
+    Las campañas históricas sin manifiesto conservan el comportamiento anterior
+    (todos los endpoints), pero una suite actual excluye documentos y desdobla el
+    proxy por perfil; verificarla contra la matriz vieja produciría falsos huecos.
+    """
+    manifest = folder / "suite-config.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    targets = data.get("targets")
+    return targets if isinstance(targets, list) and all(isinstance(t, str) for t in targets) else None
 
 
 def _evidence_pairs(folder: Path) -> tuple[set[tuple[str, str]], Counter[str]]:
@@ -74,7 +93,8 @@ def main() -> int:
     if not folder.is_dir():
         parser.error(f"Run Folder no encontrado: {folder}")
 
-    expected = _expected_pairs()
+    targets = _targets_from_manifest(folder)
+    expected = _expected_pairs(targets)
     evidence, files_by_endpoint = _evidence_pairs(folder)
     missing = sorted(expected - evidence)
     unexpected = sorted(evidence - expected)
@@ -83,7 +103,7 @@ def main() -> int:
     print(f"Esperadas  : {len(expected)} combinaciones fixture-endpoint")
     print(f"Evidencia  : {len(evidence)} combinaciones únicas · {sum(files_by_endpoint.values())} Session Files")
     print("Por endpoint:")
-    for endpoint in CHAT_ENDPOINTS:
+    for endpoint in targets or CHAT_ENDPOINTS:
         print(f"  - {endpoint:<26} {files_by_endpoint[endpoint]} Session Files")
 
     if missing:
