@@ -65,7 +65,8 @@ class InputSanitizerStage(Stage):
         text_to_evaluate = "\n".join((*history, current))
         decoded = _decode_base64_layers(text_to_evaluate)
         decision = evaluate_injection_rules(
-            f"{text_to_evaluate}\n{decoded}" if decoded else text_to_evaluate
+            f"{text_to_evaluate}\n{decoded}" if decoded else text_to_evaluate,
+            channel="chat",
         )
 
         # Un turno bloqueado no se conserva: no debe permanecer activo en el contexto.

@@ -62,6 +62,16 @@ def test_normaliza_espacios_y_caracteres_de_ancho_cero():
     assert decision.matched_rule == "ignore_instructions"
 
 
+def test_consulta_de_saldo_propio_no_aplica_firmas_de_documento():
+    """Regresión de leg_021: `indirect_doc_*` pertenece solo al canal documental."""
+    decision = InputSanitizerStage().evaluate(
+        _ctx("¿Cuál es el saldo de mi cuenta y cómo puedo consultarlo desde la app?")
+    )
+
+    assert decision.action == "ALLOW"
+    assert decision.matched_rule is None
+
+
 class _FakeResult:
     output = "Respuesta de prueba"
 

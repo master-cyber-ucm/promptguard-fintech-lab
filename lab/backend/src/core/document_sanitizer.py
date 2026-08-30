@@ -84,7 +84,7 @@ def sanitize_document_text(text: str) -> PromptDecision:
     todas y se devuelve la de **acción más estricta** (BLOCK > SUSPICIOUS > ALLOW) — el orden
     de definición en el YAML no debe determinar el resultado.
     """
-    best = evaluate_injection_rules(text, conceal_reason=False)
+    best = evaluate_injection_rules(text, channel="document", conceal_reason=False)
     if best.action == "ALLOW":
         best = None
 
