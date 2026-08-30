@@ -27,7 +27,7 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic_ai import RunContext
 
@@ -89,6 +89,107 @@ def _get_user_cards(user_id: str) -> list[str]:
     """Tarjetas del usuario (búsqueda inversa sobre MOCK_CARDS). Usado para resolver "mi tarjeta"
     sin que el LLM tenga que transcribir el card_id (ver `bloquear_tarjeta`)."""
     return [card_id for card_id, owner in MOCK_CARDS.items() if owner == user_id]
+
+
+KBArticleKey = Literal[
+    "app.consultar_saldo",
+    "payments.sepa.overview",
+    "credentials.password.change",
+    "documents.summary.missing_input",
+    "privacy.erasure.request",
+    "transfers.guidance",
+    "own_accounts.transfer.guidance",
+    "delegations.power_of_attorney.guidance",
+]
+
+
+KB_ARTICLES: dict[KBArticleKey, dict[str, str]] = {
+    "app.consultar_saldo": {
+        "version": "2026-08-30",
+        "title": "Consultar saldo y movimientos en la app",
+        "content": (
+            "En la app de VerdaBank, inicia sesión y abre Cuentas. Selecciona la cuenta que "
+            "quieras consultar para ver el saldo disponible y los últimos movimientos. Si la "
+            "app no está disponible, utiliza la banca web o contacta con atención al cliente. "
+            "No compartas contraseñas, PIN ni códigos de verificación por el chat."
+        ),
+    },
+    "payments.sepa.overview": {
+        "version": "2026-08-30",
+        "title": "Transferencias SEPA",
+        "content": (
+            "Las transferencias SEPA permiten enviar euros a cuentas de la zona SEPA. Para "
+            "ordenarlas normalmente se necesita el nombre del beneficiario, su IBAN, el importe "
+            "y un concepto. Las transferencias ordinarias se procesan en días hábiles; las "
+            "inmediatas, cuando están disponibles para ambas entidades, se abonan habitualmente "
+            "en segundos. Antes de confirmar una orden, revisa el IBAN y el importe."
+        ),
+    },
+    "credentials.password.change": {
+        "version": "2026-08-30",
+        "title": "Cambiar o recuperar la contraseña",
+        "content": (
+            "Si puedes iniciar sesión, abre Ajustes, después Seguridad y selecciona Cambiar "
+            "contraseña. Si no puedes acceder, inicia la recuperación desde el canal oficial "
+            "de acceso. No compartas tu contraseña actual, códigos SMS, claves de firma ni "
+            "datos completos de tarjeta por el chat. Si sospechas que tu acceso se ha visto "
+            "comprometido, contacta con el canal de fraude antes de restablecer la contraseña."
+        ),
+    },
+    "documents.summary.missing_input": {
+        "version": "2026-08-30",
+        "title": "Resumen de documentos sin adjunto",
+        "content": (
+            "Para resumir un documento, adjunta el archivo o pega las cláusulas relevantes. "
+            "El resumen puede cubrir tipo de interés, comisiones, plazo, cuotas, amortización "
+            "anticipada, vencimiento, garantías y fechas. Un resumen informativo no sustituye "
+            "asesoramiento legal ni financiero."
+        ),
+    },
+    "privacy.erasure.request": {
+        "version": "2026-08-30",
+        "title": "Privacidad y solicitud de supresión",
+        "content": (
+            "VerdaBank trata datos de identificación, contacto, productos contratados y "
+            "operaciones para prestar el servicio y cumplir obligaciones legales. Puedes ejercer "
+            "tus derechos de privacidad, incluida la supresión, a través del canal oficial de "
+            "privacidad. La supresión no siempre es inmediata: determinados datos pueden "
+            "conservarse durante el plazo legal aplicable."
+        ),
+    },
+    "transfers.guidance": {
+        "version": "2026-08-30",
+        "title": "Pasos para realizar una transferencia",
+        "content": (
+            "Para realizar una transferencia, abre Transferencias en la app, añade o selecciona "
+            "al beneficiario, introduce su nombre e IBAN, indica el importe y el concepto, y "
+            "revisa el resumen antes de confirmar. Comprueba especialmente el IBAN, ya que una "
+            "transferencia enviada a un destinatario incorrecto puede no recuperarse de forma "
+            "inmediata."
+        ),
+    },
+    "own_accounts.transfer.guidance": {
+        "version": "2026-08-30",
+        "title": "Mover dinero entre cuentas propias",
+        "content": (
+            "Para mover dinero entre tus cuentas, abre Transferencias y selecciona como origen "
+            "y destino las cuentas propias que aparecen en tu app. Elige el importe, revisa el "
+            "resumen y confirma la operación. Si tienes más de una cuenta con nombres similares, "
+            "verifica el alias y los últimos dígitos antes de continuar."
+        ),
+    },
+    "delegations.power_of_attorney.guidance": {
+        "version": "2026-08-30",
+        "title": "Autorizar a un apoderado",
+        "content": (
+            "La autorización de un apoderado se tramita por los canales oficiales y requiere "
+            "verificación documental. Los requisitos dependen del tipo de cuenta y de las "
+            "facultades solicitadas, como consulta u operativa. Antes de iniciar el trámite, "
+            "prepara la identificación del titular y del representante, así como la documentación "
+            "que corresponda al alcance de la autorización."
+        ),
+    },
+}
 
 
 def _denied(reason: str, **extra) -> str:
@@ -179,6 +280,65 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
         "currency": account.currency,
         "last_movements": movimientos,
     }, ensure_ascii=False)
+
+
+def get_account_summary(ctx: RunContext[Deps], account_id: Optional[str] = None) -> str:
+    """Recupera un resumen actual de una cuenta del cliente autenticado.
+
+    Es una consulta de lectura. Devuelve saldo disponible, moneda, estado, hora de actualización
+    y un identificador enmascarado de la cuenta. Sin `account_id`, usa la cuenta principal del
+    cliente autenticado; con `account_id`, devuelve el resumen de la cuenta identificada.
+    """
+    t0 = time.perf_counter()
+    if account_id is None:
+        own_accounts = _get_user_accounts(ctx.deps.user_id)
+        if not own_accounts:
+            return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+        account_id = own_accounts[0]
+        _gate(
+            ctx, "get_account_summary", True,
+            "Sin account_id: se resolvió la cuenta propia desde el canal de autenticación.",
+            t0=t0, account_id=account_id, resuelto_por_backend=True,
+        )
+    elif ctx.deps.enforce_gatekeeper and not _owns_account(ctx.deps.user_id, account_id):
+        _gate(
+            ctx, "get_account_summary", False,
+            "El usuario autenticado no es titular de esta cuenta.",
+            t0=t0, account_id=account_id,
+        )
+        return _denied(
+            "El usuario autenticado no es titular de esta cuenta.",
+            account_id_solicitado=account_id,
+        )
+    else:
+        _gate(
+            ctx, "get_account_summary", True,
+            "Cuenta propia del usuario autenticado.", t0=t0, account_id=account_id,
+        )
+
+    account = _get_account(account_id)
+    if not account:
+        return f"Error: No se encontró la cuenta {account_id}"
+
+    return json.dumps({
+        "status": "ok",
+        "account_id": account.account_id,
+        "account_id_masked": f"{account.account_id[:4]}····{account.account_id[-4:]}",
+        "available_balance": f"{account.balance:,.2f} €",
+        "currency": account.currency,
+        "account_status": account.status,
+        "as_of": datetime.now(timezone.utc).isoformat(),
+    }, ensure_ascii=False)
+
+
+def get_kb_article(key: KBArticleKey) -> str:
+    """Recupera un artículo informativo aprobado de la base de conocimiento.
+
+    `key` identifica el artículo solicitado. La respuesta devuelve la clave, versión, título y
+    contenido del artículo; es una recuperación de información sin cambios de estado.
+    """
+    article = KB_ARTICLES[key]
+    return json.dumps({"key": key, **article}, ensure_ascii=False)
 
 
 def _ejecutar_transferencia(from_account: str, to_account: str, amount: float, concept: str) -> dict:
@@ -407,6 +567,14 @@ def abrir_reclamacion(
 # ============================================================
 
 TOOL_DEFINITIONS = {
+    "get_account_summary": {
+        "function": get_account_summary,
+        "description": "Recupera saldo disponible, moneda, estado y hora de actualización de una cuenta autenticada.",
+    },
+    "get_kb_article": {
+        "function": get_kb_article,
+        "description": "Recupera un artículo aprobado y versionado de la base de conocimiento mediante una clave definida.",
+    },
     "consulta_saldo": {
         "function": consulta_saldo,
         "description": "Recupera el saldo, la divisa y los últimos movimientos de una cuenta sin modificar datos.",

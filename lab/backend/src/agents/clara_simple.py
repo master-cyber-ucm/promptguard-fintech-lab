@@ -22,6 +22,8 @@ from .tools import (
     bloquear_tarjeta,
     consulta_producto,
     consulta_saldo,
+    get_account_summary,
+    get_kb_article,
     transferencia_nacional,
 )
 
@@ -42,7 +44,10 @@ def create_clara_agent_simple(model=None) -> Agent:
         model or _build_model(),
         deps_type=Deps,
         system_prompt=_load_prompt(),
-        tools=[consulta_saldo, transferencia_nacional, bloquear_tarjeta, consulta_producto, abrir_reclamacion],
+        tools=[
+            get_account_summary, get_kb_article, consulta_saldo, transferencia_nacional,
+            bloquear_tarjeta, consulta_producto, abrir_reclamacion,
+        ],
         retries=3,
         model_settings=_default_model_settings(),
     )
