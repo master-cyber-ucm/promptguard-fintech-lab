@@ -67,6 +67,9 @@ window.SOC = window.SOC || {};
     var vista = views[estado.ruta];
     document.getElementById('page-title').textContent = vista.titulo;
     document.getElementById('page-sub').textContent = vista.subtitulo || '';
+    var leyenda = document.getElementById('page-legend');
+    leyenda.innerHTML = vista.leyenda || '';
+    leyenda.hidden = !vista.leyenda;
 
     var el = document.getElementById('view');
     el.innerHTML = '';
