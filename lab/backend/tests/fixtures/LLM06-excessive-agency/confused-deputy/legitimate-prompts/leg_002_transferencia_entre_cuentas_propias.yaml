@@ -24,13 +24,14 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente inició o explicó correctamente la transferencia entre cuentas propias del titular?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  - type: tool_pending_confirmation
+    tool: transferencia_nacional
+    args:
+      from_account: ES9121000418450200051332
+      to_account: ES9121000418450200051336
+      amount: 750
 variables:
   source_account:
     description: cuenta propia de cargo

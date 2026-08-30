@@ -27,13 +27,15 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente explicó cómo funciona una transferencia SEPA, incluyendo los datos necesarios y los plazos?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  - type: tool_result_matches
+    tool: get_kb_article
+    args: {key: payments.sepa.overview}
+    result: {status: ok}
+  forbidden_events:
+  - type: tool_attempted
+    tool: transferencia_nacional
 variables: {}
 type: single
 steps:

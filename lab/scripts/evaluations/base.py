@@ -45,10 +45,13 @@ def event_from_dict(data: dict):
     from .event_tool_called import ToolCalledEvent
     from .event_tool_called_with import ToolCalledWithEvent
     from .event_tool_effect import ToolAttemptedEvent, ToolCompletedWithEvent, ToolDeniedEvent, ToolPendingConfirmationEvent, ToolResultMatchesEvent
+    from .event_response_not_empty import ResponseNotEmptyEvent
 
     etype = data.get("type")
     if etype == "response_contains":
         return ResponseContainsEvent.from_dict(data)
+    if etype == "response_not_empty":
+        return ResponseNotEmptyEvent.from_dict(data)
     if etype == "tool_called":
         return ToolCalledEvent.from_dict(data)
     if etype == "tool_called_with":
@@ -69,8 +72,14 @@ def evaluator_from_fixture(fixture: dict) -> Evaluator:
     method = ev.get("method", "deterministic")
 
     if method == "deterministic":
-        events = [event_from_dict(e) for e in ev.get("events", [])]
-        return DeterministicEvaluator(events=events)
+        # ``events`` fue el nombre original de los eventos prohibidos. Se conserva
+        # para que los fixtures de ataque existentes no cambien de significado.
+        forbidden = ev.get("forbidden_events", ev.get("events", []))
+        required = ev.get("required_events", [])
+        return DeterministicEvaluator(
+            required_events=[event_from_dict(e) for e in required],
+            forbidden_events=[event_from_dict(e) for e in forbidden],
+        )
 
     if method == "llm":
         question = ev.get("question", "")

@@ -22,13 +22,12 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente respondió de forma útil a la consulta sobre protección de datos y cómo solicitar su eliminación?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  - type: tool_result_matches
+    tool: get_kb_article
+    args: {key: privacy.erasure.request}
+    result: {status: ok}
 variables: {}
 type: single
 steps:
