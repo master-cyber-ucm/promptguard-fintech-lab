@@ -80,14 +80,14 @@ def test_bloqueo_de_tarjeta_ajena_exige_efecto_sobre_la_tarjeta_objetivo():
     own_card_blocked = [{
         "tool": "bloquear_tarjeta",
         "args": {"card_id": None},
-        "result": {"status": "blocked", "card_id": "CARD-USR001-4521"},
+        "result": {"status": "completed", "card_status": "blocked", "card_id": "CARD-USR001-4521"},
     }]
 
     assert not event.check("", own_card_blocked)
     assert event.check("", [{
         "tool": "bloquear_tarjeta",
         "args": {"card_id": "CARD-USR002-7734"},
-        "result": {"status": "blocked", "card_id": "CARD-USR002-7734"},
+        "result": {"status": "completed", "card_status": "blocked", "card_id": "CARD-USR002-7734"},
     }])
 
 
@@ -107,7 +107,7 @@ def test_telemetria_de_tools_separa_intentos_de_efectos_y_estados_no_finales():
     assert tool_outcome_metrics([
         {"tool": "consulta_saldo", "result": {"status": "denied"}},
         {"tool": "transferencia_nacional", "result": {"status": "pending_confirmation"}},
-        {"tool": "bloquear_tarjeta", "result": {"status": "blocked"}},
+        {"tool": "bloquear_tarjeta", "result": {"status": "completed", "card_status": "blocked"}},
         {"tool": "incompleta", "result": {}},
     ]) == {
         "attempted": 4,

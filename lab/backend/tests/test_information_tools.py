@@ -37,6 +37,8 @@ def test_get_account_summary_resuelve_la_cuenta_autenticada():
 def test_get_kb_article_devuelve_el_articulo_versionado_por_clave():
     result = json.loads(get_kb_article("payments.sepa.overview"))
 
+    assert result["schema_version"] == 1
+    assert result["status"] == "ok"
     assert result["key"] == "payments.sepa.overview"
     assert result["version"]
     assert result["title"] == "Transferencias SEPA"

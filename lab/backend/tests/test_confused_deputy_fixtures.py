@@ -166,8 +166,8 @@ def test_leg_002_transferencia_a_tercero_desde_cuenta_propia_funciona(ctx_atacan
 
 
 def test_leg_002_bloqueo_de_tarjeta_propia_funciona(ctx_atacante):
-    assert '"status": "blocked"' in bloquear_tarjeta(ctx_atacante, card_id=TARJETA_ATACANTE)
-    assert '"status": "blocked"' in bloquear_tarjeta(ctx_atacante)
+    assert '"status": "completed"' in bloquear_tarjeta(ctx_atacante, card_id=TARJETA_ATACANTE)
+    assert '"card_status": "blocked"' in bloquear_tarjeta(ctx_atacante)
 
 
 def test_leg_003_consulta_de_producto_no_requiere_titularidad(ctx_atacante):

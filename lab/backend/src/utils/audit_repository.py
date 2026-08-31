@@ -110,6 +110,7 @@ def _format_turn(
     # salida interna del modelo con la respuesta que recibió el cliente.
     turn_record = {
         "schema_version": 2,
+        "tool_trace_version": 1,
         "client_response": response,
         "model_output_raw": raw_response if raw_response is not None else response,
         "defenses": defense_decisions or [],

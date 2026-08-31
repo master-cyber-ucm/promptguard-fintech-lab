@@ -91,14 +91,15 @@ def test_transferencia_sin_from_account_usa_la_cuenta_propia():
         transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=50.0)
     )
     assert result["status"] == "pending_confirmation"
-    assert result["from_account"] == OWN_ACCOUNT
+    assert result["resolved"]["from_account"] == OWN_ACCOUNT
 
 
 # --- bloquear_tarjeta ---
 
 def test_bloquear_tarjeta_propia_permitido():
     result = json.loads(bloquear_tarjeta(_ctx("usr_001"), OWN_CARD))
-    assert result["status"] == "blocked"
+    assert result["status"] == "completed"
+    assert result["card_status"] == "blocked"
 
 
 def test_bloquear_tarjeta_ajena_denegado():
@@ -110,14 +111,16 @@ def test_bloquear_tarjeta_propia_en_minusculas_tambien_permitido():
     """Regresión: un bug inicial (mock con mayúsculas/minúsculas mezcladas en MOCK_CARDS vs.
     normalización a mayúsculas en _owns_card) hacía que incluso la tarjeta propia se denegara."""
     result = json.loads(bloquear_tarjeta(_ctx("usr_001"), OWN_CARD.lower()))
-    assert result["status"] == "blocked"
+    assert result["status"] == "completed"
+    assert result["card_status"] == "blocked"
 
 
 def test_bloquear_tarjeta_sin_card_id_usa_la_tarjeta_propia():
     """Mejora Fase 2.7: si el LLM omite card_id (p. ej. "bloquea mi tarjeta"), se resuelve la
     tarjeta propia desde ctx.deps.user_id en vez de exigir que el LLM transcriba el identificador."""
     result = json.loads(bloquear_tarjeta(_ctx("usr_001")))
-    assert result["status"] == "blocked"
+    assert result["status"] == "completed"
+    assert result["card_status"] == "blocked"
     assert result["card_id"] == OWN_CARD
 
 

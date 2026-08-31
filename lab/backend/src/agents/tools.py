@@ -192,8 +192,28 @@ KB_ARTICLES: dict[KBArticleKey, dict[str, str]] = {
 }
 
 
+TOOL_RESULT_SCHEMA_VERSION = 1
+
+
+def _tool_result(status: str, **payload) -> str:
+    """Serializa el contrato canónico de resultado de una tool.
+
+    ``status`` describe el resultado de la invocación, no el estado de negocio
+    del recurso afectado. Así, una tarjeta bloqueada con éxito es ``completed``
+    con ``card_status=blocked``; no una llamada ``blocked``.
+    """
+    return json.dumps(
+        {"schema_version": TOOL_RESULT_SCHEMA_VERSION, "status": status, **payload},
+        ensure_ascii=False,
+    )
+
+
 def _denied(reason: str, **extra) -> str:
-    return json.dumps({"status": "denied", "reason": reason, **extra}, ensure_ascii=False)
+    return _tool_result("denied", reason=reason, **extra)
+
+
+def _failed(reason: str, **extra) -> str:
+    return _tool_result("failed", reason=reason, **extra)
 
 
 def _gate(ctx: RunContext[Deps], tool: str, permitida: bool, razon: str,
@@ -245,7 +265,7 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
     if account_id is None:
         own_accounts = _get_user_accounts(ctx.deps.user_id)
         if not own_accounts:
-            return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+            return _failed("No se encontró ninguna cuenta asociada al usuario autenticado.")
         account_id = own_accounts[0]
         _gate(ctx, "consulta_saldo", True, 
               "Sin account_id: se resolvió la cuenta propia desde el canal de autenticación.", t0=_t0,
@@ -263,7 +283,7 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
 
     account = _get_account(account_id)
     if not account:
-        return f"Error: No se encontró la cuenta {account_id}"
+        return _tool_result("not_found", account_id=account_id)
 
     # Simula movimientos
     movimientos = [
@@ -272,14 +292,14 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
         f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Bizum | -25.00 € | María García",
     ]
 
-    return json.dumps({
-        "status": "ok",
-        "account_id": account.account_id,
-        "owner": account.owner_name,
-        "balance": f"{account.balance:,.2f} €",
-        "currency": account.currency,
-        "last_movements": movimientos,
-    }, ensure_ascii=False)
+    return _tool_result(
+        "ok",
+        account_id=account.account_id,
+        owner=account.owner_name,
+        balance=f"{account.balance:,.2f} €",
+        currency=account.currency,
+        last_movements=movimientos,
+    )
 
 
 def get_account_summary(ctx: RunContext[Deps]) -> str:
@@ -291,7 +311,7 @@ def get_account_summary(ctx: RunContext[Deps]) -> str:
     t0 = time.perf_counter()
     own_accounts = _get_user_accounts(ctx.deps.user_id)
     if not own_accounts:
-        return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+        return _failed("No se encontró ninguna cuenta asociada al usuario autenticado.")
     account_id = own_accounts[0]
     _gate(
         ctx, "get_account_summary", True,
@@ -301,17 +321,17 @@ def get_account_summary(ctx: RunContext[Deps]) -> str:
 
     account = _get_account(account_id)
     if not account:
-        return f"Error: No se encontró la cuenta {account_id}"
+        return _tool_result("not_found", account_id=account_id)
 
-    return json.dumps({
-        "status": "ok",
-        "account_id": account.account_id,
-        "account_id_masked": f"{account.account_id[:4]}····{account.account_id[-4:]}",
-        "available_balance": f"{account.balance:,.2f} €",
-        "currency": account.currency,
-        "account_status": account.status,
-        "as_of": datetime.now(timezone.utc).isoformat(),
-    }, ensure_ascii=False)
+    return _tool_result(
+        "ok",
+        account_id=account.account_id,
+        account_id_masked=f"{account.account_id[:4]}····{account.account_id[-4:]}",
+        available_balance=f"{account.balance:,.2f} €",
+        currency=account.currency,
+        account_status=account.status,
+        as_of=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 def get_kb_article(key: KBArticleKey) -> str:
@@ -326,12 +346,8 @@ def get_kb_article(key: KBArticleKey) -> str:
     """
     article = KB_ARTICLES.get(key)
     if article is None:
-        return json.dumps({
-            "status": "not_found",
-            "key": key,
-            "available_keys": list(KB_ARTICLES),
-        }, ensure_ascii=False)
-    return json.dumps({"key": key, **article}, ensure_ascii=False)
+        return _tool_result("not_found", key=key, available_keys=list(KB_ARTICLES))
+    return _tool_result("ok", key=key, **article)
 
 
 def _ejecutar_transferencia(from_account: str, to_account: str, amount: float, concept: str) -> dict:
@@ -345,6 +361,7 @@ def _ejecutar_transferencia(from_account: str, to_account: str, amount: float, c
         concept=concept, status="completed", timestamp=datetime.now(timezone.utc).isoformat(),
     )
     result = {
+        "schema_version": TOOL_RESULT_SCHEMA_VERSION,
         "status": "completed",
         "transaction_id": transaction.transaction_id,
         "from": from_account,
@@ -352,6 +369,7 @@ def _ejecutar_transferencia(from_account: str, to_account: str, amount: float, c
         "amount": f"{amount:,.2f} €",
         "concept": concept,
         "timestamp": transaction.timestamp,
+        "resolved": {"from_account": from_account},
     }
     if to_acc:
         result["beneficiary"] = to_acc.owner_name
@@ -386,7 +404,7 @@ def transferencia_nacional(
     if from_account is None:
         own_accounts = _get_user_accounts(ctx.deps.user_id)
         if not own_accounts:
-            return "Error: No se encontró ninguna cuenta de origen asociada al usuario autenticado."
+            return _failed("No se encontró ninguna cuenta de origen asociada al usuario autenticado.")
         from_account = own_accounts[0]
         _gate(ctx, "transferencia_nacional", True,
               "Sin from_account: se resolvió la cuenta propia desde el canal de autenticación.", t0=_t0,
@@ -407,7 +425,7 @@ def transferencia_nacional(
 
     from_acc = _get_account(from_account)
     if not from_acc:
-        return f"Error: Cuenta origen {from_account} no encontrada"
+        return _tool_result("not_found", account_id=from_account, role="source")
 
     # Límites e aprobación fuera de banda — `tool_permissions.yaml`. Fail-closed: si la tool
     # no está declarada en el YAML, `limite_para` devuelve None y no se aplica ningún límite
@@ -444,23 +462,23 @@ def transferencia_nacional(
             detalle={"tool": "transferencia_nacional", "amount": amount, "operation_id": operation_id},
             latencia_ms=(time.perf_counter() - _t0) * 1000,
         )
-        return json.dumps({
-            "status": "pending_confirmation",
-            "operation_id": operation_id,
+        return _tool_result(
+            "pending_confirmation",
+            operation_id=operation_id,
             # Lab: el token viaja en la misma respuesta para poder probar el flujo
             # end-to-end sin canal push real. En producción viaja por push/SMS — un
             # canal que el propio ataque conversacional no puede tocar (ver README de
             # la categoría, "confirmación humana cómo se hace bien").
-            "confirm_token": token,
-            "amount": amount,
-            "from_account": from_account,
-            "to_account": to_account,
-            "ttl_seconds": tool_permissions.TTL_SEGUNDOS,
-            "message": (
+            confirm_token=token,
+            amount=amount,
+            to_account=to_account,
+            resolved={"from_account": from_account},
+            ttl_seconds=tool_permissions.TTL_SEGUNDOS,
+            message=(
                 "La transferencia está preparada y NO se ha ejecutado. "
                 f"Confirme vía POST /api/v1/confirm/{operation_id} con el token recibido."
             ),
-        }, ensure_ascii=False)
+        )
 
     return json.dumps(_ejecutar_transferencia(from_account, to_account, amount, concept), ensure_ascii=False)
 
@@ -480,7 +498,7 @@ def bloquear_tarjeta(
     if card_id is None:
         own_cards = _get_user_cards(ctx.deps.user_id)
         if not own_cards:
-            return "Error: No se encontró ninguna tarjeta asociada al usuario autenticado."
+            return _failed("No se encontró ninguna tarjeta asociada al usuario autenticado.")
         card_id = own_cards[0]
         _gate(ctx, "bloquear_tarjeta", True, 
               "Sin card_id: se resolvió la tarjeta propia desde el canal de autenticación.", t0=_t0,
@@ -496,13 +514,14 @@ def bloquear_tarjeta(
         _gate(ctx, "bloquear_tarjeta", True, 
               "Tarjeta propiedad del usuario autenticado.", t0=_t0, card_id=card_id)
 
-    return json.dumps({
-        "status": "blocked",
-        "card_id": card_id,
-        "reason": reason,
-        "blocked_at": datetime.now(timezone.utc).isoformat(),
-        "note": "Tarjeta bloqueada permanentemente. Solicite nueva en sucursal.",
-    }, ensure_ascii=False)
+    return _tool_result(
+        "completed",
+        card_id=card_id,
+        card_status="blocked",
+        reason=reason,
+        blocked_at=datetime.now(timezone.utc).isoformat(),
+        note="Tarjeta bloqueada permanentemente. Solicite nueva en sucursal.",
+    )
 
 
 def consulta_producto(product_type: str = "all") -> str:
@@ -531,9 +550,9 @@ def consulta_producto(product_type: str = "all") -> str:
     }
 
     if product_type != "all" and product_type in products:
-        return json.dumps(products[product_type], ensure_ascii=False)
+        return _tool_result("ok", product_type=product_type, product=products[product_type])
 
-    return json.dumps(products, ensure_ascii=False)
+    return _tool_result("ok", product_type="all", products=products)
 
 
 def abrir_reclamacion(
@@ -547,15 +566,16 @@ def abrir_reclamacion(
     La operación crea un expediente de reclamación y devuelve su identificador, estado inicial,
     fecha de registro y plazo estimado de respuesta.
     """
-    return json.dumps({
-        "status": "registered",
-        "claim_id": f"REC-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
-        "subject": subject,
-        "description": description,
-        "user_id": ctx.deps.user_id,
-        "registered_at": datetime.now(timezone.utc).isoformat(),
-        "estimated_response": "48 horas hábiles",
-    }, ensure_ascii=False)
+    return _tool_result(
+        "completed",
+        claim_status="registered",
+        claim_id=f"REC-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        subject=subject,
+        description=description,
+        user_id=ctx.deps.user_id,
+        registered_at=datetime.now(timezone.utc).isoformat(),
+        estimated_response="48 horas hábiles",
+    )
 
 
 # ============================================================
