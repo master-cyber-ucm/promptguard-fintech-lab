@@ -33,6 +33,8 @@ _MODEL_RE     = re.compile(r'\| Modelo \| `([^`]+)` \|')
 SEP  = "─" * 70
 SEP2 = "═" * 70
 
+ATTACK_KINDS = ("attack-prompts", "navi-prompts")
+
 # Orden de menor a mayor cobertura de seguridad. Los endpoints no conocidos se
 # conservan al final en orden alfabético para que el informe siga siendo útil
 # durante experimentos puntuales.
@@ -127,6 +129,10 @@ def parse_session_file(path: Path, fixture_by_id: dict) -> dict | None:
         "tool_outcomes": data.get("tool_outcomes", {}),
         "inconclusive": data.get("inconclusive", False),
         "status": data.get("status", "INCONCLUSIVE" if data.get("inconclusive") else "PASS" if data["passed"] else "FAIL"),
+        "disposition": data.get("disposition", "UNAVAILABLE"),
+        "decision_source": data.get("decision_source", "legacy"),
+        "deterministic_reason": data.get("deterministic_reason"),
+        "judge": data.get("judge"),
         "session_file": f"{path.parent.name}/{path.name}",
         "model":           model_m.group(1) if model_m else "unknown",
         "name":            fixture.get("name", data["fixture_id"]),
@@ -142,7 +148,7 @@ def parse_session_file(path: Path, fixture_by_id: dict) -> dict | None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _compute_stats(results: list[dict]) -> dict:
-    attacks = [r for r in results if r["fixture_kind"] in ("attack-prompts", "navi-prompts")]
+    attacks = [r for r in results if r["fixture_kind"] in ATTACK_KINDS]
     legit   = [r for r in results if r["fixture_kind"] == "legitimate-prompts"]
     conclusive_attacks = [r for r in attacks if not r.get("inconclusive")]
     conclusive_legit = [r for r in legit if not r.get("inconclusive")]
@@ -184,6 +190,19 @@ def _compute_stats(results: list[dict]) -> dict:
         for outcome, count in result.get("tool_outcomes", {}).items():
             if outcome in tool_outcomes:
                 tool_outcomes[outcome] += int(count)
+    dispositions: dict[str, int] = {}
+    judge_invocations = 0
+    judge_inconclusive = 0
+    semantic_pass_without_tool = 0
+    for result in results:
+        disposition = result.get("disposition", "UNAVAILABLE")
+        dispositions[disposition] = dispositions.get(disposition, 0) + 1
+        if result.get("judge") is not None:
+            judge_invocations += 1
+        if disposition == "EVIDENCE_INSUFFICIENT" and result.get("decision_source") in {"hybrid", "semantic_judge"}:
+            judge_inconclusive += 1
+        if disposition == "SEMANTIC_PASS" and result["fixture_kind"] == "legitimate-prompts" and not result.get("tool_outcomes", {}).get("completed", 0):
+            semantic_pass_without_tool += 1
 
     return {
         "summary": {
@@ -201,6 +220,13 @@ def _compute_stats(results: list[dict]) -> dict:
             "model_attempted_leaks": sum(1 for r in results if r.get("model_attempted_leak")),
             "client_exposed_leaks":  sum(1 for r in results if r.get("client_exposed_leak")),
             "tool_outcomes": tool_outcomes,
+            "dispositions": dispositions,
+            "security_breaches_observed": dispositions.get("SECURITY_BREACH", 0),
+            "security_blocks_observed": dispositions.get("SECURITY_BLOCK", 0),
+            "functional_failures_observed": dispositions.get("FUNCTIONAL_FAILURE", 0),
+            "judge_invocations": judge_invocations,
+            "judge_inconclusive": judge_inconclusive,
+            "semantic_pass_without_tool": semantic_pass_without_tool,
         },
         "by_category": by_category,
         "by_family":   by_family,
@@ -268,15 +294,16 @@ def _build_md(run_data: dict) -> str:
     lines += [
         "## Comparación de seguridad",
         "",
-        "| Endpoint | Bloqueo | Brechas | FP% |",
-        "|----------|----------|----------|-----|",
+        "| Endpoint | Bloqueo | Brechas | FP% histórico | Fallos funcionales |",
+        "|----------|----------|----------|---------------|--------------------|",
     ]
     for ep in endpoints:
         s = run_data["by_endpoint"][ep]["summary"]
         blocked = f"{s['attack_block_rate']}%" if s["attack_block_rate"] is not None else "n/a"
         breaches = f"{s['attack_breach_rate']}%" if s["attack_breach_rate"] is not None else "n/a"
         false_positives = f"{s['legitimate_fp_rate']}%" if s["legitimate_fp_rate"] is not None else "n/a"
-        lines.append(f"| `{ep}` | {blocked} | {breaches} | {false_positives} |")
+        functional = s["functional_failures_observed"]
+        lines.append(f"| `{ep}` | {blocked} | {breaches} | {false_positives} | {functional} |")
     lines.append("")
 
     for ep in endpoints:
@@ -306,7 +333,18 @@ def _build_md(run_data: dict) -> str:
         if s["legitimate_pass_rate"] is not None:
             lines.append(f"| Atención legítima | {s['legitimate_pass_rate']}% |")
         if s["legitimate_fp_rate"] is not None:
-            lines.append(f"| Falsos positivos | {s['legitimate_fp_rate']}% |")
+            lines.append(f"| Falsos positivos (compatibilidad histórica) | {s['legitimate_fp_rate']}% |")
+        lines.append(f"| Invocaciones del juez | {s['judge_invocations']} |")
+        lines.append(f"| Juez inconcluso | {s['judge_inconclusive']} |")
+        lines.append(f"| Aprobados semánticos sin Tool | {s['semantic_pass_without_tool']} |")
+        lines.append(f"| Brechas de seguridad observadas | {s['security_breaches_observed']} |")
+        lines.append(f"| Bloqueos de seguridad observados | {s['security_blocks_observed']} |")
+        lines.append(f"| Fallos funcionales observados | {s['functional_failures_observed']} |")
+        lines.append("")
+
+        lines += ["### Disposición de evaluación", "", "| Disposición | Casos |", "|-------------|-------|"]
+        for disposition, count in sorted(s["dispositions"].items()):
+            lines.append(f"| `{disposition}` | {count} |")
         lines.append("")
 
         lines += [
@@ -378,6 +416,7 @@ def _build_md(run_data: dict) -> str:
             lines.append(
                 f"- {icon} **[`{r['fixture_id']}`]({r['session_file']})** `{r['fixture_kind']}`"
                 f" · verdict={r['verdict']} · [{r['method']}]"
+                f" · disposición=`{r.get('disposition', 'UNAVAILABLE')}`"
             )
             if r.get("detail"):
                 lines.append(f"  - _{r['detail'][:200]}_")
