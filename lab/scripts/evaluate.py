@@ -233,6 +233,10 @@ def append_eval(
     tool_outcomes: dict[str, int],
     inconclusive: bool,
     status: str,
+    disposition: str,
+    decision_source: str,
+    deterministic_reason: str | None,
+    judge: dict | None,
 ) -> None:
     ts   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     icon = "⚠️" if inconclusive else "✅" if passed else "❌"
@@ -250,6 +254,10 @@ def append_eval(
         "tool_outcomes": tool_outcomes,
         "inconclusive": inconclusive,
         "status": status,
+        "disposition": disposition,
+        "decision_source": decision_source,
+        "deterministic_reason": deterministic_reason,
+        "judge": judge,
     }
 
     lines = [
@@ -267,6 +275,7 @@ def append_eval(
         f"| Expected | `{expected_result}` |",
         f"| Método | {method} |",
         f"| Verdict | **{verdict}** {icon} |",
+        f"| Disposición | `{disposition}` · fuente=`{decision_source}` |",
         "",
         f"**Detalle:** {detail[:300] if detail else '—'}",
         "",
@@ -373,6 +382,10 @@ async def process_run(
                 tool_outcomes=tool_outcomes,
                 inconclusive=result.inconclusive,
                 status=result.status,
+                disposition=result.disposition,
+                decision_source=result.decision_source,
+                deterministic_reason=result.deterministic_reason,
+                judge=result.judge,
             )
 
 

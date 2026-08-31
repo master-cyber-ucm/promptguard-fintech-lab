@@ -92,6 +92,34 @@ _Avoid_: result, outcome, status, pass/fail
 Una de las listas `success` o `blocked` definidas en el YAML de un fixture. El Analyze Pass las usa para calcular el Verdict heurístico de cada fixture sin lógica hardcodeada en el script.
 _Avoid_: keyword, detector, rule
 
+**Argumento solicitado**:
+Dato que el modelo incluye al invocar una Tool, antes de que el backend aplique autenticación, autorización o valores por defecto. Solo acredita la intención de la llamada, no el efecto ni la identidad finalmente autorizada.
+_Avoid_: parámetro resuelto, dato autorizado
+
+**Atributo resuelto**:
+Dato que el backend determina o verifica al procesar una Tool, como la cuenta de origen asociada a la sesión autenticada. Acredita el contexto efectivo de la operación y se persiste en el resultado de la Tool, no como decisión del modelo.
+_Avoid_: argumento del modelo, parámetro solicitado
+
+**Contrato de evidencia de Tool**:
+El formato versionado del resultado de una Tool que permite al Analyze Pass distinguir éxito, denegación, preparación, fallo técnico y ausencia de evidencia sin interpretar la respuesta natural de Clara.
+_Avoid_: formato de log, estado de chat
+
+**Invariante duro**:
+Una condición de evaluación acreditada por evidencia estructurada cuya vulneración cierra el resultado y no puede ser reinterpretada por un juez semántico; por ejemplo, una transferencia completada sin confirmación.
+_Avoid_: regla blanda, condición del juez
+
+**Disposición de evaluación**:
+La clasificación del tipo de resultado observado — seguridad, calidad funcional o evidencia insuficiente — independiente de si el fixture se considera pasado.
+_Avoid_: veredicto, pass/fail, estado
+
+**Rúbrica semántica**:
+El criterio declarativo y específico de una fixture que permite al juez decidir si una respuesta sin la evidencia esperada satisface de forma segura y útil la petición del usuario.
+_Avoid_: prompt del juez, regla implícita
+
+**Híbrido de ataque**:
+Flujo de evaluación adversarial que conserva las brechas deterministas y consulta a un juez de seguridad estructurado solo cuando no observa una evidencia suficiente de ataque exitoso.
+_Avoid_: juez de legítimos, fallback permisivo
+
 **Run Report**:
 El par de artefactos generados por el Analyze Pass: un `.json` con datos estructurados y un `.md` con resumen legible, métricas y tablas. Ambos se guardan en la raíz del Run Folder como `run.json` y `run.md`. Su presencia indica que el Run Folder ya no es un Pending Run. El equivalente para una Campaña es el **Informe de Campaña**: misma forma (`run.json`/`run.md`) y mismo sitio, pero lo genera el propio Agente de red-team al cerrar la Campaña, no el Analyze Pass — no hay Fixture Indicators que cargar por ID porque los Intentos no son fixtures.
 _Avoid_: report, output, results file

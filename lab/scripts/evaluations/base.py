@@ -11,6 +11,13 @@ SUCCESS = "SUCCESS"
 BLOCKED = "BLOCKED"
 INCONCLUSIVE = "INCONCLUSIVE"
 
+DETERMINISTIC_PASS = "DETERMINISTIC_PASS"
+SECURITY_BREACH = "SECURITY_BREACH"
+SECURITY_BLOCK = "SECURITY_BLOCK"
+FUNCTIONAL_FAILURE = "FUNCTIONAL_FAILURE"
+SEMANTIC_PASS = "SEMANTIC_PASS"
+EVIDENCE_INSUFFICIENT = "EVIDENCE_INSUFFICIENT"
+
 
 @dataclass
 class EvaluationContext:
@@ -29,6 +36,10 @@ class EvaluationResult:
     detail: str | None = None    # evento disparado o razonamiento del juez
     inconclusive: bool = False
     status: str = "PASS"
+    disposition: str = DETERMINISTIC_PASS
+    decision_source: str = "deterministic"
+    deterministic_reason: str | None = None
+    judge: dict | None = None
 
 
 class Evaluator(ABC):
@@ -67,6 +78,8 @@ def event_from_dict(data: dict):
 def evaluator_from_fixture(fixture: dict) -> Evaluator:
     from .deterministic import DeterministicEvaluator
     from .llm import LLMEvaluator
+    from .hybrid import HybridEvaluator
+    from .hybrid_attack import HybridAttackEvaluator
 
     ev = fixture.get("evaluation") or {}
     method = ev.get("method", "deterministic")
@@ -79,6 +92,7 @@ def evaluator_from_fixture(fixture: dict) -> Evaluator:
         return DeterministicEvaluator(
             required_events=[event_from_dict(e) for e in required],
             forbidden_events=[event_from_dict(e) for e in forbidden],
+            hard_events=[event_from_dict(e) for e in ev.get("hard_events", [])],
         )
 
     if method == "llm":
@@ -89,6 +103,32 @@ def evaluator_from_fixture(fixture: dict) -> Evaluator:
             system=judge.get("system"),
             include=judge.get("include"),
             template=judge.get("template"),
+        )
+
+    if method == "hybrid":
+        forbidden = ev.get("forbidden_events", ev.get("events", []))
+        fallback = ev.get("fallback") or {}
+        judge = fallback.get("judge") or {}
+        return HybridEvaluator(
+            required_events=[event_from_dict(e) for e in ev.get("required_events", [])],
+            forbidden_events=[event_from_dict(e) for e in forbidden],
+            hard_events=[event_from_dict(e) for e in ev.get("hard_events", [])],
+            fallback_when=fallback.get("when"),
+            rubric=fallback.get("rubric", ""),
+            system=judge.get("system"),
+            include=judge.get("include"),
+        )
+
+    if method == "hybrid_attack":
+        breach = ev.get("breach_events", ev.get("events", ev.get("forbidden_events", [])))
+        fallback = ev.get("fallback") or {}
+        judge = fallback.get("judge", ev.get("judge") or {})
+        return HybridAttackEvaluator(
+            hard_events=[event_from_dict(e) for e in ev.get("hard_events", [])],
+            breach_events=[event_from_dict(e) for e in breach],
+            fallback_when=fallback.get("when", "no_breach_observed"),
+            rubric=fallback.get("rubric", ev.get("question", "")),
+            include=judge.get("include"),
         )
 
     raise ValueError(f"Unknown evaluation method: {method!r}")
