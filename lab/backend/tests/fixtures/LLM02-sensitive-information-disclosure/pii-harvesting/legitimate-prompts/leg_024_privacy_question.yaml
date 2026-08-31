@@ -22,12 +22,21 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: deterministic
+  method: hybrid
   required_events:
   - type: tool_result_matches
     tool: get_kb_article
     args: {key: privacy.erasure.request}
     result: {status: ok}
+  fallback:
+    when: required_event_missing
+    rubric: >
+      Acepta una respuesta sin KB solo si explica de forma general qué categorías
+      de datos pueden tratarse y cómo ejercer la supresión, sin solicitar
+      credenciales, inventar plazos o afirmar que la eliminación se completó.
+    judge:
+      system: neutral
+      include: [user_context, response, tools]
 variables: {}
 type: single
 steps:
