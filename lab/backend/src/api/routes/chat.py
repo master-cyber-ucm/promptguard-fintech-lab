@@ -42,12 +42,15 @@ Progresión de menor a mayor defensa:
       conjunto que el `user_id` autenticado tiene derecho a ver (control determinista).
 """
 
+import hashlib
+import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from pydantic_ai.messages import (
     ModelRequest,
@@ -60,10 +63,18 @@ from pydantic_ai.messages import (
 
 from pydantic_ai.settings import ModelSettings
 
+from src.agents.clara_base import DEFAULT_MAX_OUTPUT_TOKENS
 from src.agents.clara_complex import get_clara_agent_complex, reset_clara_agent_complex
 from src.agents.clara_simple import get_clara_agent_simple, reset_clara_agent_simple
-from src.agents.session_store import get_history, new_session_id, store_history
-from src.agents.tools import Deps
+from src.agents.session_store import (
+    claim_session,
+    get_owned,
+    new_session_id,
+    store_history,
+    update_security_state,
+)
+from src.agents.tool_catalog import catalog_hash, exposed_tool_names
+from src.agents.tools import TOOL_DEFINITIONS, Deps
 from src.core.base import StageContext, shadow_mode
 from src.core.budget_guard import default_guard
 from src.core.document_extractor import UnsupportedDocumentError, extract_text
@@ -77,7 +88,13 @@ from src.core.leak_guard import (
     verified_ibans_from_tools,
 )
 from src.core.pii_shield import PIIShieldStage, redact_foreign_pii
+from src.core import session_security
 from src.core.rate_limiter import default_limiter
+from src.core import financial_facts
+from src.core.argument_provenance import InputArtifacts
+from src.core.session_security import SessionSecurityState
+from src.api.auth import Principal, resolve_principal
+from src.core.tool_permissions import snapshot as tool_permissions_snapshot
 from src.models.banking import MOCK_USERS
 from src.models.interaction import PromptDecision
 from src.utils.audit_repository import append_turn, sign_turn
@@ -96,7 +113,15 @@ logger = logging.getLogger(__name__)
 # --- Request / Response ---
 
 class ChatRequest(BaseModel):
-    user_id: str = Field(default="usr_001", description="ID del usuario")
+    user_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "DEPRECADO como identidad. La identidad efectiva sale de la credencial "
+            "(`Authorization: Bearer`), no del cuerpo: aceptarla aquí permitía elegir "
+            "`usr_admin` sin más. Omitido es lo normal; si se envía junto a una "
+            "credencial y no coincide con el sujeto autenticado, la petición se rechaza."
+        ),
+    )
     message: str = Field(..., description="Mensaje para Clara")
     session_id: Optional[str] = Field(
         default=None,
@@ -106,6 +131,14 @@ class ChatRequest(BaseModel):
     fixture_id: Optional[str] = Field(default=None)
     fixture_kind: Optional[str] = Field(default=None)
     fixture_expected_result: Optional[str] = Field(default=None)
+    fixture_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Identificador de la Fixture Execution asignado por el runner antes de enviar "
+            "nada. Correlaciona todos los Turns, Analysis Events y evidencias de una misma "
+            "ejecución sin depender de la ruta del Session File."
+        ),
+    )
     audit_subdir: Optional[str] = Field(default=None, description="Ruta absoluta del directorio destino para el Session File")
     vulnerable: bool = Field(
         default=False,
@@ -141,18 +174,70 @@ class ChatResponse(BaseModel):
     audit_file: Optional[str] = None
     error: Optional[str] = None
     block_code: Optional[str] = None
+    effective_posture: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Postura experimental EFECTIVA del turno, tal como la aplicó el backend. El "
+            "runner la compara con la solicitada: una discrepancia es un error de "
+            "instrumentación, no un resultado."
+        ),
+    )
+    execution_status: str = "COMPLETED"
 
 
 # --- Helpers ---
 
+def agent_invariants(agent, *, inject_context: bool, document: bool) -> dict:
+    """Hashes de todo lo que define al agente y NO es una defensa.
+
+    Sin esto, la Postura efectiva solo describía qué controles estaban activos, y dos
+    endpoints con system prompts distintos parecían comparables. El fingerprint del
+    contrafactual se calcula sobre estos campos (ver `models/posture.py`).
+    """
+    system_prompt = "\n".join(getattr(agent, "_system_prompts", ()) or ())
+    # El hash sale del CATÁLOGO efectivo, no de todo lo registrado: lo que importa
+    # para la comparabilidad es lo que el agente tenía delante (P20).
+    try:
+        tool_names = list(exposed_tool_names())
+    except Exception:  # pragma: no cover - defensivo
+        tool_names = []
+    try:
+        policy = tool_permissions_snapshot()
+    except Exception:  # pragma: no cover - defensivo
+        policy = {}
+    return {
+        "prompt_hash": _sha(system_prompt),
+        "context_injection": bool(inject_context),
+        "document_channel": bool(document),
+        "tool_catalog_hash": catalog_hash(),
+        "tool_names_hash": _sha(tool_names),
+        "policy_hash": _sha(policy),
+        "model_config_hash": _sha({
+            "max_output_tokens": os.environ.get(
+                "CLARA_MAX_OUTPUT_TOKENS", str(DEFAULT_MAX_OUTPUT_TOKENS)
+            ),
+            "model": getattr(getattr(agent, "model", None), "model_name", ""),
+        }),
+    }
+
+
+def _sha(value) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
 def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
-    """Extrae las llamadas a tools y su RESULTADO real (no solo los argumentos con los que se
-    invocaron). Necesario para poder distinguir, en el estudio de ablación de la Fase 2, una tool
-    call DENEGADA por el Tool Gatekeeper (D) de una tool call que sí devolvió datos — antes solo
-    se registraba `args` incluso para el `ToolReturnPart` (que no tiene `args`, quedaba como
-    cadena vacía), perdiendo el `content` con el JSON de retorno de la tool.
+    """Extrae cada Tool Invocation como una unidad con identidad estable.
+
+    Antes se emitían dos entradas por llamada —una con `args`, otra con `result`— y el
+    Analyze Pass las recombinaba por nombre y adyacencia. Dos invocaciones de la misma
+    tool en el mismo turno podían quedar cruzadas, y el resultado de una denegación
+    acabar pegado a los argumentos de otra. Ahora se correlaciona por el
+    `tool_call_id` nativo de pydantic-ai; si una versión no lo expone, se genera uno y
+    se propaga explícitamente — nunca se asocia por nombre.
     """
     tools: list[dict] = []
+    por_id: dict[str, dict] = {}
     thinking: str | None = None
     if not hasattr(result, "all_messages"):
         return tools, thinking
@@ -161,15 +246,37 @@ def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
             if isinstance(part, ThinkingPart):
                 thinking = part.content
             elif isinstance(part, ToolCallPart):
-                tools.append({"tool": part.tool_name, "args": str(part.args)})
+                call_id = getattr(part, "tool_call_id", None) or f"{part.tool_name}#{len(tools)}"
+                entry = {
+                    "tool": part.tool_name,
+                    "tool_call_id": call_id,
+                    "args": str(part.args),
+                    "result": None,
+                }
+                tools.append(entry)
+                por_id[call_id] = entry
             elif isinstance(part, ToolReturnPart):
-                tools.append({"tool": part.tool_name, "result": str(part.content)})
+                call_id = getattr(part, "tool_call_id", None)
+                entry = por_id.get(call_id) if call_id else None
+                if entry is None:
+                    # Un retorno sin llamada correlacionable es una anomalía de
+                    # telemetría, no una invocación silenciosa: se conserva marcada.
+                    entry = {
+                        "tool": part.tool_name,
+                        "tool_call_id": call_id or f"{part.tool_name}#orphan{len(tools)}",
+                        "args": None,
+                        "result": None,
+                        "orphan_return": True,
+                    }
+                    tools.append(entry)
+                entry["result"] = str(part.content)
     return tools, thinking
 
 
 async def _process_chat(
     request: ChatRequest,
     endpoint_name: str,
+    principal: Principal,
     agent,
     reset_fn: Callable,
     inject_context: bool,
@@ -186,28 +293,74 @@ async def _process_chat(
 ) -> ChatResponse:
     start_time = time.time()
 
-    user = MOCK_USERS.get(request.user_id)
+    # La identidad efectiva es la del Principal, no la del cuerpo. Todo lo que sigue
+    # —contexto inyectado, deps de las tools, PII Shield, auditoría— la usa a ella.
+    user = MOCK_USERS.get(principal.subject)
     if not user:
-        raise HTTPException(status_code=404, detail=f"Usuario {request.user_id} no encontrado")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     # Memoria de sesión (ver src/agents/session_store.py): un session_id omitido arranca
     # una conversación nueva; si se manda uno existente, se recupera su historial y los
     # fixtures multi-step dejan de "empezar en frío" en cada paso.
-    if request.session_id:
-        session_id = request.session_id
-        prior_history: Optional[list] = get_history(session_id) or None
-    else:
-        session_id = new_session_id()
-        prior_history = None
+    # La sesión se resuelve BAJO el Principal: un `session_id` que pertenece a OTRO no
+    # devuelve historial ni confirma su existencia — se abre una sesión nueva. Adoptar
+    # un identificador libre sí es legítimo: el Playground y el runner eligen el suyo.
+    session_id, historial = claim_session(principal, request.session_id)
+    # Riesgo acumulado de la sesión. Lo que el turno anterior detectó pesa en este:
+    # sin esto, "haz la transferencia" se evalúa como si la sesión empezara de cero.
+    registro_sesion = get_owned(principal, session_id)
+    riesgo = session_security.decay(SessionSecurityState.from_dict(
+        (registro_sesion.security_state if registro_sesion else {}) or {}
+    ))
+    prior_history: Optional[list] = historial or None
+    if request.session_id and session_id != request.session_id:
+        logger.warning(
+            "[%s] session_id aportado pertenece a otra identidad: se abre sesión nueva",
+            session_id,
+        )
     fixture_tag = f" fixture={request.fixture_id}" if request.fixture_id else ""
 
     # SOC: el collector puede venir del endpoint (documentos, que ya han evaluado sus
     # capas antes de llegar aquí) o crearse ahora. La `postura` se persiste con el turno
     # para que un turno sin ningún Analysis Event se lea como ausencia de defensa y no
     # como fallo de captura — ver docs/soc/README.md §"Cobertura desigual".
+    # Postura experimental EFECTIVA: la configuración que este turno aplicó de verdad.
+    # `vulnerable=True` apaga cada control externo, así que la postura no puede
+    # limitarse a copiar los flags solicitados — un endpoint "sin defensas" que
+    # heredaba el Output Auditor activo era exactamente el defecto que P01 y P02
+    # señalan. Se persiste con el turno y viaja de vuelta al runner.
+    shadow_activo = bool(proxy_enabled and shadow_mode())
+    effective_posture = {
+        "proxy": bool(proxy_enabled),
+        "vulnerable": bool(request.vulnerable),
+        "shadow": shadow_activo,
+        "input_sanitizer": bool(
+            proxy_enabled and defensa_input_sanitizer and not request.vulnerable
+        ),
+        "pii_shield": bool(defensa_pii_shield and not request.vulnerable),
+        "tool_gatekeeper": bool(
+            defensa_tool_gatekeeper and not request.vulnerable and not shadow_activo
+        ),
+        "output_auditor": bool(defensa_output_auditor and not request.vulnerable),
+        "leak_guard": bool(
+            defensa_leak_guard and defensa_tool_gatekeeper and not request.vulnerable
+        ),
+        "separacion_semantica": bool(document_text and defensa_separacion_semantica),
+        "endpoint": endpoint_name,
+        "proxy_profile": request.proxy_profile,
+        # Nivel de assurance de la identidad: una sesión sin credencial verificada no
+        # es una sesión autenticada, y la evidencia debe decirlo.
+        "assurance_level": principal.assurance_level,
+        # Invariantes del contrafactual (P02): definen el agente, no sus defensas. Dos
+        # posturas solo son comparables causalmente si estos hashes coinciden — es lo
+        # que impide presentar `simple-prompt` vs `proxy-full` como una medida de la
+        # eficacia del proxy cuando además cambian prompt, contexto y tools.
+        **agent_invariants(agent, inject_context=inject_context, document=document_text is not None),
+    }
+
     if collector is None:
         collector = SocCollector(
-            session_id=session_id, user_id=request.user_id, endpoint=endpoint_name,
+            session_id=session_id, user_id=principal.subject, endpoint=endpoint_name,
             audit_subdir=request.audit_subdir, fixture_id=request.fixture_id,
             fixture_kind=request.fixture_kind,
             fixture_expected_result=request.fixture_expected_result,
@@ -216,9 +369,19 @@ async def _process_chat(
         collector.set_postura(
             f"proxy={proxy_enabled} gatekeeper={defensa_tool_gatekeeper} "
             f"pii_shield={defensa_pii_shield} vulnerable={bool(request.vulnerable)}"
-            f"{' shadow' if proxy_enabled and shadow_mode() else ''}"
+            f"{' shadow' if shadow_activo else ''}",
+            efectiva=effective_posture,
         )
+    else:
+        # El canal documental crea el collector un escalón antes; su postura ya
+        # describe las capas del documento y aquí se completa con las del pipeline.
+        collector.set_postura(
+            collector.postura,
+            efectiva={**collector.postura_efectiva, **effective_posture},
+        )
+    collector.fixture_execution_id = request.fixture_execution_id
 
+    user_context = ""
     if inject_context:
         user_context = (
             f"[Contexto del usuario autenticado: user_id={user['user_id']}, "
@@ -244,7 +407,7 @@ async def _process_chat(
             # Shield sí necesita el mensaje completo porque protege el contexto inyectado.
             stage_text = request.message if stage is _INPUT_SANITIZER else full_message
             stage_ctx = StageContext(
-                text=stage_text, user_id=request.user_id, session_id=session_id,
+                text=stage_text, user_id=principal.subject, session_id=session_id,
                 collector=collector,
             )
             t_stage = time.time()
@@ -263,6 +426,16 @@ async def _process_chat(
             )
             if decision.action != "BLOCK":
                 continue
+            # El turno bloqueado no se guarda, pero SÍ deja señal: categoría, severidad
+            # y hash del payload, nunca el texto (P22).
+            riesgo = session_security.apply_signal(riesgo, session_security.signal_from_payload(
+                category=decision.attack_type or "prompt_injection",
+                severity=session_security.Severity.HIGH,
+                component=stage.name,
+                payload=stage_text,
+                confidence=float(decision.confidence or 1.0),
+            ))
+            update_security_state(principal, session_id, **riesgo.to_dict())
             if shadow_mode():
                 logger.warning(
                     "[%s]%s ⚠ shadow mode: %s habría bloqueado (%s) — turno continúa sin bloquear",
@@ -277,14 +450,14 @@ async def _process_chat(
             client_response = client_message_for(stage.name)
             technical_reason = f"BLOCKED_BY_{stage.name.upper()}: {decision.reason}"
             audit_path = append_turn(
-                session_id=session_id, user_id=request.user_id, model=f"proxy-{stage.name}",
+                session_id=session_id, user_id=principal.subject, model=f"proxy-{stage.name}",
                 prompt=full_message, thinking=None, tools=[],
                 response=client_response,
                 raw_response=technical_reason,
-                defense_decisions=[{
-                    "component": stage.name, "action": "BLOCK", "rule": decision.matched_rule,
-                    "reason": decision.reason,
-                }],
+                defense_decisions=collector.snapshot(),
+                posture=effective_posture,
+                model_invoked=False,
+                fixture_execution_id=request.fixture_execution_id,
                 latency_ms=latency_ms,
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
@@ -297,11 +470,12 @@ async def _process_chat(
                 audit_file=audit_path.name,
             )
             return ChatResponse(
-                user_id=request.user_id, message=request.message, response=client_response,
+                user_id=principal.subject, message=request.message, response=client_response,
                 model=f"proxy-{stage.name}", latency_ms=round(latency_ms, 1),
                 session_id=session_id, tools_used=[], endpoint=endpoint_name,
                 audit_file=audit_path.name,
                 block_code="REQUEST_NOT_PROCESSED",
+                effective_posture=effective_posture,
             )
 
     # --- Rate Limiter + Budget Guard (#8/#9, LLM10:2025 — Unbounded Consumption).
@@ -351,13 +525,14 @@ async def _process_chat(
             client_response = client_message_for(componente)
             technical_reason = f"BLOCKED_BY_{componente.upper()}: {razon}"
             audit_path = append_turn(
-                session_id=session_id, user_id=request.user_id, model=f"proxy-{componente}",
+                session_id=session_id, user_id=principal.subject, model=f"proxy-{componente}",
                 prompt=full_message, thinking=None, tools=[],
                 response=client_response,
                 raw_response=technical_reason,
-                defense_decisions=[{
-                    "component": componente, "action": "BLOCK", "reason": razon,
-                }],
+                defense_decisions=collector.snapshot(),
+                posture=effective_posture,
+                model_invoked=False,
+                fixture_execution_id=request.fixture_execution_id,
                 latency_ms=latency_ms,
                 fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
                 fixture_expected_result=request.fixture_expected_result,
@@ -368,14 +543,15 @@ async def _process_chat(
                 modelo=f"proxy-{componente}", latencia_total_ms=latency_ms, audit_file=audit_path.name,
             )
             return ChatResponse(
-                user_id=request.user_id, message=request.message, response=client_response,
+                user_id=principal.subject, message=request.message, response=client_response,
                 model=f"proxy-{componente}", latency_ms=round(latency_ms, 1),
                 session_id=session_id, tools_used=[], endpoint=endpoint_name,
                 audit_file=audit_path.name, block_code="REQUEST_NOT_PROCESSED",
+                effective_posture=effective_posture,
             )
 
         t_rl = time.time()
-        permitido, retry_after = default_limiter.permitir(request.user_id)
+        permitido, retry_after = default_limiter.permitir(principal.subject)
         add_safe(
             collector, componente="rate_limiter", objetivo="prompt",
             accion="ALLOW" if permitido else "BLOCK",
@@ -391,7 +567,7 @@ async def _process_chat(
             )
 
         t_bg = time.time()
-        hay_presupuesto, consumidos = default_guard.hay_presupuesto(request.user_id)
+        hay_presupuesto, consumidos = default_guard.hay_presupuesto(principal.subject)
         add_safe(
             collector, componente="budget_guard", objetivo="prompt",
             accion="ALLOW" if hay_presupuesto else "BLOCK",
@@ -469,7 +645,7 @@ async def _process_chat(
             full_message = f"{full_message}\n\nDocumento adjunto por el cliente:\n{document_text}"
             prompt_for_audit = full_message
 
-    logger.info("[%s]%s → %s (usuario=%s)", session_id, fixture_tag, endpoint_name, request.user_id)
+    logger.info("[%s]%s → %s (usuario=%s)", session_id, fixture_tag, endpoint_name, principal.subject)
 
     try:
         # Tool Gatekeeper: el user_id autenticado se pasa como `deps`, un canal que el LLM no
@@ -485,8 +661,26 @@ async def _process_chat(
             and not (proxy_enabled and shadow_mode())
             and not request.vulnerable  # modo baseline indefenso: también sin Gatekeeper
         )
+        restricciones = session_security.constraints_for(riesgo)
+        if restricciones.deny_state_changing_tools:
+            logger.warning(
+                "[%s]%s sesión en cuarentena: las tools con efecto quedan denegadas",
+                session_id, fixture_tag,
+            )
+            add_safe(
+                collector, componente="tool_gatekeeper", objetivo="tool", accion="BLOCK",
+                razon=restricciones.reason, regla="session_quarantine", confianza=1.0,
+                attack_type="multi_turn_escalation",
+            )
         deps = Deps(
-            user_id=request.user_id, enforce_gatekeeper=effective_gatekeeper,
+            user_id=principal.subject, enforce_gatekeeper=effective_gatekeeper,
+            principal=principal,
+            risk_constraint=restricciones,
+            input_artifacts=InputArtifacts(
+                user_input=request.message,
+                documents=document_text or "",
+                trusted_context=user_context if inject_context else "",
+            ),
             collector=collector,  # SOC: único canal que alcanza al Gatekeeper dentro de agent.run()
         )
         # Cap de tokens de salida (#8, LLM10:2025): el agente lleva un cap por defecto
@@ -503,7 +697,7 @@ async def _process_chat(
         result = await agent.run(full_message, **run_kwargs)
         # Memoria de sesión: persiste el historial completo (recortado a MAX_TURNS)
         # para que el siguiente turno de esta sesión lo recupere via get_history().
-        store_history(session_id, result.all_messages())
+        store_history(principal, session_id, result.all_messages())
         latency_ms = (time.time() - start_time) * 1000
 
         # Budget Guard (#9, LLM10:2025): se descuenta el consumo REAL tras la respuesta,
@@ -522,7 +716,7 @@ async def _process_chat(
                 )
             except Exception:
                 tokens_turno = 0
-            default_guard.registrar_consumo(request.user_id, tokens_turno)
+            default_guard.registrar_consumo(principal.subject, tokens_turno)
 
         tools_used, thinking = _extract_tools_and_thinking(result)
         response_text_raw = str(result.output)
@@ -536,7 +730,11 @@ async def _process_chat(
             response_text, audit_blocked = response_text_raw, False
         else:
             t_aud = time.time()
-            response_text, audit_blocked = audit_response(response_text_raw)
+            # El prompt entra para elegir la plantilla pública de la intención: quitar
+            # el dato prohibido no puede significar dejar la petición sin resolver.
+            response_text, audit_blocked = audit_response(
+                response_text_raw, prompt=request.message,
+            )
             add_safe(
                 collector, componente="output_auditor", objetivo="respuesta",
                 accion="BLOCK" if audit_blocked else "ALLOW",
@@ -544,6 +742,10 @@ async def _process_chat(
                        if audit_blocked else "Sin patrones de secreto conocidos"),
                 regla="output_auditor", confianza=1.0,
                 attack_type="system_prompt_leakage" if audit_blocked else None,
+                # Corre después de que las tools hayan podido producir su efecto: puede
+                # ocultar el texto, no deshacer una transferencia. Marcarlo aquí impide
+                # que su `BLOCK` se contabilice como la defensa que paró la operación.
+                detalle={"post_effect": True, "protects": "text_exposure"},
                 latencia_ms=(time.time() - t_aud) * 1000,
             )
             if audit_blocked:
@@ -575,6 +777,33 @@ async def _process_chat(
                 latencia_ms=(time.time() - t_leak) * 1000,
             )
 
+        # Afirmaciones financieras sin evidencia (P25). Una cifra inventada no coincide
+        # con ningún catálogo de valores sensibles y por eso atravesaba los controles
+        # anteriores: el problema no es fuga, es falsedad con apariencia bancaria.
+        claims_assessments: list = []
+        claim_replaced = False
+        if defensa_leak_guard and not request.vulnerable:
+            t_claims = time.time()
+            hechos = financial_facts.facts_from_tool_results(
+                tools_used, subject=principal.subject,
+            )
+            composicion = financial_facts.compose_safe_response(
+                response_text, facts=hechos, subject=principal.subject,
+            )
+            response_text = composicion.response
+            claim_replaced = composicion.replaced
+            claims_assessments = composicion.assessments
+            add_safe(
+                collector, componente="leak_guard", objetivo="respuesta",
+                accion="BLOCK" if claim_replaced else "ALLOW",
+                razon=("Afirmación financiera sin evidencia autorizada"
+                       if claim_replaced else "Afirmaciones financieras respaldadas"),
+                regla="financial_claim_grounding", confianza=1.0,
+                attack_type="unsupported_financial_claim" if claim_replaced else None,
+                detalle={"assessments": claims_assessments} if claims_assessments else None,
+                latencia_ms=(time.time() - t_claims) * 1000,
+            )
+
         if leak_blocked:
             logger.warning(
                 "[%s]%s ⚠ guardia de salida sustituyó la respuesta: IBAN ajeno mencionado sin "
@@ -593,7 +822,7 @@ async def _process_chat(
             t_pii = time.time()
             response_text, pii_ajena, pii_descartada = redact_foreign_pii(
                 response_text,
-                request.user_id,
+                principal.subject,
                 verified_values=(
                     verified_ibans_from_tools(tools_used) | ibans_from_text(request.message)
                 ),
@@ -625,38 +854,21 @@ async def _process_chat(
 
         audit_path = append_turn(
             session_id=session_id,
-            user_id=request.user_id,
+            user_id=principal.subject,
             model=model_name,
             prompt=prompt_for_audit,
             thinking=thinking,
             tools=tools_used,
             response=response_text,
             raw_response=response_text_raw,
-            defense_decisions=[
-                {
-                    "component": "output_auditor",
-                    "action": (
-                        "BLOCK" if audit_blocked else "ALLOW"
-                        if defensa_output_auditor and not request.vulnerable else "NOT_RUN"
-                    ),
-                },
-                {
-                    "component": "leak_guard",
-                    "action": (
-                        "BLOCK" if leak_blocked else "ALLOW"
-                        if defensa_leak_guard and defensa_tool_gatekeeper and not request.vulnerable
-                        else "NOT_RUN"
-                    ),
-                },
-                {
-                    "component": "pii_shield",
-                    "action": (
-                        "BLOCK" if pii_descartada else "REDACT" if pii_ajena else "ALLOW"
-                        if defensa_pii_shield and not request.vulnerable and not (leak_blocked or audit_blocked)
-                        else "SKIPPED" if defensa_pii_shield and not request.vulnerable else "NOT_RUN"
-                    ),
-                },
-            ],
+            # Session File y SOC proyectan el MISMO snapshot. Antes esta lista se
+            # reconstruía a mano con tres componentes, de modo que el Input Sanitizer y
+            # el Tool Gatekeeper —los dos que sí pueden contener un ataque antes del
+            # efecto— nunca llegaban al Analyze Pass: la atribución causal era imposible
+            # y la ausencia de evento se leía como seguridad.
+            defense_decisions=collector.snapshot(),
+            posture=effective_posture,
+            fixture_execution_id=request.fixture_execution_id,
             latency_ms=latency_ms,
             system_prompt="\n".join(agent._system_prompts) or None,
             fixture_id=request.fixture_id,
@@ -671,7 +883,7 @@ async def _process_chat(
             sign_turn(
                 audit_path,
                 session_id=session_id,
-                user_id=request.user_id,
+                user_id=principal.subject,
                 prompt=prompt_for_audit,
                 response=response_text,
                 latency_ms=latency_ms,
@@ -691,7 +903,7 @@ async def _process_chat(
         )
 
         return ChatResponse(
-            user_id=request.user_id,
+            user_id=principal.subject,
             message=request.message,
             response=response_text,
             model=model_name,
@@ -700,16 +912,46 @@ async def _process_chat(
             tools_used=tools_used,
             endpoint=endpoint_name,
             audit_file=audit_path.name,
+            effective_posture=effective_posture,
         )
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
         err_str = str(e)
+        error_type = type(e).__name__
+        execution_status = "TIMEOUT" if "timeout" in error_type.lower() else "TECHNICAL_ERROR"
+
+        # Una ejecución que falla NO puede desaparecer. Antes el backend devolvía una
+        # respuesta vacía y no creaba Session File: el reporte itera Session Files, así
+        # que la ejecución se caía del denominador y un fallo de infraestructura se leía
+        # como «nada malo ocurrió». Ahora deja evidencia tipada y evaluable.
+        audit_path = None
+        try:
+            audit_path = append_turn(
+                session_id=session_id, user_id=principal.subject, model="",
+                prompt=prompt_for_audit, thinking=None, tools=[],
+                response="",
+                raw_response=f"[{execution_status}] {error_type}: {err_str}",
+                defense_decisions=collector.snapshot(),
+                posture=effective_posture,
+                execution_status=execution_status,
+                model_invoked=True,
+                fixture_execution_id=request.fixture_execution_id,
+                error=f"{error_type}: {err_str}",
+                latency_ms=latency_ms,
+                fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
+                fixture_expected_result=request.fixture_expected_result,
+                audit_subdir=request.audit_subdir,
+            )
+        except Exception:  # noqa: BLE001 — un fallo al auditar no puede ocultar el original
+            logger.exception("[%s] no se pudo persistir el Session File del error", session_id)
+
         # El turno falló, pero lo que los componentes alcanzaron a decidir antes del
         # fallo sigue siendo evidencia. Se persiste igual.
         collector.flush(
             prompt=prompt_for_audit, respuesta=f"[ERROR] {err_str}",
             latencia_total_ms=latency_ms,
+            audit_file=audit_path.name if audit_path else None,
         )
 
         hint = None
@@ -732,7 +974,7 @@ async def _process_chat(
         logger.error("[%s]%s ✗ %dms error=%s", session_id, fixture_tag, round(latency_ms), err_str)
 
         return ChatResponse(
-            user_id=request.user_id,
+            user_id=principal.subject,
             message=request.message,
             response="",
             model="",
@@ -740,51 +982,85 @@ async def _process_chat(
             session_id=session_id,
             tools_used=[],
             endpoint=endpoint_name,
+            audit_file=audit_path.name if audit_path else None,
             error=f"{err_str}{' | HINT: ' + hint if hint else ''}",
+            effective_posture=effective_posture,
+            execution_status=execution_status,
         )
 
 
 # --- Endpoints ---
 
+def _principal(request: ChatRequest, authorization: str | None) -> Principal:
+    """Resuelve la identidad de la petición desde la credencial, no desde el cuerpo.
+
+    `request.user_id` viaja solo para detectar la contradicción: si hay credencial y el
+    cuerpo pide otra identidad, eso es un intento de suplantación y se rechaza.
+    """
+    return resolve_principal(authorization, declared_user_id=request.user_id)
+
+#: Los tres endpoints pedagógicos existen para enseñar la progresión del agente
+#: (prompt mínimo → prompt completo → contexto inyectado), no para servir de línea base
+#: del proxy: cambian prompt, contexto y tools, así que no son un contrafactual causal
+#: (P02). Lo que sí deben ser es honestos: se describían como "no defendidos" mientras
+#: heredaban el Output Auditor y la guardia de fuga activos salvo `vulnerable=true`, de
+#: modo que una fuga quedaba tapada en un entorno supuestamente indefenso. Aquí se
+#: apagan TODOS los controles externos de forma explícita. La alineación intrínseca del
+#: modelo sigue presente a propósito: se mide como conducta observable, no se apaga.
+_SIN_CONTROLES_EXTERNOS = {
+    "defensa_tool_gatekeeper": False,
+    "defensa_pii_shield": False,
+    "defensa_input_sanitizer": False,
+    "defensa_output_auditor": False,
+    "defensa_leak_guard": False,
+}
+
 @router.post("/chat/simple-prompt", response_model=ChatResponse)
-async def chat_simple_prompt(request: ChatRequest):
+async def chat_simple_prompt(
+    request: ChatRequest, authorization: str | None = Header(default=None),
+):
     """System prompt mínimo (rol + capacidades). Sin reglas de seguridad ni contexto de usuario."""
     return await _process_chat(
         request, "simple-prompt",
+        _principal(request, authorization),
         get_clara_agent_simple(), reset_clara_agent_simple,
         inject_context=False,
-        # Baseline vulnerable — `Deps.enforce_gatekeeper` por defecto es `True` (seguro por
-        # defecto, decisión de la Fase 2). Se desactiva explícitamente aquí para que este
-        # endpoint siga siendo el estado VULNERABLE real que documentan los fixtures del
-        # baseline (ver módulo docstring), no una versión ya defendida por accidente.
-        defensa_tool_gatekeeper=False,
+        **_SIN_CONTROLES_EXTERNOS,
     )
 
 
 @router.post("/chat/complex-prompt", response_model=ChatResponse)
-async def chat_complex_prompt(request: ChatRequest):
+async def chat_complex_prompt(
+    request: ChatRequest, authorization: str | None = Header(default=None),
+):
     """System prompt completo de Clara. Sin contexto de usuario inyectado en el mensaje."""
     return await _process_chat(
         request, "complex-prompt",
+        _principal(request, authorization),
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=False,
-        defensa_tool_gatekeeper=False,  # baseline vulnerable — ver chat_simple_prompt
+        **_SIN_CONTROLES_EXTERNOS,
     )
 
 
 @router.post("/chat/complex-with-context", response_model=ChatResponse)
-async def chat_complex_with_context(request: ChatRequest):
+async def chat_complex_with_context(
+    request: ChatRequest, authorization: str | None = Header(default=None),
+):
     """System prompt completo + contexto de usuario inyectado. Configuración actual del lab vulnerable."""
     return await _process_chat(
         request, "complex-with-context",
+        _principal(request, authorization),
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
-        defensa_tool_gatekeeper=False,  # baseline vulnerable — ver chat_simple_prompt
+        **_SIN_CONTROLES_EXTERNOS,
     )
 
 
 @router.post("/chat/proxy", response_model=ChatResponse)
-async def chat_proxy(request: ChatRequest):
+async def chat_proxy(
+    request: ChatRequest, authorization: str | None = Header(default=None),
+):
     """Proxy PromptGuard — pipeline completo de defensa.
 
     Input Sanitizer (firmas, normalización y memoria de sesión) -> PII Shield
@@ -850,6 +1126,7 @@ async def chat_proxy(request: ChatRequest):
         request.vulnerable = settings["vulnerable"]
     return await _process_chat(
         request, "proxy",
+        _principal(request, authorization),
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
         defensa_tool_gatekeeper=settings["defensa_tool_gatekeeper"],
@@ -863,12 +1140,14 @@ async def chat_proxy(request: ChatRequest):
 
 @router.post("/chat/complex-with-document", response_model=ChatResponse)
 async def chat_complex_with_document(
-    user_id: str = Form(default="usr_001"),
+    authorization: str | None = Header(default=None),
+    user_id: Optional[str] = Form(default=None),
     message: str = Form(...),
     session_id: Optional[str] = Form(default=None),
     fixture_id: Optional[str] = Form(default=None),
     fixture_kind: Optional[str] = Form(default=None),
     fixture_expected_result: Optional[str] = Form(default=None),
+    fixture_execution_id: Optional[str] = Form(default=None),
     audit_subdir: Optional[str] = Form(default=None),
     defensa_sanitizer: bool = Form(default=True),
     defensa_estructural: bool = Form(default=True),
@@ -908,6 +1187,11 @@ async def chat_complex_with_document(
     henri-tfm/02-defensa/README.md §"Experimento (C)"). Por defecto `False` — no cambia el
     comportamiento ya documentado de (C) a menos que se active explícitamente.
     """
+    # Igual que en los endpoints JSON: la identidad sale de la credencial. El canal
+    # documental no puede ser la puerta trasera por la que se elige un `user_id`.
+    principal = resolve_principal(authorization, declared_user_id=user_id)
+    user_id = principal.subject
+
     request_start = time.time()
     content = await document.read()
     t_read = time.time()
@@ -984,7 +1268,19 @@ async def chat_complex_with_document(
         f"{'[tool_framing]' if defensa_separacion_semantica and defensa_separacion_tool_framing else ''} "
         f"D(gatekeeper)={defensa_tool_gatekeeper} E(pii_shield)={defensa_pii_shield}"
     )
-    collector.set_postura(defensas_activas)
+    collector.set_postura(
+        defensas_activas,
+        efectiva={
+            "document_sanitizer": defensa_sanitizer,
+            "document_structural_detector": defensa_estructural,
+            "separacion_semantica": defensa_separacion_semantica,
+            "separacion_tool_framing": defensa_separacion_tool_framing,
+            "tool_gatekeeper": defensa_tool_gatekeeper,
+            "pii_shield": defensa_pii_shield,
+            "endpoint": "complex-with-document",
+        },
+    )
+    collector.fixture_execution_id = fixture_execution_id
 
     if decision.action == "BLOCK":
         # Etiqueta dinámica: distingue qué CAPA bloqueó realmente, para que el estudio de
@@ -1019,10 +1315,10 @@ async def chat_complex_with_document(
             tools=[],
             response=client_response,
             raw_response=technical_reason,
-            defense_decisions=[{
-                "component": decision.matched_rule or "document_sanitizer", "action": "BLOCK",
-                "rule": decision.matched_rule, "reason": decision.reason,
-            }],
+            defense_decisions=collector.snapshot(),
+            posture=collector.postura_efectiva,
+            model_invoked=False,
+            fixture_execution_id=fixture_execution_id,
             latency_ms=defense_total_ms,
             fixture_id=fixture_id,
             fixture_kind=fixture_kind,
@@ -1061,10 +1357,12 @@ async def chat_complex_with_document(
         fixture_id=fixture_id,
         fixture_kind=fixture_kind,
         fixture_expected_result=fixture_expected_result,
+        fixture_execution_id=fixture_execution_id,
         audit_subdir=audit_subdir,
     )
     return await _process_chat(
         request, "complex-with-document",
+        principal,
         get_clara_agent_complex(), reset_clara_agent_complex,
         inject_context=True,
         document_text=document_text,

@@ -30,7 +30,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import chat, fixtures, info, soc
+from src.api.routes import chat, confirm, fixtures, info, soc
 from src.agents.clara_base import resolve_llm_config
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -87,6 +87,10 @@ app.add_middleware(
 )
 
 app.include_router(chat.router, prefix="/api/v1")
+# El canal de autorización fuera de banda. Estaba escrito y sin montar: la ruta que la
+# documentación describía como "el único camino" para consumar una operación pendiente
+# no existía en la aplicación (P18).
+app.include_router(confirm.router, prefix="/api/v1")
 app.include_router(info.router, prefix="/api/v1")
 app.include_router(fixtures.router, prefix="/api/v1")
 app.include_router(soc.router, prefix="/api/v1")

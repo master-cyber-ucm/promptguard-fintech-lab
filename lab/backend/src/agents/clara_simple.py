@@ -16,15 +16,8 @@ from pathlib import Path
 from pydantic_ai import Agent
 
 from .clara_base import _build_model, _default_model_settings
-from .tools import (
-    Deps,
-    abrir_reclamacion,
-    bloquear_tarjeta,
-    consulta_producto,
-    get_account_summary,
-    get_kb_article,
-    transferencia_nacional,
-)
+from .tool_catalog import exposed_tool_names
+from .tools import TOOL_DEFINITIONS, Deps
 
 
 def _load_prompt() -> str:
@@ -43,10 +36,10 @@ def create_clara_agent_simple(model=None) -> Agent:
         model or _build_model(),
         deps_type=Deps,
         system_prompt=_load_prompt(),
-        tools=[
-            get_account_summary, get_kb_article, transferencia_nacional,
-            bloquear_tarjeta, consulta_producto, abrir_reclamacion,
-        ],
+        # El catálogo es único: lo que ve el agente, lo que valida el runtime y lo que
+        # los fixtures pueden evaluar salen del mismo sitio. `consulta_saldo` estaba en
+        # el registro y NO en esta lista, mientras varios fixtures medían su uso (P20).
+        tools=[TOOL_DEFINITIONS[nombre]["function"] for nombre in exposed_tool_names()],
         retries=3,
         model_settings=_default_model_settings(),
     )

@@ -17,10 +17,12 @@ from typing import Any, Callable, Optional
 
 import yaml
 
+from src.core import policy_engine
 from src.utils.crypto import sign_payload
 
 _CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "rules" / "tool_permissions.yaml"
 _PERMISOS: Optional[dict[str, Any]] = None
+_COMPILADA: Optional[dict] = None
 
 # TTL de una confirmación pendiente. El diseño (acciones-no-autorizadas.md §4) pide que
 # la confirmación tenga TTL corto y sea de un solo uso — ambas propiedades se aplican en
@@ -38,8 +40,31 @@ def _cargar() -> dict[str, Any]:
 
 def recargar() -> None:
     """Fuerza releer el YAML — usado por los tests para no compartir estado entre casos."""
-    global _PERMISOS
+    global _PERMISOS, _COMPILADA
     _PERMISOS = None
+    _COMPILADA = None
+
+
+def politica_compilada() -> dict:
+    """Policy compilada y validada. Falla al arrancar si el YAML es inválido.
+
+    Fail-closed: una configuración que no compila no puede degradar a "permitir todo"
+    — sería exactamente la falsa confianza que P19 documenta.
+    """
+    global _COMPILADA
+    if _COMPILADA is None:
+        _COMPILADA = policy_engine.compile_policy({"tools": _cargar()})
+    return _COMPILADA
+
+
+def snapshot() -> dict[str, Any]:
+    """Copia de solo lectura de la policy efectiva.
+
+    La usa la Postura experimental para hashear la policy con la que corrió un turno:
+    dos posturas que difieren en `tool_permissions.yaml` no son comparables aunque
+    tengan los mismos controles activos.
+    """
+    return dict(_cargar())
 
 
 def permisos_de(tool: str) -> Optional[dict]:

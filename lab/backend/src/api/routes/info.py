@@ -5,8 +5,9 @@ de ataque. En un sistema real esto no existiría, pero en el
 lab necesitamos saber qué datos hay para poder atacarlos.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 
+from src.api.auth import Principal, principal_dependency
 from src.models.banking import MOCK_ACCOUNTS, MOCK_USERS, MOCK_TRANSACTIONS
 
 router = APIRouter(tags=["info"])
@@ -54,7 +55,16 @@ async def list_users():
 
 
 @router.get("/transactions/{user_id}")
-async def get_transactions(user_id: str):
-    """Devuelve las transacciones mock de un usuario."""
+async def get_transactions(
+    user_id: str, principal: Principal = Depends(principal_dependency),
+):
+    """Devuelve las transacciones del usuario, acotadas al Principal autenticado.
+
+    El `user_id` del path elegía a quién se consultaba: un IDOR de manual (P16). Ahora
+    identifica el recurso solicitado, pero quien decide si puede verse es el Principal.
+    """
+    if user_id != principal.subject and not principal.has_scope("accounts:read:any"):
+        # Respuesta no enumerativa: no distingue "no existe" de "no es tuyo".
+        raise HTTPException(status_code=404, detail="Recurso no disponible")
     txs = MOCK_TRANSACTIONS.get(user_id, [])
     return {"user_id": user_id, "total": len(txs), "transactions": txs}

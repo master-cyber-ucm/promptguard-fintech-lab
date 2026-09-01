@@ -11,6 +11,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.models.latency import classify_cohort
+
 from .crypto import sign_payload
 
 _AUDIT_DIR = Path(os.environ.get("AUDIT_DIR", Path(__file__).resolve().parents[3] / "audit" / "sessions"))
@@ -58,6 +60,14 @@ def _session_header(
     return "\n".join(lines) + "\n"
 
 
+#: Versión del Registro de turno. v3 añade la evidencia estructurada del turno:
+#: los Analysis Events tal y como los emitió cada Componente (no reconstruidos),
+#: la Postura efectiva, el estado de ejecución y el `tool_call_id` nativo de cada
+#: Tool Invocation. Sin ellos el Analyze Pass tenía que inferir del transcript.
+TURN_RECORD_SCHEMA_VERSION = 3
+TOOL_TRACE_VERSION = 2
+
+
 def _format_turn(
     turn_number: int,
     timestamp: datetime,
@@ -71,6 +81,11 @@ def _format_turn(
     fixture_id: str | None = None,
     fixture_kind: str | None = None,
     fixture_expected_result: str | None = None,
+    posture: dict | None = None,
+    execution_status: str = "COMPLETED",
+    model_invoked: bool = True,
+    fixture_execution_id: str | None = None,
+    error: str | None = None,
 ) -> str:
     ts = timestamp.strftime("%H:%M:%S")
     lines: list[str] = []
@@ -97,7 +112,10 @@ def _format_turn(
             tool_name = t.get("tool", "unknown")
             args = t.get("args", "")
             result = t.get("result", "")
+            call_id = t.get("tool_call_id") or ""
             lines.append(f"- **`{tool_name}`**")
+            if call_id:
+                lines.append(f"  - id: `{call_id}`")
             if args:
                 lines.append(f"  - args: `{args}`")
             if result:
@@ -107,13 +125,36 @@ def _format_turn(
         lines.append("_Ninguna_\n")
 
     # Contrato versionado: evita que consumidores automáticos confundan la
-    # salida interna del modelo con la respuesta que recibió el cliente.
+    # salida interna del modelo con la respuesta que recibió el cliente, y
+    # elimina la necesidad de reconstruir la traza de tools desde el Markdown
+    # —correlacionar por nombre y adyacencia asociaba mal dos invocaciones de la
+    # misma tool en el mismo turno.
     turn_record = {
-        "schema_version": 2,
-        "tool_trace_version": 1,
+        "schema_version": TURN_RECORD_SCHEMA_VERSION,
+        "tool_trace_version": TOOL_TRACE_VERSION,
         "client_response": response,
         "model_output_raw": raw_response if raw_response is not None else response,
         "defenses": defense_decisions or [],
+        "tools": tools or [],
+        "posture": posture or {},
+        "execution_status": execution_status,
+        "model_invoked": model_invoked,
+        "fixture_execution_id": fixture_execution_id,
+        "turn_index": turn_number,
+        "error": error,
+        "latency_ms": round(latency_ms, 1),
+        # Cohorte del camino recorrido (P15). Un bloqueo pre-modelo de 4 ms y una
+        # respuesta servida de 16 s no pertenecen a la misma distribución.
+        "latency_cohort": str(classify_cohort(
+            model_invoked=model_invoked,
+            execution_status=execution_status,
+            output_blocked=any(
+                str(d.get("action", "")).upper() in {"BLOCK", "REDACT"}
+                and str(d.get("target", "")) == "respuesta"
+                for d in (defense_decisions or [])
+            ),
+            tools_used=len(tools or []),
+        )),
     }
     lines.append("\n### Registro de turno\n")
     lines.append("```json\n")
@@ -130,6 +171,7 @@ def _format_turn(
 
     lines.append("\n### Metadatos\n")
     lines.append(f"- Latencia: `{latency_ms:.0f}ms`\n")
+    lines.append(f"- Cohorte de latencia: `{turn_record['latency_cohort']}`\n")
     lines.append("\n---\n\n")
 
     return "\n".join(lines)
@@ -152,11 +194,20 @@ def append_turn(
     fixture_kind: str | None = None,
     fixture_expected_result: str | None = None,
     audit_subdir: str | None = None,
+    posture: dict | None = None,
+    execution_status: str = "COMPLETED",
+    model_invoked: bool = True,
+    fixture_execution_id: str | None = None,
+    error: str | None = None,
 ) -> Path:
     """Añade un turn al fichero de sesión. Crea el fichero si no existe.
 
     Si audit_subdir se provee (ruta absoluta), los ficheros se escriben ahí.
     Si no, se usa AUDIT_DIR (comportamiento anterior para sesiones manuales).
+
+    Un turno que falló también se persiste: `execution_status` distinto de
+    `COMPLETED` deja evidencia evaluable en vez de hacer desaparecer la ejecución
+    del denominador.
     """
     target_dir = Path(audit_subdir) if audit_subdir else _AUDIT_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -188,6 +239,11 @@ def append_turn(
         fixture_id=fixture_id,
         fixture_kind=fixture_kind,
         fixture_expected_result=fixture_expected_result,
+        posture=posture,
+        execution_status=execution_status,
+        model_invoked=model_invoked,
+        fixture_execution_id=fixture_execution_id,
+        error=error,
     )
 
     with path.open("a", encoding="utf-8") as f:

@@ -58,6 +58,26 @@ tools:
       - card_id
       - reason
 
+  get_account_summary:
+    description: "Resumen de la cuenta del cliente autenticado"
+    risk_level: "medium"
+    allowed_roles:
+      - customer
+      - agent
+      - admin
+    require_own_account: true
+    requires_approval: false
+
+  get_kb_article:
+    description: "Artículo aprobado de la base de conocimiento"
+    risk_level: "low"
+    allowed_roles:
+      - customer
+      - agent
+      - admin
+    require_own_account: false
+    requires_approval: false
+
   consulta_producto:
     description: "Información sobre productos del banco"
     risk_level: "low"

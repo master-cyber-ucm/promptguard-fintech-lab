@@ -16,8 +16,11 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from pathlib import PurePosixPath
 from typing import Any, Optional
+
+from src.models.evaluation import Enforcement
 
 from . import store
 from .knowledge import severidad_de, taxonomia_de_fixture
@@ -34,6 +37,27 @@ COMPONENTES = (
 )
 
 OBJETIVOS = ("prompt", "documento", "tool", "respuesta")
+
+
+def normalizar_decision(componente: str, accion: str, regla: Optional[str] = None) -> str:
+    """Traduce el dialecto del SOC al vocabulario único de la evidencia.
+
+    El SOC habla `ALLOW | SUSPICIOUS | BLOCK` porque su unidad es la alerta. La
+    evaluación necesita saber *qué* hizo el control, no solo cómo de grave fue: una
+    denegación del Gatekeeper, una aprobación pendiente y una tokenización del PII
+    Shield tienen consecuencias distintas sobre el efecto y no pueden compartir
+    etiqueta. Ambas proyecciones se derivan del mismo evento, no una de la otra.
+    """
+    accion = (accion or "ALLOW").upper()
+    regla = (regla or "").lower()
+    if componente == "tool_gatekeeper":
+        if accion == "BLOCK":
+            return "DENY"
+        if accion == "SUSPICIOUS" and regla == "requires_approval":
+            return "REQUIRE_APPROVAL"
+    if componente == "pii_shield" and accion == "SUSPICIOUS":
+        return "REDACT"
+    return accion
 
 
 def run_id_desde_audit_subdir(audit_subdir: Optional[str]) -> Optional[str]:
@@ -94,6 +118,16 @@ class SocCollector:
         self.fixture_expected_result = fixture_expected_result
         self.vulnerable = vulnerable
         self.postura = ""
+        # Postura estructurada: la cadena legible sigue alimentando el panel, pero la
+        # evaluación necesita comparar configuraciones sin parsear texto.
+        self.postura_efectiva: dict[str, Any] = {}
+        # Correlación estable de toda la evidencia de esta ejecución (P01/P09).
+        self.fixture_execution_id: Optional[str] = None
+        self.turn_index: int = 1
+        # `SHADOW_MODE=true`: los componentes deciden pero no aplican. Se marca en el
+        # propio evento para que ninguna lectura posterior pueda confundir una decisión
+        # registrada con una intervención efectiva.
+        self.shadow = False
         self.eventos: list[dict[str, Any]] = []
         self._t0 = time.time()
         self._volcado = False
@@ -112,6 +146,7 @@ class SocCollector:
         attack_type: Optional[str] = None,
         detalle: Optional[dict] = None,
         latencia_ms: Optional[float] = None,
+        enforcement: Optional[str] = None,
     ) -> None:
         """Registra que un componente examinó un objetivo y decidió algo.
 
@@ -119,11 +154,25 @@ class SocCollector:
         información: sin ese evento no se puede distinguir "lo miró y lo permitió" de
         "no lo miró nadie", que es justamente la diferencia que el SOC existe para
         enseñar.
+
+        Cada evento nace con un `event_id` estable y un número de secuencia monotónico:
+        son lo que permite que una atribución causal cite la evidencia concreta que la
+        sostiene en vez de una razón en texto libre.
         """
+        if enforcement is None:
+            enforcement = (
+                Enforcement.SHADOW.value
+                if self.shadow and (accion or "").upper() != "ALLOW"
+                else Enforcement.ENFORCED.value
+            )
         self.eventos.append({
+            "event_id": uuid.uuid4().hex,
+            "sequence": len(self.eventos),
             "componente": componente,
             "objetivo": objetivo,
             "accion": accion,
+            "decision": normalizar_decision(componente, accion, regla),
+            "enforcement": enforcement,
             "razon": razon,
             "regla": regla,
             "confianza": confianza,
@@ -145,13 +194,47 @@ class SocCollector:
             **extra,
         )
 
-    def set_postura(self, postura: str) -> None:
+    def set_postura(self, postura: str, efectiva: Optional[dict] = None) -> None:
         """Qué defensas estaban activas en este turno.
 
         Es lo que permite que un turno con cero eventos se lea como ausencia de defensa
-        y no como fallo de captura.
+        y no como fallo de captura. `efectiva` es la misma información en forma
+        estructurada: la Postura experimental que la evaluación compara entre targets
+        sin interpretar una cadena.
         """
         self.postura = postura
+        if efectiva is not None:
+            self.postura_efectiva = dict(efectiva)
+            self.shadow = bool(efectiva.get("shadow"))
+
+    # -- proyección de evidencia --
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        """Proyecta los eventos al contrato que consume el Analyze Pass.
+
+        Session File y SOC salen de esta misma lista en memoria: no hay un dialecto
+        que reconstruya decisiones a mano y otro que las capture de verdad. Antes el
+        Session File rehacía tres decisiones en `chat.py` y se perdían el Input
+        Sanitizer y el Tool Gatekeeper — divergencia que hacía imposible atribuir una
+        contención a la capa que realmente actuó.
+        """
+        return [
+            {
+                "event_id": ev["event_id"],
+                "sequence": ev["sequence"],
+                "component": ev["componente"],
+                "target": ev["objetivo"],
+                "action": ev["decision"],
+                "soc_action": ev["accion"],
+                "enforcement": ev["enforcement"],
+                "reason": ev.get("razon"),
+                "rule": ev.get("regla"),
+                "attack_type": ev.get("attack_type"),
+                "detail": ev.get("detalle"),
+                "latency_ms": ev.get("latencia_ms"),
+            }
+            for ev in self.eventos
+        ]
 
     # -- volcado --
 

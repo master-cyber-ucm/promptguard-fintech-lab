@@ -78,7 +78,10 @@ CREATE TABLE IF NOT EXISTS soc_event (
     regla       TEXT,
     attack_type TEXT,
     detalle     TEXT,
-    latencia_ms REAL
+    latencia_ms REAL,
+    record_id   TEXT,
+    decision    TEXT,
+    enforcement TEXT
 );
 
 CREATE TABLE IF NOT EXISTS soc_alert (
@@ -104,6 +107,37 @@ CREATE INDEX IF NOT EXISTS ix_event_comp     ON soc_event(componente, accion);
 CREATE INDEX IF NOT EXISTS ix_alert_estado   ON soc_alert(estado);
 """
 
+#: Versión del esquema. `CREATE TABLE IF NOT EXISTS` no altera una tabla existente:
+#: una base creada antes de estas columnas seguiría viva y sin ellas, fallando en el
+#: primer INSERT. La migración es explícita y transaccional.
+_SCHEMA_VERSION = 1
+
+_MIGRATIONS: dict[int, tuple[str, ...]] = {
+    1: (
+        "ALTER TABLE soc_event ADD COLUMN record_id TEXT",
+        "ALTER TABLE soc_event ADD COLUMN decision TEXT",
+        "ALTER TABLE soc_event ADD COLUMN enforcement TEXT",
+    ),
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Aplica las migraciones pendientes según `PRAGMA user_version`."""
+    actual = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    columnas = {fila[1] for fila in conn.execute("PRAGMA table_info(soc_event)")}
+    for version in sorted(_MIGRATIONS):
+        if version <= actual:
+            continue
+        for sentencia in _MIGRATIONS[version]:
+            # Una base recién creada ya nace con las columnas del esquema actual.
+            columna = sentencia.rsplit("ADD COLUMN ", 1)[-1].split()[0]
+            if columna in columnas:
+                continue
+            conn.execute(sentencia)
+    if actual < _SCHEMA_VERSION:
+        conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+    conn.commit()
+
 
 def _connect() -> sqlite3.Connection:
     global _conn
@@ -115,6 +149,7 @@ def _connect() -> sqlite3.Connection:
         _conn.execute("PRAGMA foreign_keys=ON")
         _conn.executescript(_SCHEMA)
         _conn.commit()
+        _migrate(_conn)
     return _conn
 
 
@@ -183,16 +218,18 @@ def record_turn(*, turno: dict[str, Any], eventos: list[dict[str, Any]]) -> int:
                 """
                 INSERT INTO soc_event (
                     turn_id, orden, componente, objetivo, accion,
-                    confianza, razon, regla, attack_type, detalle, latencia_ms
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    confianza, razon, regla, attack_type, detalle, latencia_ms,
+                    record_id, decision, enforcement
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    turn_id, orden,
+                    turn_id, ev.get("sequence", orden),
                     ev["componente"], ev["objetivo"], ev["accion"],
                     ev.get("confianza"), ev.get("razon"), ev.get("regla"),
                     ev.get("attack_type"),
                     json.dumps(detalle, ensure_ascii=False) if detalle else None,
                     ev.get("latencia_ms"),
+                    ev.get("event_id"), ev.get("decision"), ev.get("enforcement"),
                 ),
             )
         conn.commit()

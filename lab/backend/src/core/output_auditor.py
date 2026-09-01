@@ -47,6 +47,7 @@ import re
 import unicodedata
 
 from .base import Stage, StageContext
+from .safe_composer import FindingCategory, OutputFinding, compose
 from src.models.interaction import PromptDecision
 
 _SECRET_PATTERNS = [
@@ -131,33 +132,61 @@ def _umbrales_presentes(texto_normalizado: str) -> set[str]:
     return encontrados
 
 
-def audit_response(text: str) -> tuple[str, bool]:
-    """Escanea `text` en busca de secretos conocidos.
+def audit_findings(text: str) -> list[OutputFinding]:
+    """Hallazgos estructurados: qué fragmento sobra y por qué.
 
-    Devuelve (texto_final, fuga_detectada). Si fuga_detectada es True, `texto_final`
-    ya es el mensaje generico de sustitucion, no el original.
+    Devolver un booleano obligaba a tirar la respuesta entera. Con la categoría y el
+    span concreto se puede quitar solo lo prohibido y conservar lo útil (P26).
     """
+    hallazgos: list[OutputFinding] = []
+
     # Detector 1a — literal (comportamiento original, se conserva).
     for pattern in _SECRET_PATTERNS:
-        if pattern.search(text):
-            return _GENERIC_REFUSAL, True
+        for coincidencia in pattern.finditer(text):
+            hallazgos.append(OutputFinding(
+                category=FindingCategory.CONFIG_SECRET, span=coincidencia.group(0),
+                reason="secreto de configuración conocido",
+            ))
 
     normalizado = _normalizar(text)
 
     # Detector 1b — mismo secreto tras normalizar: cubre espaciado, guiones, mayúsculas,
-    # troceado y caracteres invisibles.
+    # troceado y caracteres invisibles. Aquí el span exacto no es recuperable, así que
+    # el hallazgo no acota una frase y fuerza el fallback seguro.
     for secreto in _SECRETOS_NORMALIZADOS:
         if secreto in normalizado:
-            return _GENERIC_REFUSAL, True
+            hallazgos.append(OutputFinding(
+                category=FindingCategory.CONFIG_SECRET, span="",
+                reason="secreto de configuración ofuscado",
+            ))
 
     # Detector 2 — volcado del bloque de umbrales internos: dos o más umbrales distintos Y
     # vocabulario propio del bloque. Las dos condiciones juntas, nunca una sola.
-    if len(_umbrales_presentes(normalizado)) >= _MIN_UMBRALES_PARA_BLOQUEAR and any(
+    umbrales = _umbrales_presentes(normalizado)
+    if len(umbrales) >= _MIN_UMBRALES_PARA_BLOQUEAR and any(
         termino.replace(" ", "") in normalizado for termino in _VOCABULARIO_BLOQUE_INTERNO
     ):
-        return _GENERIC_REFUSAL, True
+        for frase in re.split(r"(?<=[.!?])\s+|\n+", text):
+            if any(u.replace(".", "").replace(",", "") in _normalizar(frase) for u in umbrales):
+                hallazgos.append(OutputFinding(
+                    category=FindingCategory.INTERNAL_THRESHOLD, span=frase.strip(),
+                    reason="umbral interno del bloque de configuración",
+                ))
+    return hallazgos
 
-    return text, False
+
+def audit_response(text: str, *, prompt: str = "") -> tuple[str, bool]:
+    """Escanea `text` en busca de secretos conocidos y recompone lo que sí es útil.
+
+    Devuelve (texto_final, fuga_detectada). Antes, `fuga_detectada` implicaba
+    sustituir la respuesta entera: una consulta legítima sobre transferencias acababa
+    en «No puedo compartir esa información» por mencionar un límite interno.
+    """
+    hallazgos = audit_findings(text)
+    if not hallazgos:
+        return text, False
+    composicion = compose(text, findings=hallazgos, prompt=prompt)
+    return composicion.response, True
 
 
 class OutputAuditorStage(Stage):
