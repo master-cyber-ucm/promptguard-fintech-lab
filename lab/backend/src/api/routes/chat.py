@@ -156,7 +156,9 @@ class ChatRequest(BaseModel):
     proxy_profile: Optional[str] = Field(
         default=None,
         description=(
-            "Perfil experimental del proxy: baseline, gatekeeper, output o full. "
+            "Perfil experimental del proxy: baseline, gatekeeper, output, full, o la "
+            "matriz de ablaciones only-input/only-pii/only-gatekeeper/only-auditor/"
+            "only-leak (ADR-0017). "
             "Solo se usa en el laboratorio para ejecutar la suite comparativa."
         ),
     )
@@ -1108,6 +1110,56 @@ async def chat_proxy(
             "defensa_pii_shield": True,
             "defensa_input_sanitizer": True,
             "defensa_output_auditor": True,
+            "defensa_leak_guard": True,
+        },
+        # Matriz de ablaciones (PR5 / ADR-0017): un control a la vez, con el mismo
+        # `vulnerable=False` que "full" — ninguno de estos perfiles activa la rama
+        # `vulnerable=True`, así que no hereda sus efectos laterales (DoS, ownership
+        # bypass) y es comparable contra "full"/"baseline" en los cinco flags
+        # declarados. "only-gatekeeper" coincide con el perfil histórico "gatekeeper";
+        # se añade con el nombre de la matriz para que el diseño sea trazable.
+        "only-input": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": False,
+            "defensa_pii_shield": False,
+            "defensa_input_sanitizer": True,
+            "defensa_output_auditor": False,
+            "defensa_leak_guard": False,
+        },
+        "only-pii": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": False,
+            "defensa_pii_shield": True,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": False,
+            "defensa_leak_guard": False,
+        },
+        "only-gatekeeper": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": True,
+            "defensa_pii_shield": False,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": False,
+            "defensa_leak_guard": False,
+        },
+        "only-auditor": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": False,
+            "defensa_pii_shield": False,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": True,
+            "defensa_leak_guard": False,
+        },
+        # `leak_guard` está condicionado a `tool_gatekeeper` en varios puntos del
+        # pipeline (ver los `and defensa_tool_gatekeeper` de esta ruta): es una
+        # ablación condicionada, no independiente — se documenta como tal en
+        # ADR-0017 en vez de fingir que mide el control aislado.
+        "only-leak": {
+            "vulnerable": False,
+            "defensa_tool_gatekeeper": True,
+            "defensa_pii_shield": False,
+            "defensa_input_sanitizer": False,
+            "defensa_output_auditor": False,
             "defensa_leak_guard": True,
         },
     }

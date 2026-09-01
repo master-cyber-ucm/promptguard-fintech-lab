@@ -112,7 +112,13 @@ CHAT_ENDPOINTS: dict[str, str] = {
     DOCUMENT_ENDPOINT_NAME: "/api/v1/chat/complex-with-document",
 }
 
-PROXY_PROFILES = ("baseline", "gatekeeper", "output", "full")
+#: Matriz de ablaciones (PR5 / ADR-0017): "only-*" añade la del catálogo de perfiles
+#: del backend con un control a la vez, con `vulnerable=False` en todos (a diferencia
+#: de "baseline"), así que son comparables entre sí en los cinco flags declarados.
+PROXY_PROFILES = (
+    "baseline", "gatekeeper", "output", "full",
+    "only-input", "only-pii", "only-gatekeeper", "only-auditor", "only-leak",
+)
 
 #: Posturas del canal DOCUMENTAL. Un fixture documental solo es comparable contra otra
 #: postura del mismo pipeline documental: enfrentarlo a un chat sin documentos mediría
@@ -146,6 +152,18 @@ REQUESTED_CONTROLS: dict[str, dict[str, bool]] = {
                "output_auditor": True, "leak_guard": True},
     "full": {"input_sanitizer": True, "pii_shield": True, "tool_gatekeeper": True,
              "output_auditor": True, "leak_guard": True},
+    "only-input": {"input_sanitizer": True, "pii_shield": False, "tool_gatekeeper": False,
+                   "output_auditor": False, "leak_guard": False},
+    "only-pii": {"input_sanitizer": False, "pii_shield": True, "tool_gatekeeper": False,
+                 "output_auditor": False, "leak_guard": False},
+    "only-gatekeeper": {"input_sanitizer": False, "pii_shield": False, "tool_gatekeeper": True,
+                        "output_auditor": False, "leak_guard": False},
+    "only-auditor": {"input_sanitizer": False, "pii_shield": False, "tool_gatekeeper": False,
+                     "output_auditor": True, "leak_guard": False},
+    # `leak_guard` depende de `tool_gatekeeper` en el pipeline (ablación condicionada,
+    # no independiente — ver ADR-0017).
+    "only-leak": {"input_sanitizer": False, "pii_shield": False, "tool_gatekeeper": True,
+                 "output_auditor": False, "leak_guard": True},
 }
 
 #: Los endpoints pedagógicos no llevan ningún control externo. Se declara para poder
@@ -617,6 +635,16 @@ async def main():
             "tiempo más y solo emite un aviso."
         ),
     )
+    parser.add_argument(
+        "--require-clean-tree", action="store_true",
+        help=(
+            "Gate previo de reproducibilidad (PR5 / ADR-0017): aborta antes de enviar "
+            "tráfico si el árbol de trabajo está sucio. Sin este flag, un árbol sucio "
+            "solo emite el aviso histórico y la corrida continúa — úsalo para runs "
+            "exploratorios, pero nunca para una campaña baseline/full/ablaciones que "
+            "vaya a publicarse como comparación causal."
+        ),
+    )
     args = parser.parse_args()
 
     REQUEST_TIMEOUT = args.timeout
@@ -775,6 +803,12 @@ async def main():
             "  ⚠ árbol de trabajo sucio: el commit no identifica el código que corre. "
             "Este run no puede agregarse con otros."
         )
+        if args.require_clean_tree:
+            _flush(
+                "  ✗ --require-clean-tree: abortando antes de enviar tráfico "
+                f"({manifiesto_procedencia['git'].get('dirty_files', '?')} ficheros sucios)."
+            )
+            sys.exit(1)
 
     # Manifiesto versionado: describe la intención experimental, no etiquetas de
     # pipeline que puedan aparecer en sesiones bloqueadas antes de invocar al LLM.
