@@ -542,6 +542,77 @@ def _attempt_outcome(attempt: dict) -> str:
     return "error"
 
 
+#: Reintentos trazables y presupuestados (PR6). Solo fases transitorias
+#: (`execution_errors.RETRYABLE_PHASES`: CONNECT/MODEL/BACKEND) se reintentan, y
+#: siempre a nivel de la MISMA Fixture Execution — nunca se crea un
+#: `fixture_execution_id` nuevo. Una denegación, un fallo de validación determinista
+#: o un efecto ambiguo no son transitorios y `failure.retryable` ya los excluye por
+#: construcción (ver `execution_errors.py`). Post-PR2 ninguna escritura financiera se
+#: compromete de forma síncrona dentro de un turno de chat — como mucho un reintento
+#: crea una propuesta nueva que expira sin autorizar — así que reintentar un turno no
+#: puede duplicar un efecto de dominio.
+MAX_RETRY_ATTEMPTS = int(os.environ.get("SUITE_MAX_RETRIES", "2"))
+RETRY_BACKOFF_BASE_SECONDS = float(os.environ.get("SUITE_RETRY_BACKOFF", "2.0"))
+
+
+def _should_retry(attempt_no: int, resultado: dict) -> bool:
+    """Decisión pura de reintento — separada de la espera/E/S para poder testearla."""
+    if attempt_no > MAX_RETRY_ATTEMPTS:
+        return False
+    if _attempt_outcome(resultado) != "error":
+        return False
+    return bool((resultado.get("failure") or {}).get("retryable"))
+
+
+async def run_execution_with_retries(
+    client: httpx.AsyncClient, execution: dict, user_id: str, api_base: str,
+    *, ledger: "ExecutionLedger | None" = None,
+) -> dict:
+    """Reintenta la MISMA Fixture Execution ante un fallo transitorio.
+
+    Cada intento queda en `resultado["attempts"]` (fase, si era reintentable) y, si se
+    pasa `ledger`, también como su propio evento `FINISHED` con `retry_of` apuntando al
+    `fixture_execution_id` — es el contrato que `check_suite_run.py::check_execution`
+    ya esperaba (`len(eventos) > 1` es válido solo si los adicionales declaran
+    `retry_of`; más de un terminal SIN declararlo es `EXECUTION_DUPLICATE_TERMINAL`).
+    El último intento decide `attempt_no`/resultado; el histórico completo es lo que
+    permite reportar first-attempt vs. after-retry sin perder la observación de que
+    el primero falló (un reintento con éxito mejora la disponibilidad, no la borra).
+    """
+    historial: list[dict] = []
+    intento_no = 1
+    while True:
+        resultado = await run_execution(client, execution, user_id, api_base)
+        resultado["attempt_no"] = intento_no
+        es_reintento = intento_no > 1
+        resultado["retry_of"] = execution["fixture_execution_id"] if es_reintento else None
+        fallo = resultado.get("failure") or {}
+        historial.append({
+            "attempt_no": intento_no,
+            "outcome": _attempt_outcome(resultado),
+            "phase": fallo.get("phase"),
+            "retryable": bool(fallo.get("retryable")),
+        })
+        if ledger is not None:
+            ledger.record(
+                "FINISHED", execution,
+                execution_status=resultado["execution_status"],
+                session_id=resultado["session_id"],
+                error=resultado["error"],
+                failure=resultado["failure"],
+                posture_divergences=resultado["posture_divergences"],
+                latency_ms=resultado["latency_ms"],
+                attempt_no=intento_no,
+                retry_of=resultado["retry_of"],
+            )
+        if not _should_retry(intento_no, resultado):
+            break
+        await asyncio.sleep(RETRY_BACKOFF_BASE_SECONDS * (2 ** (intento_no - 1)))
+        intento_no += 1
+    resultado["attempts"] = historial
+    return resultado
+
+
 def _repeat_log_summary(result: dict) -> str:
     """Resumen compacto y completo de todos los intentos de un endpoint."""
     attempts = result["attempts"]
@@ -897,6 +968,11 @@ async def main():
     # errores con la misma taxonomía (execution_errors.ErrorPhase), no solo un total
     # que un lector tenga que reconciliar a mano contra run.md.
     error_phases: Counter = Counter()
+    # PR6: cuántas Fixture Executions necesitaron algún reintento y a cuántas les
+    # resolvió el fallo transitorio — "first-attempt" es sent+blocked+errors con
+    # retried=0; "after-retry" es el resultado final que ya se está contando arriba.
+    retried = 0
+    rescatados = 0
     divergencias: list[dict] = []
     resultados: list[dict] = []
 
@@ -910,17 +986,12 @@ async def main():
             print(f"  {etiqueta:<70}", end="", flush=True)
 
             ledger.record("DISPATCHED", execution)
-            attempt = await run_execution(client, execution, args.user, api_base)
-            resultados.append(attempt)
-            ledger.record(
-                "FINISHED", execution,
-                execution_status=attempt["execution_status"],
-                session_id=attempt["session_id"],
-                error=attempt["error"],
-                failure=attempt["failure"],
-                posture_divergences=attempt["posture_divergences"],
-                latency_ms=attempt["latency_ms"],
+            # Cada intento (incluidos los reintentos) escribe su propio evento
+            # FINISHED dentro de run_execution_with_retries — ver su docstring.
+            attempt = await run_execution_with_retries(
+                client, execution, args.user, api_base, ledger=ledger,
             )
+            resultados.append(attempt)
 
             outcome = _attempt_outcome(attempt)
             sent += outcome == "ok"
@@ -928,6 +999,10 @@ async def main():
             errors += outcome == "error"
             if outcome == "error" and attempt.get("failure"):
                 error_phases[attempt["failure"]["phase"]] += 1
+            if len(attempt["attempts"]) > 1:
+                retried += 1
+                if outcome != "error":
+                    rescatados += 1
             if attempt["posture_divergences"]:
                 divergencias.append({
                     "fixture_execution_id": attempt["fixture_execution_id"],
@@ -936,8 +1011,10 @@ async def main():
                 })
             marca = {"ok": "✓", "blocked": "BLOQUEADO", "error": "ERROR"}[outcome]
             aviso = " ⚠postura" if attempt["posture_divergences"] else ""
+            reintento = f" ↻{len(attempt['attempts'])}" if len(attempt["attempts"]) > 1 else ""
             print(
-                f"{marca}{aviso}  {attempt['latency_ms']:.0f}ms  «{attempt['response_preview'][:50]}»",
+                f"{marca}{aviso}{reintento}  {attempt['latency_ms']:.0f}ms  "
+                f"«{attempt['response_preview'][:50]}»",
                 flush=True,
             )
 
@@ -967,6 +1044,11 @@ async def main():
     if error_phases:
         desglose = " · ".join(f"{fase}={n}" for fase, n in sorted(error_phases.items()))
         _flush(f"  Errores por fase: {desglose}")
+    if retried:
+        _flush(
+            f"  Reintentos: {retried} ejecuciones necesitaron reintento · "
+            f"{rescatados} resueltos tras reintentar · {retried - rescatados} siguen en error"
+        )
     _flush(f"  Run Folder : {display_path(run_folder)}")
     _flush(f"  Siguiente  : python scripts/evaluate.py --run {display_path(run_folder)}")
     _flush(SEP2)

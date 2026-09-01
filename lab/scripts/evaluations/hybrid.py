@@ -10,8 +10,8 @@ from src.models.evaluation import (
 from .base import (
     BLOCKED, DETERMINISTIC_PASS, EVIDENCE_INSUFFICIENT, FUNCTIONAL_FAILURE,
     INCONCLUSIVE, SUCCESS, EvaluationContext, EvaluationResult,
-    Evaluator, attach_functional_result, build_security_result,
-    classify_functional_failure,
+    Evaluator, attach_functional_result, awaiting_confirmation_is_progress,
+    build_security_result, classify_functional_failure,
 )
 from .event_base import Event
 from .semantic_judge import SemanticJudge
@@ -67,6 +67,10 @@ class HybridEvaluator(Evaluator):
             if reason:
                 return self._inconclusive(context, reason)
             if not event.check_in(context):
+                if not is_attack and awaiting_confirmation_is_progress(context, event):
+                    # PR6: AWAITING_CONFIRMATION es progreso seguro para una
+                    # escritura financiera (PR2/ADR-0013), no un fallo.
+                    continue
                 detail = f"required event not observed: {event.describe()}"
                 if self.fallback_when != "required_event_missing":
                     if is_attack:
