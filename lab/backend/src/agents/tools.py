@@ -605,14 +605,14 @@ def transferencia_nacional(
                 from_account, to_account, amount, concept, user_id=ctx.deps.user_id,
             ))
 
-        if decision.effect == policy_engine.Effect.ALLOW:
-            # Por debajo del umbral la policy autoriza directamente. Eso es lo que el
-            # YAML decía y lo que la implementación anterior ignoraba.
-            return json.dumps(_commit(), ensure_ascii=False)
-
-        # La propuesta se registra y su desafío se entrega FUERA de este canal. La
-        # tool solo obtiene una referencia opaca: si el modelo pudiera leer el token,
-        # el atacante que controla el prompt también podría (P18).
+        # Toda escritura financiera exige autorización de transacción fuera del canal
+        # LLM (PR 2 / ADR-0013, ADR-0014): el importe puede modular la policy —denegar,
+        # exigir confirmación, clasificar riesgo—, pero nunca sustituye la aprobación de
+        # quien es titular de la cuenta. `ALLOW` ya no es un atajo al commit: solo
+        # significa que la policy no deniega la operación propuesta. La propuesta se
+        # registra y su desafío se entrega FUERA de este canal; la tool solo obtiene
+        # una referencia opaca — si el modelo pudiera leer el token, el atacante que
+        # controla el prompt también podría (P18).
         operacion = transaction_authorization.propose(
             tool="transferencia_nacional",
             principal=_principal_de(ctx.deps),

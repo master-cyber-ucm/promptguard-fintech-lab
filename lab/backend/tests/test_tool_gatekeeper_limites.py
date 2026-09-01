@@ -57,14 +57,21 @@ def _yaml_limpio():
     transaction_authorization.reset_for_tests()
 
 
-def test_transferencia_bajo_el_umbral_se_autoriza_directamente():
-    """El YAML dice `requires_approval_above: 1000.00` para "customer".
-
-    Antes convivía con `requires_approval: true` y ganaba el segundo: TODA transferencia
-    quedaba pendiente y revisar el YAML no permitía conocer la política efectiva (P19).
+def test_transferencia_bajo_el_umbral_no_se_compromete_sin_autorizacion():
+    """El YAML dice `requires_approval_above: 1000.00` para "customer": por debajo del
+    umbral la policy no deniega. Pero "no denegada" dejó de significar "comprometida
+    directamente" (PR 2 / ADR-0013): toda escritura financiera exige autorización de
+    transacción fuera del canal LLM, y solo esa autorización produce el commit.
     """
-    result = json.loads(transferencia_nacional(_ctx(), OTHER_BANK_ACCOUNT, 500.0))
-    assert result["status"] == "completed"
+    pendiente = json.loads(transferencia_nacional(_ctx(), OTHER_BANK_ACCOUNT, 500.0))
+    assert pendiente["invocation_state"] == "AWAITING_CONFIRMATION"
+    operation_id = pendiente["operation_reference"]
+    resultado = transaction_authorization.authorize(
+        operation_id, principal=Principal(subject="usr_001"),
+        challenge_response=_desafio(operation_id),
+    )
+    assert resultado["status"] == "completed"
+    assert resultado["to"] == OTHER_BANK_ACCOUNT
 
 
 def test_transferencia_sobre_umbral_de_aprobacion_queda_pendiente():

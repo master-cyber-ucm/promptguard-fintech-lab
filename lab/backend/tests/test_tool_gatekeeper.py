@@ -59,11 +59,16 @@ def test_consulta_saldo_sin_account_id_usa_la_cuenta_propia():
 # --- transferencia_nacional ---
 
 def test_transferencia_desde_cuenta_propia_permitida():
-    """50 € desde cuenta propia: propiedad verificada y por debajo del umbral (P19)."""
+    """50 € desde cuenta propia: propiedad verificada y por debajo del umbral (P19).
+
+    Por debajo del umbral la policy ya no compromete directamente (PR 2): la
+    propiedad verificada evita un `denied`, pero el commit sigue exigiendo
+    autorización de transacción fuera del canal LLM."""
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
+    assert result["invocation_state"] == "AWAITING_CONFIRMATION"
+    assert result["to_account"] == OTHER_ACCOUNT
 
 
 def test_transferencia_desde_cuenta_ajena_denegada():
@@ -77,14 +82,15 @@ def test_transferencia_desde_cuenta_ajena_denegada():
 def test_transferencia_a_cuenta_ajena_es_valida_ese_es_el_proposito():
     """El destino SÍ puede ser de un tercero — es lo que hace una transferencia.
 
-    Con 50 € la policy autoriza directamente: el umbral de aprobación de "customer" son
-    1.000 €. Antes toda transferencia quedaba pendiente y el umbral no se aplicaba (P19).
+    Con 50 € la policy no deniega: el umbral de aprobación de "customer" son 1.000 €,
+    así que la propuesta no cae por límite (P19). Pero "no denegada" no es "comprometida
+    sin autorización" (PR 2): sigue quedando `AWAITING_CONFIRMATION`.
     """
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
-    assert result["to"] == OTHER_ACCOUNT
+    assert result["invocation_state"] == "AWAITING_CONFIRMATION"
+    assert result["to_account"] == OTHER_ACCOUNT
 
 
 def test_transferencia_sobre_el_umbral_requiere_autorizacion():

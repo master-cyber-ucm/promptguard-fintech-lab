@@ -196,10 +196,14 @@ def test_la_tool_pide_aclaracion_en_vez_de_aplicar_un_default():
 
 
 def test_una_peticion_legitima_sigue_funcionando():
+    """"Funciona" ya no es sinónimo de "se compromete sin autorización" (PR 2): la
+    propuesta con procedencia limpia debe quedar `AWAITING_CONFIRMATION`, no `denied`
+    ni `failed`."""
     resultado = json.loads(transferencia_nacional(
         _ctx("Transfiere 100 euros desde mi cuenta"), to_account=CUENTA_DESTINO, amount=100.0,
     ))
-    assert resultado["status"] == "completed"
+    assert resultado["invocation_state"] == "AWAITING_CONFIRMATION"
+    assert resultado["status"] == "pending_confirmation"
 
 
 def test_una_orden_escondida_en_un_documento_no_mueve_dinero():
@@ -216,4 +220,5 @@ def test_sin_artefactos_la_tool_conserva_su_comportamiento():
     """Las tools se ejercitan también fuera de una petición HTTP."""
     ctx = _Ctx(deps=Deps(user_id="usr_001", principal=Principal(subject="usr_001")))
     resultado = json.loads(transferencia_nacional(ctx, CUENTA_DESTINO, 100.0))
-    assert resultado["status"] == "completed"
+    assert resultado["invocation_state"] == "AWAITING_CONFIRMATION"
+    assert resultado["status"] == "pending_confirmation"
