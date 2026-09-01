@@ -118,7 +118,11 @@ def test_la_poblacion_legitima_no_entra_en_las_tasas_de_contencion():
     assert resumen["legitimate_pass_rate"] is not None
 
 
-def test_el_markdown_publica_resultado_del_sistema_y_marca_lo_legacy():
+def test_el_markdown_publica_resultado_del_sistema_y_retira_la_tabla_legacy():
+    """PR3: la tabla "Comparación de seguridad (legacy)" etiquetaba como «FP» la tasa
+    de fallo funcional completa. Se retira de la vista principal; `attack_block_rate`/
+    `legitimate_fp_rate` siguen en el JSON por continuidad histórica, pero ningún
+    Markdown los publica."""
     run_data = {
         "run_timestamp": "2026-08-31T00:00:00Z",
         "model": "qwen2.5:3b",
@@ -130,6 +134,7 @@ def test_el_markdown_publica_resultado_del_sistema_y_marca_lo_legacy():
     }
     md = _build_md(run_data)
     assert "## Resultado del sistema" in md
-    assert "Comparación de seguridad (legacy)" in md
+    assert "Comparación de seguridad (legacy)" not in md
+    assert "FP% histórico" not in md
     # La atribución se publica con las tres cantidades separadas (P13).
     assert "Detección, intervención y contención por componente" in md

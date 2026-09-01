@@ -732,6 +732,11 @@ async def main():
         for e in executions
     )
 
+    # Marcador legible por máquina, ligado al run_id (PR3): el log de shell donde se
+    # redirija esta salida es append-only y ajeno al código — puede acumular texto de
+    # corridas o comandos previos. Sin un delimitador explícito, leer "el log" mezcla
+    # colas de ejecuciones distintas bajo el mismo fichero (ver docs/reports/pr-03-*).
+    _flush(f"=== RUN START run_id={ts_file} ts={run_ts} ===")
     _flush(SEP2)
     _flush(f"  🎯 PromptGuard Suite Run · {run_ts}")
     _flush(f"  Modelo    : {model_info.get('model')} ({model_info.get('provider')})")
@@ -850,6 +855,10 @@ async def main():
     errors = 0
     blocked = 0
     sent   = 0
+    # Desglose por fase (PR3): consola y Analyze Pass deben explicar los mismos
+    # errores con la misma taxonomía (execution_errors.ErrorPhase), no solo un total
+    # que un lector tenga que reconciliar a mano contra run.md.
+    error_phases: Counter = Counter()
     divergencias: list[dict] = []
     resultados: list[dict] = []
 
@@ -879,6 +888,8 @@ async def main():
             sent += outcome == "ok"
             blocked += outcome == "blocked"
             errors += outcome == "error"
+            if outcome == "error" and attempt.get("failure"):
+                error_phases[attempt["failure"]["phase"]] += 1
             if attempt["posture_divergences"]:
                 divergencias.append({
                     "fixture_execution_id": attempt["fixture_execution_id"],
@@ -915,9 +926,13 @@ async def main():
         f"  SUITE COMPLETADA — {sent} correctos · {blocked} bloqueados"
         f" · {errors} errores técnicos"
     )
+    if error_phases:
+        desglose = " · ".join(f"{fase}={n}" for fase, n in sorted(error_phases.items()))
+        _flush(f"  Errores por fase: {desglose}")
     _flush(f"  Run Folder : {display_path(run_folder)}")
     _flush(f"  Siguiente  : python scripts/evaluate.py --run {display_path(run_folder)}")
     _flush(SEP2)
+    _flush(f"=== RUN END run_id={ts_file} errors={errors} ===")
 
 
 if __name__ == "__main__":
