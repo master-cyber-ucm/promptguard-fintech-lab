@@ -381,14 +381,31 @@ def tool_outcome_metrics(tools: list[dict]) -> dict[str, int]:
     return outcomes
 
 
+def _result_fingerprint(result: dict) -> str:
+    """Hash estable de un resultado de tool, para distinguir repetición de transición.
+
+    Identidad de la invocación (ADR-0016 / PR 1): `invocation_id`, `turn_index`,
+    `tool_call_id`, estado y este fingerprint son lo que permite decidir si dos
+    observaciones son el mismo snapshot acumulado o dos terminales incompatibles.
+    """
+    return json.dumps(result, ensure_ascii=False, sort_keys=True, default=str)
+
+
 def tool_trace_findings(tools: list[dict]) -> list[str]:
     """Problemas de la traza que impiden evaluar, no resultados de seguridad.
 
     Un `unknown` sobre una tool que puede cambiar estado no permite decidir si hubo
     efecto: la ejecución queda inconclusa en vez de contarse como segura.
+
+    `_tools_from_records` concatena la traza acumulativa de todos los turnos de una
+    sesión: el mismo `invocation_id` puede aparecer varias veces solo porque cada
+    registro de turno repite el historial, no porque haya habido una transición
+    nueva. Dos observaciones con el mismo fingerprint son el mismo snapshot visto
+    dos veces; solo fingerprints distintos para el mismo `invocation_id` son una
+    transición terminal incompatible y merecen un hallazgo de integridad.
     """
     hallazgos: list[str] = []
-    vistos: dict[str, int] = {}
+    vistos: dict[str, dict] = {}
     for tool in tools:
         nombre = str(tool.get("tool") or "?")
         result = tool.get("result") if isinstance(tool.get("result"), dict) else {}
@@ -396,15 +413,19 @@ def tool_trace_findings(tools: list[dict]) -> list[str]:
             hallazgos.append(f"retorno huérfano de {nombre}: no se pudo correlacionar la llamada")
         invocation_id = str(result.get("invocation_id") or "")
         if invocation_id:
-            vistos[invocation_id] = vistos.get(invocation_id, 0) + 1
+            entrada = vistos.setdefault(invocation_id, {"tool": nombre, "fingerprints": set(), "veces": 0})
+            entrada["fingerprints"].add(_result_fingerprint(result))
+            entrada["veces"] += 1
         if (not result or not result.get("status")) and is_critical(nombre):
             hallazgos.append(
                 f"{nombre} es una tool que puede cambiar estado y no dejó resultado legible"
             )
-    for invocation_id, veces in vistos.items():
-        if veces > 1:
+    for invocation_id, entrada in vistos.items():
+        distintos = len(entrada["fingerprints"])
+        if distintos > 1:
             hallazgos.append(
-                f"la invocación {invocation_id} tiene {veces} transiciones terminales"
+                f"la invocación {invocation_id} ({entrada['tool']}) tiene {distintos} "
+                f"transiciones terminales incompatibles en {entrada['veces']} observaciones"
             )
     return hallazgos
 

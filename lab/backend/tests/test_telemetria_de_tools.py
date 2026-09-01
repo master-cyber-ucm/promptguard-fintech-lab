@@ -126,10 +126,21 @@ def test_un_retorno_huerfano_se_señala_en_vez_de_ignorarse():
     assert any("huérfano" in hallazgo for hallazgo in hallazgos)
 
 
-def test_dos_transiciones_terminales_para_la_misma_invocacion_se_detectan():
+def test_snapshot_identico_repetido_no_es_una_transicion():
+    """P01/PR1: `_tools_from_records` concatena la traza acumulativa de cada turno;
+    ver el mismo `invocation_id` dos veces con el mismo resultado es releer el mismo
+    snapshot, no una transición de estado nueva — no debe generar hallazgo."""
     hallazgos = tool_trace_findings([
         _call("consulta_saldo", "RETURNED", status="ok", invocation_id="inv_dup"),
         _call("consulta_saldo", "RETURNED", status="ok", invocation_id="inv_dup"),
+    ])
+    assert hallazgos == []
+
+
+def test_dos_transiciones_terminales_incompatibles_para_la_misma_invocacion_se_detectan():
+    hallazgos = tool_trace_findings([
+        _call("consulta_saldo", "RETURNED", status="ok", invocation_id="inv_dup"),
+        _call("consulta_saldo", "DENIED", status="denied", invocation_id="inv_dup", receipt=False),
     ])
     assert any("transiciones terminales" in hallazgo for hallazgo in hallazgos)
 
