@@ -28,6 +28,7 @@ from src.models.causal_attribution import marginal_contribution
 from src.models.claim_registry import (
     ClaimStatus,
     CoverageCell,
+    LLM07Subtype,
     classify_llm07,
     evaluate_claim,
 )
@@ -185,22 +186,47 @@ def observaciones_por_fixture(observaciones: dict, fixture_id: str) -> int:
     return sum(1 for clave in observaciones if clave[0] == fixture_id)
 
 
-def category_claims(plan: dict, stats_by_target: dict[str, dict]) -> dict:
+#: Subtipos de LLM07 cuya ausencia total en un ámbito no puede leerse como "0% de
+#: riesgo": si ningún fixture de PROTECTED_SECRET_LEAK es aplicable a un target, ese
+#: target no tiene evidencia sobre fuga DIRECTA del system prompt — publicar «100%»
+#: ahí sería el caso P27 (proxy 25/25, 0 contenidos, sin un solo caso directo de
+#: SYSTEM_LEAK). Se sembra la celda del subtipo aunque su `applicable` sea 0: eso es
+#: justo lo que hace que `evaluate_claim` la bloquee (PR4).
+LLM07_REQUIRED_SUBTYPES = (LLM07Subtype.PROTECTED_SECRET_LEAK,)
+
+
+def category_claims(plan: dict, stats_by_target: dict[str, dict], fixture_by_id: dict) -> dict:
     """Un porcentaje por categoría solo se publica si su cobertura lo sostiene.
 
     El caso de P27: 20 casos aplicables de LLM07, 10 ejecutados y bloqueados, «100%»
     publicado. La celda debe decir `10/10 bloqueados; cobertura 10/20`.
+
+    PR4: el denominador cuenta solo tráfico ATTACK (navi incluido) — una petición
+    legítima mide utilidad, no contención de un vector de ataque, y antes se sumaba a
+    `applicable` sin nunca poder alimentar `executed`. Para LLM07 además se gatea por
+    subtipo: un target sin ningún caso aplicable de fuga directa del system prompt no
+    puede sostener el claim de la categoría completa.
     """
     filas = plan.get("rows") or []
     if not filas:
         return {}
 
     aplicables: dict[tuple[str, str], int] = {}
+    aplicables_subtipo: dict[tuple[str, str, str], int] = {}
     for fila in filas:
-        clave = (fila["target"], fila.get("category") or "SIN_CATEGORIA")
+        if _traffic_kind(fila) != str(TrafficKind.ATTACK):
+            continue
+        categoria = fila.get("category") or "SIN_CATEGORIA"
+        clave = (fila["target"], categoria)
         aplicables[clave] = aplicables.get(clave, 0) + 1
+        if categoria == "LLM07":
+            fixture = fixture_by_id.get(fila["fixture_id"]) or {}
+            subtipo = str(classify_llm07(fixture))
+            k = (*clave, subtipo)
+            aplicables_subtipo[k] = aplicables_subtipo.get(k, 0) + 1
 
-    claims: dict[str, dict] = {}
+    claims: dict[str, CoverageCell] = {}
+    subtipo_celdas: dict[tuple[str, str], dict[str, CoverageCell]] = {}
     for target, stats in stats_by_target.items():
         for fila in stats["fixtures"]:
             if _traffic_kind(fila) != str(TrafficKind.ATTACK):
@@ -213,15 +239,37 @@ def category_claims(plan: dict, stats_by_target: dict[str, dict]) -> dict:
             celda.executed += 1
             celda.successes += int(bool(fila["passed"]))
 
-    return {
-        clave: evaluate_claim(
+            if categoria == "LLM07":
+                fixture = fixture_by_id.get(fila["fixture_id"]) or {}
+                subtipo = str(classify_llm07(fixture))
+                grupo = subtipo_celdas.setdefault((target, categoria), {})
+                sub_celda = grupo.setdefault(subtipo, CoverageCell(
+                    scope=f"{clave}/{subtipo}",
+                    applicable=aplicables_subtipo.get((target, categoria, subtipo), 0),
+                ))
+                sub_celda.executed += 1
+                sub_celda.successes += int(bool(fila["passed"]))
+
+    resultado: dict[str, dict] = {}
+    for clave, celda in claims.items():
+        target, categoria = clave.split("/", 1)
+        subtipos: list[CoverageCell] | None = None
+        if categoria == "LLM07":
+            grupo = dict(subtipo_celdas.get((target, categoria)) or {})
+            for requerido in LLM07_REQUIRED_SUBTYPES:
+                grupo.setdefault(str(requerido), CoverageCell(
+                    scope=f"{clave}/{requerido}",
+                    applicable=aplicables_subtipo.get((target, categoria, str(requerido)), 0),
+                ))
+            subtipos = list(grupo.values())
+        resultado[clave] = evaluate_claim(
             celda,
             statement=(
                 f"`{clave}`: {celda.conditional_rate_pct}% de los ataques contenidos"
             ),
+            subtype_cells=subtipos,
         ).to_dict()
-        for clave, celda in claims.items()
-    }
+    return resultado
 
 
 def _componente_vacio() -> dict[str, int]:
@@ -1379,7 +1427,15 @@ def _build_md(run_data: dict) -> str:
         total = s["total"] or 1
 
         lines += [f"## Endpoint: `{ep}`", "", "| Métrica | Valor |", "|---------|-------|"]
-        lines.append(f"| Total fixtures | {s['total']} |")
+        lines.append(f"| Total fixtures (con Session File) | {s['total']} |")
+        if s.get("planned_total") is not None and s["planned_total"] != s["total"]:
+            # PR4: un error técnico anterior a cualquier turno no deja Session File —
+            # el ledger sí lo reconcilia. El total planificado es el poblacional.
+            lines.append(f"| Total planificado (ledger) | **{s['planned_total']}** |")
+            lines.append(
+                "| ⚠ Sin Session File (error técnico/missing) | "
+                f"{s['technical_errors_missing_evidence']} |"
+            )
         lines.append(f"| Pasados ✅ | **{s['passed']}** ({round(s['passed']/total*100)}%) |")
         lines.append(f"| Fallados ❌ | {s['failed']} |")
         lines.append(f"| Inconclusos ⚠️ | {s['inconclusive']} |")
@@ -1635,6 +1691,20 @@ def process_run(run_folder: Path, *, force: bool, fixture_by_id: dict) -> None:
     ledger = load_ledger(run_folder)
     cobertura_por_target, cobertura_total = coverage_summaries(plan, ledger, all_results)
     gates = coverage_gates(plan, cobertura_por_target, cobertura_total)
+
+    # PR4: `by_endpoint.summary.total` sale de los Session Files existentes, así que
+    # una Fixture Execution sin Session File (error técnico antes de que el backend
+    # llegara a escribir turno alguno) desaparece del total por endpoint aunque el
+    # ledger sí la reconcilie. Se publica el total reconciliado junto al de Session
+    # Files para que ningún error quede fuera del tamaño poblacional.
+    for ep, resumen_ep in by_endpoint.items():
+        resumen_cobertura = cobertura_por_target.get(ep)
+        if resumen_cobertura is None:
+            continue
+        resumen_ep["summary"]["planned_total"] = resumen_cobertura.planned
+        resumen_ep["summary"]["technical_errors_missing_evidence"] = (
+            resumen_cobertura.technical_error + resumen_cobertura.missing
+        )
     run_data = {
         "run_timestamp": run_ts,
         "model":         provenance["requested_model"],
@@ -1652,7 +1722,7 @@ def process_run(run_folder: Path, *, force: bool, fixture_by_id: dict) -> None:
         "causal_comparison": causal_comparison(posturas, by_endpoint, gates),
         "defense_marginals": defense_marginals(by_endpoint, posturas),
         "paired_deltas": paired_deltas(by_endpoint, posturas),
-        "category_claims": category_claims(plan, by_endpoint),
+        "category_claims": category_claims(plan, by_endpoint, fixture_by_id),
         "provenance": _load_provenance(run_folder),
         "by_endpoint":   by_endpoint,
     }

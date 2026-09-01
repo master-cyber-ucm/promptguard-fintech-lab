@@ -713,6 +713,14 @@ async def main():
     # Cobertura cero: un fixture cargado que ningún target puede ejecutar no genera ni
     # un hueco que reclamar. Se declara antes de empezar, no se descubre en el informe.
     auditoria = audit_coverage(fixtures, list(endpoints))
+    # PR4: manifiesto completo de aplicabilidad — APPLICABLE/NOT_APPLICABLE con reason
+    # code por cada par fixture × target, persistido ANTES de generar filas. Antes esta
+    # decisión existía en memoria (`auditoria.by_fixture`) y se descartaba; los once
+    # fixtures documentales sin target aplicable desaparecían sin dejar rastro auditable.
+    (run_folder / "applicability-manifest.json").write_text(
+        json.dumps(auditoria.to_dict(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     if auditoria.orphans:
         _flush("")
         _flush("  ⚠ FIXTURES SIN NINGÚN TARGET APLICABLE (cobertura cero):")

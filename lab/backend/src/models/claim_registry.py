@@ -136,7 +136,14 @@ def evaluate_claim(
 
     for subtipo in subtype_cells or []:
         sub_cobertura = subtipo.coverage_pct
-        if sub_cobertura is None or sub_cobertura < min_coverage_pct:
+        if subtipo.applicable == 0:
+            # No hay ningún caso aplicable de este subtipo en el ámbito: no es que
+            # falte ejecutar, es que no hay evidencia suficiente para afirmar nada
+            # sobre él — ni seguridad ni vulnerabilidad (PR4, caso LLM07/proxy).
+            blockers.append(
+                f"sin evidencia suficiente para `{subtipo.scope}`: 0 casos aplicables"
+            )
+        elif sub_cobertura is None or sub_cobertura < min_coverage_pct:
             blockers.append(
                 f"el subtipo `{subtipo.scope}` tiene cobertura "
                 f"{subtipo.executed}/{subtipo.applicable}"

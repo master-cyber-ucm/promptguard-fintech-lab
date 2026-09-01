@@ -146,9 +146,19 @@ def _plan(aplicables=20, target="proxy-full"):
     ]}
 
 
+def _fixture_by_id(n=20):
+    """`atk_0` es el único caso directo de PROTECTED_SECRET_LEAK del lote sintético —
+    el subtipo requerido para que un claim LLM07 con cobertura completa se publique
+    (PR4): sin él, ningún test de "cobertura completa" pasaría el gate por subtipo."""
+    secreto = {"evaluation": {"events": [
+        {"type": "response_leaks", "canary": "API_KEY_INTERNAL", "claim_type": "SECRET"},
+    ]}}
+    return {"atk_0": secreto, **{f"atk_{i}": {"evaluation": {}} for i in range(1, n)}}
+
+
 def test_el_informe_suprime_el_claim_con_cobertura_parcial():
     stats = {"proxy-full": _compute_stats([_fila(f"atk_{i}") for i in range(10)])}
-    claims = category_claims(_plan(20), stats)
+    claims = category_claims(_plan(20), stats, _fixture_by_id())
     datos = claims["proxy-full/LLM07"]
     assert datos["status"] == "SUPPRESSED"
     assert datos["cell"]["applicable"] == 20
@@ -157,8 +167,19 @@ def test_el_informe_suprime_el_claim_con_cobertura_parcial():
 
 def test_el_informe_publica_el_claim_con_cobertura_completa():
     stats = {"proxy-full": _compute_stats([_fila(f"atk_{i}") for i in range(20)])}
-    claims = category_claims(_plan(20), stats)
+    claims = category_claims(_plan(20), stats, _fixture_by_id())
     assert claims["proxy-full/LLM07"]["status"] == "PUBLISHED"
+
+
+def test_llm07_sin_ningun_caso_directo_de_fuga_no_publica_el_claim():
+    """PR4 / P27: proxy 25/25 ejecutados y bloqueados, pero ninguno es un caso
+    DIRECTO de fuga del system prompt — «sin evidencia suficiente», no «100% seguro»."""
+    solo_reflexion = {f"atk_{i}": {"evaluation": {}} for i in range(20)}
+    stats = {"proxy-full": _compute_stats([_fila(f"atk_{i}") for i in range(20)])}
+    claims = category_claims(_plan(20), stats, solo_reflexion)
+    datos = claims["proxy-full/LLM07"]
+    assert datos["status"] == "SUPPRESSED"
+    assert any("sin evidencia suficiente" in b for b in datos["blockers"])
 
 
 def test_el_markdown_muestra_ejecutados_sobre_aplicables():
@@ -168,7 +189,7 @@ def test_el_markdown_muestra_ejecutados_sobre_aplicables():
         "model_provenance": {"requested_model": "m", "provider": "p",
                              "effective_models_by_endpoint": {}, "instrumentation_errors": []},
         "endpoints_run": ["proxy-full"], "suite_config": {},
-        "category_claims": category_claims(_plan(20), stats),
+        "category_claims": category_claims(_plan(20), stats, _fixture_by_id()),
         "by_endpoint": stats,
     })
     assert "Claims por categoría" in md
@@ -178,4 +199,25 @@ def test_el_markdown_muestra_ejecutados_sobre_aplicables():
 
 def test_sin_plan_no_se_inventan_claims():
     stats = {"proxy-full": _compute_stats([_fila("atk_1")])}
-    assert category_claims({}, stats) == {}
+    assert category_claims({}, stats, _fixture_by_id()) == {}
+
+
+def test_el_denominador_solo_cuenta_trafico_de_ataque():
+    """PR4: una petición legítima en la categoría no infla `applicable` ni puede
+    aparecer nunca en `executed` — antes ambas poblaciones se mezclaban."""
+    plan = _plan(10)
+    plan["rows"].append({
+        "fixture_execution_id": "e_leg", "fixture_id": "leg_1",
+        "fixture_kind": "legitimate-prompts",
+        "target": "proxy-full", "category": "LLM07", "repetition": 1,
+    })
+    filas = [_fila(f"atk_{i}") for i in range(10)]
+    legit = _fila("leg_1")
+    legit.update({"fixture_kind": "legitimate-prompts", "traffic_kind": "LEGITIMATE",
+                  "expected_result": "ALLOW"})
+    filas.append(legit)
+    stats = {"proxy-full": _compute_stats(filas)}
+    claims = category_claims(plan, stats, _fixture_by_id())
+    datos = claims["proxy-full/LLM07"]
+    assert datos["cell"]["applicable"] == 10
+    assert datos["cell"]["executed"] == 10
