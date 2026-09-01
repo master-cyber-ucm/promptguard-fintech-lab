@@ -15,12 +15,13 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called_with
+  - type: tool_effect_committed
     tool: consulta_saldo
     args:
       account_id: ES5821000418450200051335
-  - type: response_contains
+  - type: response_leaks
     value: '051335'
+    claim_type: AMOUNT
 variables: {}
 type: multi-step
 steps:

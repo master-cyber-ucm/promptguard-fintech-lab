@@ -28,11 +28,17 @@ Uso:
   python run_attack_suite.py --kind attack-prompts     # solo ataques
   python run_attack_suite.py --type INDIRECT_INJECTION
   python run_attack_suite.py --id atk_035
-  python run_attack_suite.py --id atk_001_admin --id leg_024 --endpoint complex-with-context --endpoint proxy --baseline-pure
+  python run_attack_suite.py --id atk_001_admin --id leg_024 --endpoint complex-with-context --endpoint proxy
   python run_attack_suite.py --repeat 5                # 5 repeticiones por fixture
   python run_attack_suite.py --proxy-profile baseline --proxy-profile gatekeeper \\
       --proxy-profile output --proxy-profile full --repeat 5
   python run_attack_suite.py --user usr_002
+  python run_attack_suite.py --seed 42            # otro orden de bloques, reproducible
+
+Diseño de ejecución: la matriz completa se calcula antes de enviar nada y se recorre en
+bloques (fixture, repetición) con las posturas intercaladas en orden derivado de
+`--seed`. Ejecutar un target entero y luego el siguiente confundiría la deriva temporal
+del proveedor con la eficacia de esa postura.
 """
 
 from __future__ import annotations
@@ -42,8 +48,10 @@ import asyncio
 import hashlib
 import json
 import os
+import random
 import sys
 import time
+import uuid
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,7 +60,17 @@ import httpx
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from lab_paths import display_path, ensure_src_importable  # noqa: E402
+
+ensure_src_importable()
 from fixture_loader import load_prompts
+from src.api.auth import issue_token
+from src.models.posture import TargetPosture
+from src.models.capabilities import audit_coverage, decide
+from src.models.coverage import CoverageGates
+from evaluations.semantic_judge import judge_bundle
+from execution_errors import ExecutionError, from_backend, from_exception
+import provenance
 
 RUNS_DIR = HERE.parent / "audit" / "runs"
 # henri-tfm/ vive fuera de lab/ — HERE = lab/scripts, .parent.parent = raíz del repo.
@@ -96,6 +114,53 @@ CHAT_ENDPOINTS: dict[str, str] = {
 
 PROXY_PROFILES = ("baseline", "gatekeeper", "output", "full")
 
+#: Posturas del canal DOCUMENTAL. Un fixture documental solo es comparable contra otra
+#: postura del mismo pipeline documental: enfrentarlo a un chat sin documentos mediría
+#: la diferencia entre dos canales, no la eficacia de la defensa (P10).
+DOCUMENT_PROFILES = ("document-baseline", "document-full")
+
+#: Flags del canal documental por postura. `document-baseline` apaga las tres capas
+#: del canal más el Gatekeeper: es la línea base indefensa de ESTE pipeline.
+DOCUMENT_PROFILE_SETTINGS: dict[str, dict[str, bool]] = {
+    "document-baseline": {
+        "defensa_sanitizer": False, "defensa_estructural": False,
+        "defensa_separacion_semantica": False, "defensa_tool_gatekeeper": False,
+        "defensa_pii_shield": False,
+    },
+    "document-full": {
+        "defensa_sanitizer": True, "defensa_estructural": True,
+        "defensa_separacion_semantica": True, "defensa_tool_gatekeeper": True,
+        "defensa_pii_shield": True,
+    },
+}
+
+#: Postura SOLICITADA por target. El backend devuelve la efectiva y el runner las
+#: compara: una divergencia es un error de instrumentación que invalida el experimento,
+#: no un resultado del que se pueda informar (P02).
+REQUESTED_CONTROLS: dict[str, dict[str, bool]] = {
+    "baseline": {"input_sanitizer": False, "pii_shield": False, "tool_gatekeeper": False,
+                 "output_auditor": False, "leak_guard": False},
+    "gatekeeper": {"input_sanitizer": False, "pii_shield": False, "tool_gatekeeper": True,
+                   "output_auditor": False, "leak_guard": False},
+    "output": {"input_sanitizer": False, "pii_shield": True, "tool_gatekeeper": True,
+               "output_auditor": True, "leak_guard": True},
+    "full": {"input_sanitizer": True, "pii_shield": True, "tool_gatekeeper": True,
+             "output_auditor": True, "leak_guard": True},
+}
+
+#: Los endpoints pedagógicos no llevan ningún control externo. Se declara para poder
+#: detectar si el backend aplicara alguno por herencia, que es exactamente lo que
+#: ocurría con el Output Auditor antes de P02.
+PEDAGOGICAL_REQUESTED = {name: False for name in REQUESTED_CONTROLS["baseline"]}
+
+
+def requested_posture(target: str, profile: str | None) -> dict[str, bool]:
+    if profile:
+        return dict(REQUESTED_CONTROLS[profile])
+    if target == "proxy":
+        return dict(REQUESTED_CONTROLS["full"])
+    return dict(PEDAGOGICAL_REQUESTED)
+
 DOCUMENT_CONTENT_TYPES: dict[str, str] = {
     ".pdf":  "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -107,147 +172,332 @@ DOCUMENT_CONTENT_TYPES: dict[str, str] = {
 # Single fixture execution
 # ---------------------------------------------------------------------------
 
-async def _run_document_fixture(
+def auth_headers(user_id: str) -> dict[str, str]:
+    """Credencial firmada del sujeto. La suite tampoco elige identidad desde el body.
+
+    Sin esto, un experimento que mide autorización estaría midiendo un backend que
+    acepta cualquier `user_id` — y sus resultados de seguridad serían optimistas por
+    construcción (P16).
+    """
+    return {"Authorization": f"Bearer {issue_token(user_id)}"}
+
+
+async def _run_document_execution(
     client: httpx.AsyncClient,
-    fixture: dict,
+    execution: dict,
     user_id: str,
     api_base: str,
     endpoint_path: str,
-    audit_subdir: str,
-    *,
-    repeat: int = 1,
-) -> list[dict]:
-    """Envía un fixture `type: document-upload` vía multipart, adjuntando el archivo real de
-    `henri-tfm/01-ataque/payloads/`. Devuelve el detalle de cada repetición."""
-    doc_name = fixture["document"]
-    doc_path = PAYLOADS_DIR / doc_name
+) -> dict:
+    """Ejecuta una repetición de un fixture `type: document-upload` vía multipart."""
+    fixture = execution["fixture"]
+    doc_path = PAYLOADS_DIR / fixture["document"]
+    started_at = time.time()
     if not doc_path.is_file():
-        return [
-            {"attempt": attempt_number, "latency_ms": 0.0, "response_preview": "",
-             "error": f"Documento no encontrado: {doc_path}", "session_id": ""}
-            for attempt_number in range(1, repeat + 1)
-        ]
-    content_type = DOCUMENT_CONTENT_TYPES.get(doc_path.suffix.lower(), "application/octet-stream")
+        return _attempt(execution, started_at, error=f"Documento no encontrado: {doc_path}")
 
-    attempts: list[dict] = []
-    for attempt_number in range(1, repeat + 1):
-        # Una repetición debe producir evidencia independiente; un id único evita
-        # que las cinco peticiones se agreguen en un único Session File documental.
-        session_id = f"suite_{fixture['id']}_{int(time.time() * 1000)}_{attempt_number}"
-        last_response = ""
-        error: str | None = None
-        started_at = time.time()
-        try:
-            with open(doc_path, "rb") as f:
-                resp = await client.post(
-                    f"{api_base}{endpoint_path}",
-                    data={
-                        "user_id": user_id,
-                        "session_id": session_id,
-                        "message": fixture.get("message", ""),
-                        "fixture_id": fixture.get("id"),
-                        "fixture_kind": fixture.get("kind"),
-                        "fixture_expected_result": fixture.get("expected_result"),
-                        "audit_subdir": audit_subdir,
+    content_type = DOCUMENT_CONTENT_TYPES.get(doc_path.suffix.lower(), "application/octet-stream")
+    # Una repetición debe producir evidencia independiente; un id único evita que las
+    # repeticiones se agreguen en un único Session File documental.
+    session_id = f"suite_{fixture['id']}_{int(time.time() * 1000)}_{execution['repetition']}"
+    try:
+        with open(doc_path, "rb") as f:
+            resp = await client.post(
+                f"{api_base}{endpoint_path}",
+                data={
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "message": fixture.get("message", ""),
+                    "fixture_id": fixture.get("id"),
+                    "fixture_kind": fixture.get("kind"),
+                    "fixture_expected_result": fixture.get("expected_result"),
+                    "fixture_execution_id": execution["fixture_execution_id"],
+                    "audit_subdir": execution["audit_subdir"],
+                    **{
+                        clave: str(valor).lower()
+                        for clave, valor in DOCUMENT_PROFILE_SETTINGS.get(
+                            execution.get("document_profile") or "", {}
+                        ).items()
                     },
-                    files={"document": (doc_path.name, f, content_type)},
-                    timeout=REQUEST_TIMEOUT,
-                )
+                },
+                files={"document": (doc_path.name, f, content_type)},
+                headers=auth_headers(user_id),
+                timeout=REQUEST_TIMEOUT,
+            )
+        data = resp.json()
+    except Exception as exc:
+        fallo = from_exception(exc)
+        return _attempt(execution, started_at, error=fallo.message, session_id=session_id,
+                        execution_status="TECHNICAL_ERROR", failure=fallo)
+    error = data.get("error") or None
+    return _attempt(
+        execution, started_at, session_id=session_id,
+        response=data.get("response", ""), error=error,
+        effective_posture=data.get("effective_posture"),
+        execution_status=data.get("execution_status", "COMPLETED"),
+        failure=from_backend(error) if error else None,
+    )
+
+
+async def _run_chat_execution(
+    client: httpx.AsyncClient,
+    execution: dict,
+    user_id: str,
+    api_base: str,
+    endpoint_path: str,
+) -> dict:
+    """Ejecuta una repetición de un fixture conversacional (uno o varios steps)."""
+    fixture = execution["fixture"]
+    # Cada repetición arranca una conversación nueva; dentro de la misma repetición los
+    # pasos de un fixture multi-step SÍ comparten memoria real (session_store.py): el
+    # primer step no manda session_id y los siguientes reutilizan el que devuelve la API.
+    session_id: str | None = None
+    last_response = ""
+    error: str | None = None
+    block_code: str | None = None
+    effective_posture: dict | None = None
+    execution_status = "COMPLETED"
+    started_at = time.time()
+    try:
+        for step in fixture.get("rendered_steps", []):
+            body = {
+                "user_id": user_id,
+                "message": step.get("content", ""),
+                "fixture_id": fixture.get("id"),
+                "fixture_kind": fixture.get("kind"),
+                "fixture_expected_result": fixture.get("expected_result"),
+                "fixture_execution_id": execution["fixture_execution_id"],
+                "audit_subdir": execution["audit_subdir"],
+            }
+            if execution["proxy_profile"]:
+                body["proxy_profile"] = execution["proxy_profile"]
+            if session_id:
+                body["session_id"] = session_id
+            resp = await client.post(
+                f"{api_base}{endpoint_path}", json=body,
+                headers=auth_headers(user_id), timeout=REQUEST_TIMEOUT,
+            )
             data = resp.json()
             last_response = data.get("response", "")
             error = data.get("error") or None
-        except Exception as exc:
-            error = str(exc)
-        attempts.append({
-            "attempt": attempt_number,
-            "latency_ms": round((time.time() - started_at) * 1000, 1),
-            "response_preview": last_response[:120].replace("\n", " "),
-            "error": error,
-            "session_id": session_id,
-        })
+            block_code = data.get("block_code") or None
+            effective_posture = data.get("effective_posture") or effective_posture
+            execution_status = data.get("execution_status", execution_status)
+            returned_id = data.get("session_id")
+            if returned_id:
+                session_id = returned_id
+        fallo = from_backend(error) if error else None
+    except Exception as exc:
+        fallo = from_exception(exc)
+        error = fallo.message
+        execution_status = "TECHNICAL_ERROR"
+    if error and execution_status == "COMPLETED":
+        execution_status = "TECHNICAL_ERROR"
+    return _attempt(
+        execution, started_at, session_id=session_id or "", response=last_response,
+        error=error, block_code=block_code, effective_posture=effective_posture,
+        execution_status=execution_status, failure=fallo,
+    )
 
-    return attempts
 
-
-async def _run_fixture(
-    client: httpx.AsyncClient,
-    fixture: dict,
-    user_id: str,
-    api_base: str,
-    endpoint_path: str,
-    audit_subdir: str,
+def _attempt(
+    execution: dict,
+    started_at: float,
     *,
-    repeat: int = 1,
-    vulnerable: bool = False,
-    proxy_profile: str | None = None,
+    session_id: str = "",
+    response: str = "",
+    error: str | None = None,
+    block_code: str | None = None,
+    effective_posture: dict | None = None,
+    execution_status: str = "COMPLETED",
+    failure: ExecutionError | None = None,
 ) -> dict:
-    attempts: list[dict] = []
+    """Resultado de una Fixture Execution, con su postura verificada.
 
-    if fixture.get("document"):
-        attempts = await _run_document_fixture(
-            client, fixture, user_id, api_base, endpoint_path, audit_subdir, repeat=repeat,
-        )
-    else:
-        for attempt_number in range(1, repeat + 1):
-            # Cada --repeat arranca una conversación nueva; dentro de la misma
-            # repetición, los pasos de un fixture multi-step SÍ comparten memoria
-            # real (session_store.py en el backend) — el primer step no manda
-            # session_id (Clara abre sesión nueva), los siguientes reutilizan el
-            # id que devuelve la API.
-            session_id: str | None = None
-            last_response = ""
-            error: str | None = None
-            block_code: str | None = None
-            started_at = time.time()
-            try:
-                for step in fixture.get("rendered_steps", []):
-                    body = {
-                        "user_id": user_id,
-                        "message": step.get("content", ""),
-                        "fixture_id": fixture.get("id"),
-                        "fixture_kind": fixture.get("kind"),
-                        "fixture_expected_result": fixture.get("expected_result"),
-                        "audit_subdir": audit_subdir,
-                        "vulnerable": vulnerable,
-                    }
-                    if proxy_profile:
-                        body["proxy_profile"] = proxy_profile
-                    if session_id:
-                        body["session_id"] = session_id
-                    resp = await client.post(
-                        f"{api_base}{endpoint_path}", json=body, timeout=REQUEST_TIMEOUT
-                    )
-                    data = resp.json()
-                    last_response = data.get("response", "")
-                    error = data.get("error") or None
-                    block_code = data.get("block_code") or None
-                    returned_id = data.get("session_id")
-                    if returned_id:
-                        session_id = returned_id
-            except Exception as exc:
-                error = str(exc)
-            attempts.append({
-                "attempt": attempt_number,
-                "latency_ms": round((time.time() - started_at) * 1000, 1),
-                "response_preview": last_response[:120].replace("\n", " "),
-                "error": error,
-                "block_code": block_code,
-                "session_id": session_id or "",
-            })
-
-    outcomes = Counter(_attempt_outcome(attempt) for attempt in attempts)
-    last_attempt = attempts[-1]
+    La postura EFECTIVA la devuelve el backend. Compararla con la solicitada es lo que
+    convierte «creo que corrí sin defensas» en una afirmación verificable: una
+    divergencia invalida la comparación causal en vez de colarse como resultado.
+    """
+    posture = TargetPosture(
+        target=execution["target"],
+        requested=execution["requested_posture"],
+        effective=effective_posture or {},
+    )
+    divergences = posture.divergences() if effective_posture else ["postura efectiva no reportada"]
     return {
-        "id": fixture.get("id"),
-        "name": fixture.get("name"),
-        "kind": fixture.get("kind"),
-        "latency_ms": round(sum(attempt["latency_ms"] for attempt in attempts), 1),
-        "response_preview": last_attempt["response_preview"],
-        "error": last_attempt["error"],
-        "session_id": last_attempt["session_id"],
-        "attempts": attempts,
-        "outcomes": dict(outcomes),
+        "fixture_execution_id": execution["fixture_execution_id"],
+        "fixture_id": execution["fixture"].get("id"),
+        "target": execution["target"],
+        "repetition": execution["repetition"],
+        "latency_ms": round((time.time() - started_at) * 1000, 1),
+        "response_preview": response[:120].replace("\n", " "),
+        "error": error,
+        "block_code": block_code,
+        "session_id": session_id,
+        "execution_status": execution_status,
+        # El error se clasifica por fase y se sanea: el registro de fallos no puede
+        # convertirse en una segunda vía de exposición del prompt o de un IBAN.
+        "failure": failure.to_dict() if failure else None,
+        "posture": posture.to_dict(),
+        "posture_divergences": divergences,
+        "attempt_no": execution.get("attempt_no", 1),
+        "retry_of": execution.get("retry_of"),
     }
+
+
+async def run_execution(
+    client: httpx.AsyncClient, execution: dict, user_id: str, api_base: str,
+) -> dict:
+    endpoint_path = execution["endpoint_path"]
+    if execution["fixture"].get("document"):
+        return await _run_document_execution(client, execution, user_id, api_base, endpoint_path)
+    return await _run_chat_execution(client, execution, user_id, api_base, endpoint_path)
+
+
+# ---------------------------------------------------------------------------
+# Diseño de ejecución
+# ---------------------------------------------------------------------------
+
+def build_executions(
+    fixtures: list[dict],
+    endpoints: dict[str, str],
+    proxy_profile_by_target: dict[str, str | None],
+    *,
+    repeat: int,
+    run_folder_name: str,
+    document_profile_by_target: dict[str, str | None] | None = None,
+) -> list[dict]:
+    """Matriz completa de Fixture Executions, calculada ANTES de enviar tráfico.
+
+    Cada ejecución nace con su `fixture_execution_id`: la evidencia se correlaciona por
+    ese identificador y no por la ruta del Session File.
+    """
+    document_profile_by_target = document_profile_by_target or {}
+    executions: list[dict] = []
+    for fixture in fixtures:
+        for target in applicable_targets(fixture, endpoints):
+            profile = proxy_profile_by_target.get(target)
+            for repetition in range(1, repeat + 1):
+                executions.append({
+                    "fixture_execution_id": str(uuid.uuid4()),
+                    "fixture": fixture,
+                    "fixture_id": fixture.get("id"),
+                    "target": target,
+                    "endpoint_path": endpoints[target],
+                    "proxy_profile": profile,
+                    "repetition": repetition,
+                    "document_profile": document_profile_by_target.get(target),
+                    "requested_posture": requested_posture(
+                        "proxy" if target.startswith("proxy") else target, profile
+                    ),
+                    "audit_subdir": f"{AUDIT_RUNS_DIR_CONTAINER}/{run_folder_name}/{target}",
+                })
+    return executions
+
+
+def applicable_targets(fixture: dict, endpoints: dict[str, str]) -> list[str]:
+    """Targets en los que este fixture mide algo real.
+
+    La decisión se toma por CAPACIDADES, no por nombre de ruta (P10): un fixture
+    documental solo es aplicable donde hay subida de documentos, y renombrar un
+    endpoint no cambia lo que mide. `applicable_endpoints` se conserva encima como
+    exclusión declarada por el propio fixture — p. ej. System Prompt Leakage contra
+    `simple-prompt`, que no tiene sección interna que filtrar: contarlo como bloqueo
+    sería un artefacto de medición.
+    """
+    declarados = fixture.get("applicable_endpoints")
+    targets = []
+    for name in endpoints:
+        if not decide(fixture, name).in_population:
+            continue
+        canonical = "proxy" if name.startswith("proxy") else name
+        if declarados and canonical not in declarados and not fixture.get("document"):
+            continue
+        targets.append(name)
+    return targets
+
+
+def plan_rows(executions: list[dict], *, run_folder_name: str) -> list[dict]:
+    """Filas del Plan de cobertura: el denominador del run, fijado antes de ejecutar.
+
+    Se sella ANTES de enviar tráfico a propósito. Reconstruir la matriz a partir de los
+    Session Files encontrados hace desaparecer del denominador justo lo que peor salió:
+    lo que falló, lo que no llegó a lanzarse y lo que no dejó evidencia.
+    """
+    return [
+        {
+            "fixture_execution_id": execution["fixture_execution_id"],
+            "run": run_folder_name,
+            "fixture_id": execution["fixture_id"],
+            "fixture_kind": execution["fixture"].get("kind"),
+            "attack": execution["fixture"].get("attack"),
+            "category": execution["fixture"].get("category"),
+            "severity": execution["fixture"].get("severity"),
+            "expected_result": execution["fixture"].get("expected_result"),
+            "target": execution["target"],
+            "proxy_profile": execution["proxy_profile"],
+            "repetition": execution["repetition"],
+            "requested_posture": execution["requested_posture"],
+            "audit_subdir": execution["audit_subdir"],
+            "applicable": True,
+            "turns_expected": (
+                1 if execution["fixture"].get("document")
+                else len(execution["fixture"].get("rendered_steps", []))
+            ),
+        }
+        for execution in executions
+    ]
+
+
+class ExecutionLedger:
+    """Registro append-only de qué pasó con cada ejecución planificada.
+
+    Cada línea se vuelca inmediatamente: una corrida interrumpida conserva lo que ya
+    había ocurrido en vez de perderlo entero. `PLANNED`, `DISPATCHED` y `FINISHED` son
+    lo que después permite afirmar que ninguna ejecución desapareció en silencio.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._file = path.open("a", encoding="utf-8")
+
+    def record(self, event: str, execution: dict, **extra) -> None:
+        linea = {
+            "event": event,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "fixture_execution_id": execution["fixture_execution_id"],
+            "fixture_id": execution["fixture_id"],
+            "target": execution["target"],
+            "repetition": execution["repetition"],
+            **extra,
+        }
+        self._file.write(json.dumps(linea, ensure_ascii=False) + "\n")
+        self._file.flush()
+
+    def close(self) -> None:
+        self._file.close()
+
+
+def order_in_blocks(executions: list[dict], *, seed: int) -> list[dict]:
+    """Diseño de bloques aleatorizados: un bloque por (fixture, repetición).
+
+    Ejecutar todos los fixtures de un target y luego los del siguiente confunde la
+    eficacia de una postura con la deriva temporal del proveedor (carga, caché,
+    calentamiento). Intercalando las posturas dentro del mismo bloque, esa deriva afecta
+    por igual a las dos ramas de la comparación. El orden se deriva de una semilla
+    registrada en el manifiesto, así que la corrida sigue siendo reproducible.
+    """
+    rng = random.Random(seed)
+    bloques: dict[tuple, list[dict]] = {}
+    for execution in executions:
+        bloques.setdefault((execution["fixture_id"], execution["repetition"]), []).append(execution)
+
+    ordenadas: list[dict] = []
+    for clave in sorted(bloques, key=lambda k: (str(k[0]), k[1])):
+        bloque = list(bloques[clave])
+        rng.shuffle(bloque)
+        ordenadas.extend(bloque)
+    return ordenadas
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +560,19 @@ async def main():
             "de salida; full=proxy completo. Sin este flag se conserva el proxy normal."
         ),
     )
+    parser.add_argument(
+        "--document-profile",
+        choices=DOCUMENT_PROFILES,
+        action="append",
+        dest="document_profiles",
+        metavar="PROFILE",
+        help=(
+            "Ejecuta el canal documental con una o varias posturas. "
+            "document-baseline apaga las tres capas del canal; document-full las activa. "
+            "Un fixture documental solo es comparable contra otra postura de ESTE "
+            "pipeline, no contra un chat sin documentos."
+        ),
+    )
     parser.add_argument("--user", default="usr_001")
     parser.add_argument("--host", default=os.environ.get("SUITE_HOST", "localhost"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("SUITE_PORT", "8000")))
@@ -338,15 +601,33 @@ async def main():
         ),
     )
     parser.add_argument(
+        "--seed", type=int, default=int(os.environ.get("SUITE_SEED", "20260831")),
+        metavar="N",
+        help=(
+            "Semilla del diseño de bloques aleatorizados (default: %(default)s). Fija el "
+            "orden en que se intercalan las posturas dentro de cada bloque "
+            "(fixture, repetición); queda registrada en el manifiesto."
+        ),
+    )
+    parser.add_argument(
         "--baseline-pure", action="store_true",
         help=(
-            "Envía vulnerable=true solo a endpoints JSON baseline (nunca a proxy) para "
-            "comparar una línea base indefensa real con el pipeline defendido."
+            "OBSOLETO. Los endpoints pedagógicos ya corren sin ningún control externo y "
+            "la línea base causal del proxy es --proxy-profile baseline. Se acepta un "
+            "tiempo más y solo emite un aviso."
         ),
     )
     args = parser.parse_args()
 
     REQUEST_TIMEOUT = args.timeout
+
+    if args.baseline_pure:
+        print(
+            "  ⚠ --baseline-pure es obsoleto y se ignora: los endpoints pedagógicos ya "
+            "corren sin controles externos y la línea base causal es "
+            "--proxy-profile baseline.",
+            file=sys.stderr, flush=True,
+        )
 
     api_base = f"http://{args.host}:{args.port}"
 
@@ -359,6 +640,20 @@ async def main():
     # cada configuración recibe un directorio propio para que report.py no mezcle
     # resultados de posturas defensivas diferentes.
     proxy_profile_by_target: dict[str, str | None] = {name: None for name in endpoints}
+    document_profile_by_target: dict[str, str | None] = {name: None for name in endpoints}
+    if args.document_profiles:
+        if DOCUMENT_ENDPOINT_NAME not in endpoints:
+            parser.error(
+                "--document-profile requiere incluir --endpoint complex-with-document"
+            )
+        document_path = endpoints.pop(DOCUMENT_ENDPOINT_NAME)
+        document_profile_by_target.pop(DOCUMENT_ENDPOINT_NAME, None)
+        proxy_profile_by_target.pop(DOCUMENT_ENDPOINT_NAME, None)
+        for profile in dict.fromkeys(args.document_profiles):
+            target = f"proxy-{profile}"
+            endpoints[target] = document_path
+            document_profile_by_target[target] = profile
+            proxy_profile_by_target[target] = None
     if args.proxy_profiles:
         if "proxy" not in endpoints:
             parser.error("--proxy-profile requiere incluir --endpoint proxy (o no filtrar endpoints)")
@@ -407,32 +702,35 @@ async def main():
     for ep_name in endpoints:
         (run_folder / ep_name).mkdir(parents=True, exist_ok=True)
 
-    def _valid_endpoints_for(fixture: dict) -> int:
-        # Cada fixture solo tiene UN endpoint válido: document-upload -> complex-with-document,
-        # el resto -> los 3 endpoints JSON (nunca se cruzan, ver docstring del módulo).
-        is_doc = bool(fixture.get("document"))
-        applicable = fixture.get("applicable_endpoints")
-        return sum(
-            1
-            for name in endpoints
-            if (("proxy" if name.startswith("proxy-") else name) == DOCUMENT_ENDPOINT_NAME) == is_doc
-            and (
-                not applicable
-                or ("proxy" if name.startswith("proxy-") else name) in applicable
-                or name == DOCUMENT_ENDPOINT_NAME
-            )
-        )
+    # La matriz completa se calcula ANTES de enviar nada: es el denominador del run y
+    # la fuente del `fixture_execution_id` de cada ejecución.
+    executions = build_executions(
+        fixtures, endpoints, proxy_profile_by_target,
+        repeat=args.repeat, run_folder_name=ts_file,
+        document_profile_by_target=document_profile_by_target,
+    )
 
-    # Una ejecución es una combinación fixture-endpoint. No equivale siempre a
+    # Cobertura cero: un fixture cargado que ningún target puede ejecutar no genera ni
+    # un hueco que reclamar. Se declara antes de empezar, no se descubre en el informe.
+    auditoria = audit_coverage(fixtures, list(endpoints))
+    if auditoria.orphans:
+        _flush("")
+        _flush("  ⚠ FIXTURES SIN NINGÚN TARGET APLICABLE (cobertura cero):")
+        for fixture_id in auditoria.orphans:
+            _flush(f"      · {fixture_id}")
+        _flush(
+            "    Ningún claim sobre su familia puede sostenerse con esta matriz. "
+            "Añade un target compatible o decláralos fuera de alcance con razón."
+        )
+    ordered = order_in_blocks(executions, seed=args.seed)
+
+    # Una ejecución es una combinación fixture-target-repetición. No equivale siempre a
     # una petición HTTP: los fixtures multi-turn envían un turno por cada step.
-    # Exponer ambas cifras hace que el coste de una corrida completa sea
-    # auditable y evita documentar una estimación engañosa.
-    total = sum(_valid_endpoints_for(f) for f in fixtures) * args.repeat
+    total = len(executions)
     requests_total = sum(
-        _valid_endpoints_for(f)
-        * (1 if f.get("document") else len(f.get("rendered_steps", [])))
-        for f in fixtures
-    ) * args.repeat
+        1 if e["fixture"].get("document") else len(e["fixture"].get("rendered_steps", []))
+        for e in executions
+    )
 
     _flush(SEP2)
     _flush(f"  🎯 PromptGuard Suite Run · {run_ts}")
@@ -442,12 +740,28 @@ async def main():
     _flush(f"  Peticiones HTTP al backend: {requests_total}")
     if args.repeat > 1:
         _flush(f"  Repeticiones: {args.repeat}x por fixture")
-    if args.baseline_pure:
-        _flush("  Baseline  : puro (vulnerable=true solo fuera de proxy)")
+    _flush(f"  Diseño    : bloques aleatorizados (fixture, repetición) · seed={args.seed}")
     if args.proxy_profiles:
         _flush(f"  Perfiles proxy: {', '.join(dict.fromkeys(args.proxy_profiles))}")
-    _flush(f"  Run Folder: {run_folder.relative_to(HERE.parent.parent)}")
+    _flush(f"  Run Folder: {display_path(run_folder)}")
     _flush(SEP2)
+
+    # Procedencia: qué artefactos exactos produjeron estos números. Se genera antes de
+    # abrir tráfico y no vuelve a tocarse (P14).
+    manifiesto_procedencia = provenance.build(
+        model_info, seed=args.seed, repeat=args.repeat, judge_bundle=judge_bundle(),
+    )
+    procedencia_path = run_folder / "provenance.json"
+    if not (args.resume_run and procedencia_path.is_file()):
+        procedencia_path.write_text(
+            json.dumps(manifiesto_procedencia, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    if manifiesto_procedencia["git"]["dirty"]:
+        _flush(
+            "  ⚠ árbol de trabajo sucio: el commit no identifica el código que corre. "
+            "Este run no puede agregarse con otros."
+        )
 
     # Manifiesto versionado: describe la intención experimental, no etiquetas de
     # pipeline que puedan aparecer en sesiones bloqueadas antes de invocar al LLM.
@@ -465,7 +779,11 @@ async def main():
                     "model": model_info.get("model"),
                     "requested_model": model_info.get("model"),
                     "provider": model_info.get("provider"),
+                    # `defense_version` se conserva por compatibilidad; la identidad real
+                    # del código está en provenance.json (commit + estado + digests).
                     "defense_version": os.environ.get("DEFENSE_VERSION", "dev"),
+                    "git_commit": manifiesto_procedencia["git"]["commit"],
+                    "git_dirty": manifiesto_procedencia["git"]["dirty"],
                     "fixtures_sha256": hashlib.sha256(
                         json.dumps(fixtures, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
                     ).hexdigest(),
@@ -476,7 +794,22 @@ async def main():
                         for target, profile in proxy_profile_by_target.items()
                         if profile is not None
                     },
-                    "baseline_pure": args.baseline_pure,
+                    "seed": args.seed,
+                    # Sin modelo, prompt y temperatura del juez registrados, un juicio
+                    # semántico no puede reproducirse desde el Run Folder (P07).
+                    "judge_bundle": judge_bundle(),
+                    "provenance_fingerprint": provenance.fingerprint(manifiesto_procedencia),
+                    "execution_design": "randomized_blocks(fixture, repetition)",
+                    "requested_postures": {
+                        target: requested_posture(
+                            "proxy" if target.startswith("proxy") else target,
+                            proxy_profile_by_target.get(target),
+                        )
+                        for target in endpoints
+                    },
+                    "pedagogical_targets": [
+                        target for target in endpoints if not target.startswith("proxy")
+                    ],
                     "fixture_count": len(fixtures),
                     "http_requests_expected": requests_total,
                 },
@@ -486,60 +819,95 @@ async def main():
             encoding="utf-8",
         )
 
+    # El plan se sella antes de enviar nada y no vuelve a tocarse.
+    plan_path = run_folder / "coverage-plan.json"
+    if not (args.resume_run and plan_path.is_file()):
+        plan_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "run": ts_file,
+                    "sealed_at": run_ts,
+                    "seed": args.seed,
+                    # Sin modelo, prompt y temperatura del juez registrados, un juicio
+                    # semántico no puede reproducirse desde el Run Folder (P07).
+                    "judge_bundle": judge_bundle(),
+                    "provenance_fingerprint": provenance.fingerprint(manifiesto_procedencia),
+                    "repeat": args.repeat,
+                    "gates": CoverageGates().to_dict(),
+                    "applicability": auditoria.to_dict(),
+                    "rows": plan_rows(executions, run_folder_name=ts_file),
+                },
+                indent=2, ensure_ascii=False,
+            ) + "\n",
+            encoding="utf-8",
+        )
+
+    ledger = ExecutionLedger(run_folder / "execution-ledger.jsonl")
+    for execution in ordered:
+        ledger.record("PLANNED", execution, requested_posture=execution["requested_posture"])
+
     errors = 0
     blocked = 0
     sent   = 0
+    divergencias: list[dict] = []
+    resultados: list[dict] = []
 
     async with httpx.AsyncClient() as client:
-        for idx, fixture in enumerate(fixtures, 1):
-            fid   = fixture.get("id", "?")
-            fname = fixture.get("name", "?")
-            fkind = fixture.get("kind", "?")
-            fsev  = fixture.get("severity", "?")
+        for idx, execution in enumerate(ordered, 1):
+            fixture = execution["fixture"]
+            etiqueta = (
+                f"[{idx:>4}/{total}] {fixture.get('id')} · {execution['target']}"
+                f" · rep {execution['repetition']}"
+            )
+            print(f"  {etiqueta:<70}", end="", flush=True)
 
-            _flush("")
-            _flush(f"[{idx:>3}/{len(fixtures)}] {fid} · {fname}")
-            _flush(f"          kind={fkind}  severity={fsev}")
-            _flush(SEP)
+            ledger.record("DISPATCHED", execution)
+            attempt = await run_execution(client, execution, args.user, api_base)
+            resultados.append(attempt)
+            ledger.record(
+                "FINISHED", execution,
+                execution_status=attempt["execution_status"],
+                session_id=attempt["session_id"],
+                error=attempt["error"],
+                failure=attempt["failure"],
+                posture_divergences=attempt["posture_divergences"],
+                latency_ms=attempt["latency_ms"],
+            )
 
-            is_document_fixture = bool(fixture.get("document"))
-            # A4: fixtures que declaran applicable_endpoints (p.ej. System Prompt Leakage
-            # contra simple-prompt, que no tiene sección "Información interna" que filtrar)
-            # se saltan en los endpoints donde el fixture no mide nada real — evita un
-            # artefacto de medición (BLOCKED por ausencia de secreto, no por resistencia).
-            applicable = fixture.get("applicable_endpoints")
+            outcome = _attempt_outcome(attempt)
+            sent += outcome == "ok"
+            blocked += outcome == "blocked"
+            errors += outcome == "error"
+            if attempt["posture_divergences"]:
+                divergencias.append({
+                    "fixture_execution_id": attempt["fixture_execution_id"],
+                    "target": attempt["target"],
+                    "divergences": attempt["posture_divergences"],
+                })
+            marca = {"ok": "✓", "blocked": "BLOQUEADO", "error": "ERROR"}[outcome]
+            aviso = " ⚠postura" if attempt["posture_divergences"] else ""
+            print(
+                f"{marca}{aviso}  {attempt['latency_ms']:.0f}ms  «{attempt['response_preview'][:50]}»",
+                flush=True,
+            )
 
-            for ep_name, ep_path in endpoints.items():
-                # Cada fixture solo va a su endpoint válido: document-upload -> siempre
-                # complex-with-document; el resto -> nunca complex-with-document.
-                canonical_endpoint = "proxy" if ep_name.startswith("proxy-") else ep_name
-                if is_document_fixture != (canonical_endpoint == DOCUMENT_ENDPOINT_NAME):
-                    continue
-                if applicable and canonical_endpoint not in applicable and canonical_endpoint != DOCUMENT_ENDPOINT_NAME:
-                    print(f"  ↳ {ep_name:<26}⏭  N/A para este fixture (applicable_endpoints)", flush=True)
-                    continue
+    ledger.close()
 
-                audit_subdir = f"{AUDIT_RUNS_DIR_CONTAINER}/{ts_file}/{ep_name}"
-                vulnerable = (
-                    args.baseline_pure
-                    and canonical_endpoint != "proxy"
-                    and ep_name != DOCUMENT_ENDPOINT_NAME
-                )
-                print(f"  ↳ {ep_name:<26}", end="", flush=True)
-                result = await _run_fixture(
-                    client, fixture, args.user, api_base, ep_path, audit_subdir,
-                    repeat=args.repeat,
-                    vulnerable=vulnerable,
-                    proxy_profile=proxy_profile_by_target.get(ep_name),
-                )
+    # El registro de ejecuciones es lo que permite comprobar después que ninguna
+    # desapareció en silencio y con qué postura corrió cada una.
+    (run_folder / "executions.json").write_text(
+        json.dumps(resultados, indent=2, ensure_ascii=False) + "\n", encoding="utf-8",
+    )
 
-                outcomes = Counter(_attempt_outcome(attempt) for attempt in result["attempts"])
-                sent += outcomes["ok"]
-                blocked += outcomes["blocked"]
-                errors += outcomes["error"]
-                summary = _repeat_log_summary(result)
-                preview = result["response_preview"][:60]
-                print(f"{summary}  «{preview}»", flush=True)
+    if divergencias:
+        _flush("")
+        _flush(SEP2)
+        _flush("  ⚠ POSTURA SOLICITADA ≠ EFECTIVA — la comparación causal queda invalidada")
+        for item in divergencias[:10]:
+            _flush(f"    · {item['target']}: {', '.join(item['divergences'])}")
+        if len(divergencias) > 10:
+            _flush(f"    · … y {len(divergencias) - 10} más (ver executions.json)")
 
     _flush("")
     _flush(SEP2)
@@ -547,8 +915,8 @@ async def main():
         f"  SUITE COMPLETADA — {sent} correctos · {blocked} bloqueados"
         f" · {errors} errores técnicos"
     )
-    _flush(f"  Run Folder : {run_folder.relative_to(HERE.parent.parent)}")
-    _flush(f"  Siguiente  : python scripts/evaluate.py --run {run_folder}")
+    _flush(f"  Run Folder : {display_path(run_folder)}")
+    _flush(f"  Siguiente  : python scripts/evaluate.py --run {display_path(run_folder)}")
     _flush(SEP2)
 
 

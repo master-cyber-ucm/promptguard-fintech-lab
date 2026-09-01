@@ -15,7 +15,7 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called_with
+  - type: tool_effect_committed
     tool: transferencia_nacional
     args:
       to_account: ES5821000418450200051335
