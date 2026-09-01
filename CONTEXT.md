@@ -112,6 +112,74 @@ _Avoid_: regla blanda, condición del juez
 La clasificación del tipo de resultado observado — seguridad, calidad funcional o evidencia insuficiente — independiente de si el fixture se considera pasado.
 _Avoid_: veredicto, pass/fail, estado
 
+**Fixture Execution**:
+Una ejecución completa de un Fixture contra un target y una postura concretos en una repetición. Contiene uno o más Turns correlacionados por `fixture_execution_id` y es la unidad estadística primaria de un Suite Run.
+_Avoid_: intento (reservado al Agente de red-team), Session File, request
+
+**Postura experimental**:
+La configuración efectiva y verificable de target, modelo, contexto, tools, policies y controles bajo la que se ejecuta una Fixture Execution. Dos posturas solo son comparables causalmente cuando difieren exclusivamente en los factores declarados del experimento.
+_Avoid_: nombre del endpoint, flags solicitados, modo
+
+**Plan de cobertura**:
+El conjunto inmutable, fijado antes de un Suite Run, de Fixture Executions planificadas y su aplicabilidad por target, postura y repetición. Es la fuente del denominador y de la comprobación de completitud.
+_Avoid_: fixtures encontrados, Session Files existentes, matriz reconstruida
+
+**Tool Invocation**:
+Un uso solicitado de una Tool con identidad estable y ciclo de vida propio, desde la solicitud hasta su resultado terminal. No implica por sí mismo autorización ni efecto.
+_Avoid_: llamada por nombre, efecto, línea del transcript
+
+**Effect Receipt**:
+Evidencia emitida por el servicio de dominio que acredita qué lectura autorizada se devolvió o qué cambio de estado se consumó. No es una afirmación del modelo ni el estado de un wrapper.
+_Avoid_: Tool Return, `status=completed`, mensaje de éxito
+
+**Principal**:
+El sujeto autenticado, tenant y contexto de assurance del que deriva la autoridad de una petición. Lo crea la frontera de autenticación y nunca se toma del body, prompt o argumentos del modelo.
+_Avoid_: `user_id` del cliente, usuario mencionado, session ID
+
+**Conversation Session**:
+El ámbito de diálogo cuyo historial y estado de seguridad pertenecen a un único Principal. Su identificador localiza la sesión, pero no concede acceso a ella.
+_Avoid_: Session File, token de autenticación, Fixture Execution
+
+**Transaction Authorization**:
+La aprobación explícita de una operación concreta, vinculada a los detalles mostrados y emitida por un actor autenticado fuera del canal controlado por el LLM.
+_Avoid_: confirmación textual, autenticación, token entregado al modelo
+
+**Policy Decision**:
+El resultado tipado de evaluar Principal, acción, recurso y contexto contra una policy efectiva y versionada. Expresa `ALLOW`, `DENY` o `REQUIRE_CONFIRMATION` y conserva la razón auditable.
+_Avoid_: flag de permisos, decisión del modelo, Tool Result
+
+**Action Proposal**:
+La representación estructurada y todavía no ejecutable de una acción que el modelo propone a partir de una conversación, con argumentos y procedencia. Debe ser validada, autorizada y, cuando corresponda, confirmada antes de convertirse en comando.
+_Avoid_: Tool Invocation, comando, efecto pendiente
+
+**Session Security State**:
+El estado de riesgo acumulado de una Conversation Session, derivado de señales tipadas y consultado por policy en turnos posteriores. No es el transcript ni una etiqueta permanente del usuario.
+_Avoid_: historial, alerta aislada, reputación del usuario
+
+**Financial Claim**:
+Una afirmación tipada sobre un hecho financiero —como saldo, titular, transacción o estado— vinculada a evidencia, sujeto, recurso, audiencia y momento de validez.
+_Avoid_: texto libre, respuesta del modelo, coincidencia de substring
+
+**Resultado de efecto**:
+La evidencia sobre si el objetivo dañino se entregó o se consumó: efecto dañino observado, no observado o desconocido. Se deriva del punto de efecto o entrega, no de que exista un evento de defensa.
+_Avoid_: bloqueo, Verdict, disposición
+
+**Conducta observable del modelo**:
+Clasificación de la salida raw y de las acciones solicitadas por el modelo como negativa, redirección segura, asistencia insegura, no respuesta, no observada o desconocida. Describe comportamiento externo y no atribuye una causa interna al modelo base, su alineamiento o el system prompt.
+_Avoid_: intención del modelo, guardrail propio, voluntad interna
+
+**Intervención defensiva**:
+Una decisión enforced de un Componente que cambia el flujo, el artefacto entregado o el estado autorizado. Una detección, una decisión `ALLOW` o una decisión en shadow mode no constituyen intervención.
+_Avoid_: alerta, detección, componente activo
+
+**Contención defensiva**:
+Una Intervención defensiva aplicable que impide causalmente el efecto dañino dentro de la misma Fixture Execution y queda verificada en su punto de efecto. La ausencia genérica de daño no acredita contención.
+_Avoid_: no-brecha observada, detección, bloqueo textual
+
+**Resultado del sistema**:
+Proyección exhaustiva y mutuamente excluyente de una Fixture Execution: contenida por infraestructura, contenida por la capa de modelo, vulnerable o inconclusa. Se deriva del Resultado de efecto, la Conducta observable del modelo, la evidencia defensiva y el estado de ejecución, que se conservan por separado.
+_Avoid_: Verdict, SECURITY_BLOCK, dimensión primaria
+
 **Rúbrica semántica**:
 El criterio declarativo y específico de una fixture que permite al juez decidir si una respuesta sin la evidencia esperada satisface de forma segura y útil la petición del usuario.
 _Avoid_: prompt del juez, regla implícita
