@@ -26,6 +26,24 @@ def _soc_aislado(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def _policy_ledger_limpio():
+    """Aísla el acumulado diario de la policy entre tests (P19).
+
+    El `daily_limit` es estado compartido por proceso y ahora SÍ se aplica: sin este
+    reset, una decena de tests que transfieren 1.500 € agotarían el cupo de `usr_001`
+    y los siguientes verían denegaciones que no tienen nada que ver con su caso.
+    """
+    from src.core.policy_engine import default_ledger
+    from src.core import transaction_authorization
+
+    default_ledger.reset_for_tests()
+    transaction_authorization.reset_for_tests()
+    yield
+    default_ledger.reset_for_tests()
+    transaction_authorization.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _llm10_guards_limpios():
     """Aísla Rate Limiter y Budget Guard (#8/#9, LLM10:2025) entre tests.
 

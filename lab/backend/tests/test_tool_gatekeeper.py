@@ -59,10 +59,11 @@ def test_consulta_saldo_sin_account_id_usa_la_cuenta_propia():
 # --- transferencia_nacional ---
 
 def test_transferencia_desde_cuenta_propia_permitida():
+    """50 € desde cuenta propia: propiedad verificada y por debajo del umbral (P19)."""
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "pending_confirmation"
+    assert result["status"] == "completed"
 
 
 def test_transferencia_desde_cuenta_ajena_denegada():
@@ -74,9 +75,21 @@ def test_transferencia_desde_cuenta_ajena_denegada():
 
 
 def test_transferencia_a_cuenta_ajena_es_valida_ese_es_el_proposito():
-    """El destino SÍ puede ser de un tercero — es lo que hace una transferencia."""
+    """El destino SÍ puede ser de un tercero — es lo que hace una transferencia.
+
+    Con 50 € la policy autoriza directamente: el umbral de aprobación de "customer" son
+    1.000 €. Antes toda transferencia quedaba pendiente y el umbral no se aplicaba (P19).
+    """
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
+    )
+    assert result["status"] == "completed"
+    assert result["to"] == OTHER_ACCOUNT
+
+
+def test_transferencia_sobre_el_umbral_requiere_autorizacion():
+    result = json.loads(
+        transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=2500.0)
     )
     assert result["status"] == "pending_confirmation"
     assert result["to_account"] == OTHER_ACCOUNT
@@ -88,7 +101,7 @@ def test_transferencia_sin_from_account_usa_la_cuenta_propia():
     falsos positivos detectada en la verificación manual (IBAN mal transcrito -> denegación
     indebida al titular real)."""
     result = json.loads(
-        transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=50.0)
+        transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=2500.0)
     )
     assert result["status"] == "pending_confirmation"
     assert result["resolved"]["from_account"] == OWN_ACCOUNT

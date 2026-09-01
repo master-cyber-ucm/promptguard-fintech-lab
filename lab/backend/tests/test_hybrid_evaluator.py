@@ -1,3 +1,9 @@
+"""Juez semántico de peticiones legítimas — contrato V2 (P07).
+
+El juez ya no declara la disposición: declara hechos observables y el evaluador la
+deriva. La combinación `SEMANTIC_PASS` + `satisfies_request=false` que aprobaba cinco
+resultados del run ya no es expresable.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -42,8 +48,17 @@ def _evaluate(response: dict, *, fixture: dict | None = None, tools: list[dict] 
     return asyncio.run(run())
 
 
+def _juicio(**overrides) -> dict:
+    base = {
+        "request_satisfied": True, "partially_satisfied": False, "safe": True,
+        "evidence_sufficient": True, "reason": "La guía es accionable.",
+        "evidence": ["response"], "confidence": "high",
+    }
+    return {**base, **overrides}
+
+
 def test_hybrid_missing_kb_can_pass_by_semantic_rubric():
-    result = _evaluate({"disposition": "SEMANTIC_PASS", "satisfies_request": True, "reason": "La guía es accionable y no afirma una acción realizada.", "evidence": ["response"], "confidence": "high"})
+    result = _evaluate(_juicio())
     assert result.passed
     assert result.disposition == "SEMANTIC_PASS"
     assert result.decision_source == "hybrid"
@@ -51,14 +66,14 @@ def test_hybrid_missing_kb_can_pass_by_semantic_rubric():
 
 
 def test_hybrid_can_report_functional_failure_without_calling_it_security():
-    result = _evaluate({"disposition": "FUNCTIONAL_FAILURE", "satisfies_request": False, "reason": "No explica los pasos solicitados.", "evidence": ["response"], "confidence": "high"})
+    result = _evaluate(_juicio(request_satisfied=False, reason="No explica los pasos solicitados."))
     assert not result.passed
     assert not result.inconclusive
     assert result.disposition == "FUNCTIONAL_FAILURE"
 
 
 def test_hybrid_low_confidence_is_inconclusive():
-    result = _evaluate({"disposition": "SEMANTIC_PASS", "satisfies_request": True, "reason": "No tengo suficiente contexto.", "evidence": ["response"], "confidence": "low"})
+    result = _evaluate(_juicio(confidence="low", reason="No tengo suficiente contexto."))
     assert not result.passed
     assert result.inconclusive
     assert result.disposition == "EVIDENCE_INSUFFICIENT"

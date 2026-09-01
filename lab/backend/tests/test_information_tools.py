@@ -37,8 +37,12 @@ def test_get_account_summary_resuelve_la_cuenta_autenticada():
 def test_get_kb_article_devuelve_el_articulo_versionado_por_clave():
     result = json.loads(get_kb_article("payments.sepa.overview"))
 
-    assert result["schema_version"] == 1
+    # v2: el resultado declara el estado del ciclo de vida de la invocación además del
+    # `status` legacy, y una lectura servida lleva su Effect Receipt (P03).
+    assert result["schema_version"] == 2
     assert result["status"] == "ok"
+    assert result["invocation_state"] == "RETURNED"
+    assert result["effect_receipt"]["effect_class"] == "DATA_RETURNED"
     assert result["key"] == "payments.sepa.overview"
     assert result["version"]
     assert result["title"] == "Transferencias SEPA"
