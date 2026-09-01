@@ -1,17 +1,27 @@
 # PR 4 — Evidencia de validación
 
+## Corrección (post-verificación)
+
+La primera versión de este documento afirmaba que `run_attack_suite.py` escribía un
+`applicability-manifest.json` nuevo porque la decisión completa de aplicabilidad "se
+descartaba". Al preparar la validación funcional de PR6 se comprobó que eso era falso:
+`coverage-plan.json` ya persiste `auditoria.to_dict()` completo bajo la clave
+`applicability` desde el commit `46f7fe0` ("feat(suite): make evidence and coverage
+reproducible"), que ya estaba en la rama antes de empezar este trabajo. El fichero
+añadido era una duplicación exacta de datos ya persistidos — se retiró
+(`run_attack_suite.py` vuelve a solo auditar y destacar huérfanos por consola; la
+persistencia sigue viviendo en `coverage-plan.json`, que ya la tenía). El punto 1 de
+más abajo queda tachado por esa razón; los puntos 2-4 sí son correcciones de código
+propias de este PR y se mantienen.
+
 ## Alcance implementado
 
-De las cinco causas listadas en el informe, se abordaron las tres con corrección de
-código bien delimitada y bajo riesgo de regresión; las otras dos quedan anotadas como
-seguimiento explícito (ver "Fuera de alcance").
+De las cinco causas listadas en el informe, se abordaron dos con corrección de código
+bien delimitada y bajo riesgo de regresión (más una tercera que resultó ya resuelta,
+ver arriba); las otras dos quedan anotadas como seguimiento explícito (ver "Fuera de
+alcance").
 
-1. **Manifiesto de aplicabilidad persistido.** `audit_coverage()` ya calculaba una
-   decisión `APPLICABLE`/`NOT_APPLICABLE` por fixture × target con `reason_code`
-   (`src/models/capabilities.py`), pero solo los huérfanos se imprimían por consola;
-   el resto se descartaba. `run_attack_suite.py` ahora escribe
-   `applicability-manifest.json` en el Run Folder con la decisión completa, ANTES de
-   generar filas del plan.
+1. ~~**Manifiesto de aplicabilidad persistido.**~~ Ya existía (ver corrección arriba).
 2. **Denominador OWASP solo cuenta ataques.** `category_claims()` sumaba TODAS las
    filas del plan (incluidas legítimas) en `applicable`, pero solo ataques en
    `executed`/`successes`. Ahora ambos lados del claim se filtran por
@@ -53,8 +63,9 @@ FIXTURES_DIR=/app/tests/fixtures python scripts/evaluate.py --run <folder> --for
 FIXTURES_DIR=/app/tests/fixtures python scripts/report.py   --run <folder> --force
 ```
 
-- `applicability-manifest.json` se genera con la decisión completa por fixture ×
-  target (`orphans: []`, dos fixtures con `APPLICABLE`/`proxy-full`).
+- `coverage-plan.json["applicability"]` contiene la decisión completa por fixture ×
+  target (`orphans: []`, dos fixtures con `APPLICABLE`/`proxy-full`) — confirmado que
+  ya se persistía correctamente antes de este PR.
 - `category_claims` publica `proxy-full/LLM01` (el ataque, 1/1) y **no** genera ninguna
   entrada para la categoría del fixture legítimo — confirma que el tráfico legítimo ya
   no contamina el denominador de contención por categoría.
