@@ -5,26 +5,29 @@ Envía los fixtures al backend y persiste los Session Files en el Run Folder.
 No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pass.
 
   lab/audit/runs/{timestamp}_{model}/
-  ├── simple-prompt/          ← Session Files de este endpoint
+  ├── simple-prompt/               ← Session Files de este endpoint
   ├── complex-prompt/
   ├── complex-with-context/
-  ├── complex-with-document/  ← fixtures `type: document-upload` (ataque #7, Fase 2.9)
+  ├── proxy-document-baseline/     ← fixtures `type: document-upload`, sin defensas
+  ├── proxy-document-full/         ← mismos fixtures, pipeline documental completo
   └── (run.md y run.json los genera `evaluate.py` + `report.py` después)
 
 Fixtures `type: document-upload` (campo `document: <archivo>` apuntando a
-henri-tfm/01-ataque/payloads/) se envían SIEMPRE a `complex-with-document` vía
-multipart, nunca a los 3 endpoints JSON — y viceversa, los fixtures normales
-(`steps`) nunca se envían a `complex-with-document`. No es un cruce N×M como
-con los otros 3 endpoints: cada fixture tiene un único endpoint válido según
-su tipo. Las 4 capas de defensa (A/B/C/D) van con su valor por defecto
-(`True`, comportamiento seguro) — no hay todavía soporte para los toggles
-`defensa_*` desde la suite (ver henri-tfm/ROADMAP.md §2.9.3); para eso sigue
-existiendo `henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py`.
+henri-tfm/01-ataque/payloads/) se envían SIEMPRE a `proxy-document-baseline`/
+`proxy-document-full` vía multipart contra `/chat/proxy` (PR7/ADR-0018: el
+documento es un campo opcional de los 4 endpoints existentes, no una ruta
+propia — `/chat/complex-with-document` queda deprecado). Un fixture documental
+solo es aplicable a esos dos targets (P10 en `capabilities.py`): compararlo
+contra un chat sin documentos mediría la diferencia entre canales, no la
+eficacia de la defensa. `--document-profile document-baseline` apaga las
+capas del canal (Document Sanitizer, detector estructural) y el resto del
+pipeline (`proxy_profile=baseline`); `document-full` las activa todas.
 
 Uso:
   python run_attack_suite.py                           # todos los endpoints y kinds
   python run_attack_suite.py --endpoint simple-prompt  # solo un endpoint
-  python run_attack_suite.py --endpoint complex-with-document  # solo el ataque #7 real
+  python run_attack_suite.py --endpoint proxy --document-profile document-baseline \
+      --document-profile document-full                  # solo el canal documental
   python run_attack_suite.py --kind attack-prompts     # solo ataques
   python run_attack_suite.py --type INDIRECT_INJECTION
   python run_attack_suite.py --id atk_035
@@ -99,8 +102,6 @@ AUDIT_RUNS_DIR_CONTAINER = "/app/audit/runs"
 
 ALL_KINDS = ["attack-prompts", "legitimate-prompts", "navi-prompts"]
 
-DOCUMENT_ENDPOINT_NAME = "complex-with-document"
-
 CHAT_ENDPOINTS: dict[str, str] = {
     "simple-prompt":        "/api/v1/chat/simple-prompt",
     "complex-prompt":       "/api/v1/chat/complex-prompt",
@@ -109,7 +110,10 @@ CHAT_ENDPOINTS: dict[str, str] = {
     # "defendida" que comparar contra las líneas base, que es lo que la pantalla de
     # Corridas del SOC pone una al lado de la otra.
     "proxy": "/api/v1/chat/proxy",
-    DOCUMENT_ENDPOINT_NAME: "/api/v1/chat/complex-with-document",
+    # `/chat/complex-with-document` quedó deprecado en PR7 (ADR-0018): el documento
+    # pasó a ser un campo `multipart/form-data` opcional de los cuatro endpoints de
+    # arriba, no una ruta propia. El canal documental sigue viviendo aquí como
+    # `--document-profile` sobre `proxy` (ver más abajo) — PR10/P10.
 }
 
 #: Matriz de ablaciones (PR5 / ADR-0017): "only-*" añade la del catálogo de perfiles
@@ -125,20 +129,14 @@ PROXY_PROFILES = (
 #: la diferencia entre dos canales, no la eficacia de la defensa (P10).
 DOCUMENT_PROFILES = ("document-baseline", "document-full")
 
-#: Flags del canal documental por postura. `document-baseline` apaga las tres capas
-#: del canal más el Gatekeeper: es la línea base indefensa de ESTE pipeline.
-DOCUMENT_PROFILE_SETTINGS: dict[str, dict[str, bool]] = {
-    "document-baseline": {
-        "defensa_sanitizer": False, "defensa_estructural": False,
-        "defensa_separacion_semantica": False, "defensa_tool_gatekeeper": False,
-        "defensa_pii_shield": False,
-    },
-    "document-full": {
-        "defensa_sanitizer": True, "defensa_estructural": True,
-        "defensa_separacion_semantica": True, "defensa_tool_gatekeeper": True,
-        "defensa_pii_shield": True,
-    },
-}
+#: `document-baseline`/`document-full` (nombre del target, comparable con
+#: `proxy-baseline`/`proxy-full`) frente a `baseline`/`full` (nombre que espera
+#: `proxy_profile` en el servidor). Desde PR7/ADR-0018 el documento es un campo
+#: opcional de `/chat/proxy`: un único `proxy_profile` gatea a la vez Input
+#: Sanitizer/PII Shield/Tool Gatekeeper/Output Auditor/Leak Guard Y Document
+#: Sanitizer/detector estructural (`documento_activo = not request.vulnerable`,
+#: derivado del mismo perfil) — ya no hay flags `defensa_*` propios que enviar.
+DOCUMENT_PROXY_PROFILE = {name: name.removeprefix("document-") for name in DOCUMENT_PROFILES}
 
 #: Postura SOLICITADA por target. El backend devuelve la efectiva y el runner las
 #: compara: una divergencia es un error de instrumentación que invalida el experimento,
@@ -231,12 +229,10 @@ async def _run_document_execution(
                     "fixture_expected_result": fixture.get("expected_result"),
                     "fixture_execution_id": execution["fixture_execution_id"],
                     "audit_subdir": execution["audit_subdir"],
-                    **{
-                        clave: str(valor).lower()
-                        for clave, valor in DOCUMENT_PROFILE_SETTINGS.get(
-                            execution.get("document_profile") or "", {}
-                        ).items()
-                    },
+                    # `/chat/proxy` deriva `vulnerable` (y con él, si el documento pasa
+                    # por Document Sanitizer/detector estructural) del propio
+                    # `proxy_profile` — un solo campo gatea texto y documento a la vez.
+                    "proxy_profile": execution.get("proxy_profile") or "full",
                 },
                 files={"document": (doc_path.name, f, content_type)},
                 headers=auth_headers(user_id),
@@ -656,10 +652,13 @@ async def main():
         dest="document_profiles",
         metavar="PROFILE",
         help=(
-            "Ejecuta el canal documental con una o varias posturas. "
-            "document-baseline apaga las tres capas del canal; document-full las activa. "
-            "Un fixture documental solo es comparable contra otra postura de ESTE "
-            "pipeline, no contra un chat sin documentos."
+            "Ejecuta el canal documental (fixtures con `document:`) contra `proxy` "
+            "con una o varias posturas — requiere --endpoint proxy. "
+            "document-baseline pide proxy_profile=baseline (documento y texto sin "
+            "defensa); document-full pide proxy_profile=full (Document Sanitizer y "
+            "detector estructural incluidos). Un fixture documental solo es "
+            "comparable contra otra postura de ESTE pipeline, no contra un chat sin "
+            "documentos."
         ),
     )
     parser.add_argument("--user", default="usr_001")
@@ -740,23 +739,34 @@ async def main():
     # resultados de posturas defensivas diferentes.
     proxy_profile_by_target: dict[str, str | None] = {name: None for name in endpoints}
     document_profile_by_target: dict[str, str | None] = {name: None for name in endpoints}
+    # Documento y texto comparten la misma ruta física (`/chat/proxy`, PR7/ADR-0018) y
+    # el mismo target de origen (`"proxy"`); lo que los separa es el nombre lógico que
+    # cada bloque le da (`proxy-document-*` vs `proxy-*`), así que la comprobación de
+    # que el usuario pidió `proxy` se hace una sola vez, antes de que cualquiera de los
+    # dos bloques lo retire de `endpoints`.
+    proxy_solicitado = "proxy" in endpoints
     if args.document_profiles:
-        if DOCUMENT_ENDPOINT_NAME not in endpoints:
-            parser.error(
-                "--document-profile requiere incluir --endpoint complex-with-document"
-            )
-        document_path = endpoints.pop(DOCUMENT_ENDPOINT_NAME)
-        document_profile_by_target.pop(DOCUMENT_ENDPOINT_NAME, None)
-        proxy_profile_by_target.pop(DOCUMENT_ENDPOINT_NAME, None)
+        if not proxy_solicitado:
+            parser.error("--document-profile requiere incluir --endpoint proxy (o no filtrar endpoints)")
+        proxy_path = CHAT_ENDPOINTS["proxy"]
+        endpoints.pop("proxy", None)
+        document_profile_by_target.pop("proxy", None)
+        proxy_profile_by_target.pop("proxy", None)
         for profile in dict.fromkeys(args.document_profiles):
             target = f"proxy-{profile}"
-            endpoints[target] = document_path
+            endpoints[target] = proxy_path
             document_profile_by_target[target] = profile
-            proxy_profile_by_target[target] = None
+            # `proxy_profile_by_target` es la fuente de `requested_posture()` y de
+            # `execution["proxy_profile"]`: un target `proxy-document-baseline` debe
+            # pedir el perfil real "baseline" en la petición, no `None` (que
+            # `requested_posture` interpretaría como "full" — ver su rama sin
+            # `profile` para `target == "proxy"`).
+            proxy_profile_by_target[target] = DOCUMENT_PROXY_PROFILE[profile]
     if args.proxy_profiles:
-        if "proxy" not in endpoints:
+        if not proxy_solicitado:
             parser.error("--proxy-profile requiere incluir --endpoint proxy (o no filtrar endpoints)")
-        proxy_path = endpoints.pop("proxy")
+        proxy_path = CHAT_ENDPOINTS["proxy"]
+        endpoints.pop("proxy", None)
         proxy_profile_by_target.pop("proxy", None)
         for profile in dict.fromkeys(args.proxy_profiles):
             target = f"proxy-{profile}"

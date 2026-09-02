@@ -33,10 +33,11 @@ GIT_ENV          = -e GIT_COMMIT=$(GIT_COMMIT) -e GIT_BRANCH=$(GIT_BRANCH) \
                    -e GIT_DIRTY=$(GIT_DIRTY) -e GIT_DIRTY_FILES=$(GIT_DIRTY_FILES)
 REPEAT        ?= 1
 MODELS_FILE   ?= models.txt
-# Matriz principal del TFM. El canal documental entra con sus propias posturas: sin él,
-# once fixtures (seis ataques de inyección indirecta y cinco legítimos sobre documentos
-# benignos) quedaban cargados y nunca ejecutados — ver P10.
-# SUITE_ENDPOINTS   ?= simple-prompt complex-prompt complex-with-context proxy complex-with-document
+# Matriz principal del TFM. El canal documental entra con sus propias posturas sobre
+# el mismo target `proxy` (PR7/ADR-0018 movió el documento a un campo opcional de los
+# endpoints existentes; ya no es una ruta propia) — sin `--document-profile`, once
+# fixtures (seis ataques de inyección indirecta y cinco legítimos sobre documentos
+# benignos) quedaban cargados y nunca ejecutados — ver P10 / PR10.
 SUITE_ENDPOINTS   ?= simple-prompt complex-prompt complex-with-context proxy
 PROXY_PROFILES    ?= baseline full
 DOCUMENT_PROFILES ?= document-baseline document-full
@@ -105,8 +106,6 @@ logs-backend:
 # 		python scripts/run_attack_suite.py --repeat $(REPEAT) \
 # 			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
 # 			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) \
-# 			$(foreach profile,$(DOCUMENT_PROFILES),--document-profile $(profile)) $(ARGS)
-
 suite:
 	$(COMPOSE) exec \
 		-e FIXTURES_DIR=$(FIXTURES) \
@@ -114,7 +113,8 @@ suite:
 		backend \
 		python scripts/run_attack_suite.py --repeat $(REPEAT) \
 			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
-			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) $(ARGS)
+			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) \
+			$(foreach profile,$(DOCUMENT_PROFILES),--document-profile $(profile)) $(ARGS)
 
 # Reconcilia el Run Folder contra su Plan de cobertura sellado: cada ejecución
 # planificada debe tener exactamente un estado terminal, aunque sea un error técnico.

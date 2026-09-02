@@ -85,11 +85,13 @@ SECURITY_ENDPOINT_ORDER = (
     "simple-prompt",
     "complex-prompt",
     "complex-with-context",
-    "complex-with-document",
+    "complex-with-document",  # deprecado (PR7/ADR-0018); se conserva por runs históricos
     "proxy-baseline",
     "proxy-gatekeeper",
     "proxy-output",
     "proxy-full",
+    "proxy-document-baseline",
+    "proxy-document-full",
     "proxy",
 )
 _SECURITY_ENDPOINT_INDEX = {endpoint: index for index, endpoint in enumerate(SECURITY_ENDPOINT_ORDER)}
