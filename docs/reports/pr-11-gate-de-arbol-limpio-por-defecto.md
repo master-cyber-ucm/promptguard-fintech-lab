@@ -1,0 +1,81 @@
+# PR 11 — `make suite` exige árbol limpio por defecto
+
+**Estado:** implementado
+**Prioridad:** P1 — no bloquea análisis, sí bloquea que un run sea citable
+**Origen:** análisis de `20260901_190305_qwen2.5-3b` (problema original #2 del backlog)
+**Dependencias:** ninguna
+
+## Pregunta de diseño (persistida antes de investigar)
+
+> El run auditado corrió con árbol de trabajo sucio y el propio `run.md` lo
+> advierte ("este run no puede agregarse con otros"), pero la corrida se ejecutó
+> igual. ¿Falta construir un gate, o ya existe uno que nadie activó?
+
+**Por qué importa:** un run que no puede agregarse ni citarse como comparación
+causal, si de todas formas se ejecuta y se analiza, corre el riesgo real de
+colarse en el capítulo experimental del TFM por inercia — es más fácil olvidar
+pasar un flag opcional que recordar comprobarlo después.
+
+**Dueño de la decisión:** ninguno externo — verificable en el propio Makefile.
+
+**Criterio de aceptación:**
+1. `make suite` sin argumentos adicionales debe abortar antes de enviar tráfico
+   si el árbol está sucio.
+2. Debe seguir siendo posible ejecutar una corrida exploratoria sobre un árbol
+   sucio, explícitamente, sin editar el Makefile.
+3. No se reescribe el gate en sí (ya existe, ya está probado) — solo se cambia
+   si `make suite` lo pasa por defecto.
+
+## Evidencia del caso
+
+`scripts/run_attack_suite.py` ya implementa el gate completo desde PR5/ADR-0017:
+
+```python
+parser.add_argument(
+    "--require-clean-tree", action="store_true",
+    help=(
+        "Gate previo de reproducibilidad (PR5 / ADR-0017): aborta antes de enviar "
+        "tráfico si el árbol de trabajo está sucio. Sin este flag, un árbol sucio "
+        "solo emite el aviso histórico y la corrida continúa — úsalo para runs "
+        "exploratorios, pero nunca para una campaña baseline/full/ablaciones que "
+        "vaya a publicarse como comparación causal."
+    ),
+)
+...
+if args.require_clean_tree:
+    print("  ✗ --require-clean-tree: abortando antes de enviar tráfico ...")
+    sys.exit(1)
+```
+
+Pero `Makefile:suite:` nunca lo pasa, y `run.sh` (el script que produjo
+`suite-final.4.log`, fuera del repo, en la raíz de `software/`) tampoco:
+
+```sh
+log=audit/logs/suite-final.3.log; : > "$log"; make suite REPEAT=5 >>"$log" 2>&1; ...
+```
+
+El propio texto de ayuda ya dice "úsalo… pero nunca para una campaña
+baseline/full/ablaciones que vaya a publicarse" — que es exactamente lo que
+produjo `suite-final.4.log`. La política está escrita; no está aplicada.
+
+## Alternativas consideradas
+
+| Opción | Descripción | Veredicto |
+|---|---|---|
+| A. Documentar que hay que acordarse de pasar `--require-clean-tree` | No cambia nada — es la situación actual, y ya falló una vez. | Rechazada. |
+| B. `make suite` pasa `--require-clean-tree` por defecto, con un override explícito | El caso común (campaña que se va a citar) queda protegido sin acción extra; el caso exploratorio sigue disponible con una variable nombrada. | **Elegida.** |
+| C. Forzar el gate sin override (eliminar la opción de correr sucio) | Rompe el flujo de desarrollo normal: iterar sobre un fixture nuevo exige commitear cada prueba. | Rechazada: el propio texto de ayuda ya distingue explícitamente "runs exploratorios" de "campañas publicables" — ambos casos son legítimos. |
+
+## Solución implementada
+
+`Makefile`: nueva variable `REQUIRE_CLEAN_TREE ?= true` y
+`CLEAN_TREE_FLAG = $(if $(filter true,$(REQUIRE_CLEAN_TREE)),--require-clean-tree,)`,
+añadida a la recta de `suite:`. Comportamiento:
+
+- `make suite` (sin nada más) → exige árbol limpio, aborta si está sucio.
+- `make suite REQUIRE_CLEAN_TREE=false` → conserva el comportamiento anterior
+  (aviso, sin abortar) para iteración exploratoria.
+
+Se corrige además `make help`, que describía `make suite` como "Matriz principal
+(sin documentos)" — desactualizado desde PR10, que activó el canal documental por
+defecto.

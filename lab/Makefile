@@ -42,6 +42,14 @@ SUITE_ENDPOINTS   ?= simple-prompt complex-prompt complex-with-context proxy
 PROXY_PROFILES    ?= baseline full
 DOCUMENT_PROFILES ?= document-baseline document-full
 
+# Gate de reproducibilidad (PR5/ADR-0017 lo implementa; PR11 lo activa por defecto
+# aquí): un árbol sucio no identifica el código que corrió y el run no puede
+# agregarse ni citarse — exactamente lo que le pasó a `suite-final.4.log`, corrido
+# con `make suite` sin este flag. `REQUIRE_CLEAN_TREE=false` lo desactiva para
+# iteración exploratoria (nunca para una campaña que vaya a publicarse).
+REQUIRE_CLEAN_TREE ?= true
+CLEAN_TREE_FLAG = $(if $(filter true,$(REQUIRE_CLEAN_TREE)),--require-clean-tree,)
+
 .PHONY: up down restart restart-backend restart-front \
         logs logs-backend run suite check-suite \
         evaluate report final-report eval-all-steps \
@@ -114,7 +122,8 @@ suite:
 		python scripts/run_attack_suite.py --repeat $(REPEAT) \
 			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
 			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) \
-			$(foreach profile,$(DOCUMENT_PROFILES),--document-profile $(profile)) $(ARGS)
+			$(foreach profile,$(DOCUMENT_PROFILES),--document-profile $(profile)) \
+			$(CLEAN_TREE_FLAG) $(ARGS)
 
 # Reconcilia el Run Folder contra su Plan de cobertura sellado: cada ejecución
 # planificada debe tener exactamente un estado terminal, aunque sea un error técnico.
@@ -306,10 +315,11 @@ help:
 	@echo ""
 	@echo "  Suite de ataques"
 	@echo "  ─────────────────────────────────────────────────────────────────"
-	@echo "  make suite                             Matriz principal (sin documentos)"
+	@echo "  make suite                             Matriz principal (texto + documentos)"
 	@echo "  make suite ARGS='--kind attack-prompts'  Solo ataques"
 	@echo "  make suite ARGS='--id atk_001'           Un fixture concreto"
 	@echo "  make suite REPEAT=5                    5 repeticiones por fixture"
+	@echo "  make suite REQUIRE_CLEAN_TREE=false    Permite árbol sucio (solo exploratorio)"
 	@echo "  make suite SUITE_ENDPOINTS='proxy' PROXY_PROFILES='baseline full'  Matriz acotada"
 	@echo ""
 	@echo "  Evaluación"
