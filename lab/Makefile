@@ -292,7 +292,9 @@ smoke:
 		backend python scripts/smoke_test.py
 
 test:
-	$(COMPOSE) exec backend python -m pytest tests/ -v
+	$(COMPOSE) exec \
+		-e FIXTURES_DIR=$(FIXTURES) \
+		backend python -m pytest tests/ -v
 
 help:
 	@echo ""

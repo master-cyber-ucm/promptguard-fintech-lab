@@ -1,5 +1,21 @@
 # PR 8 — Evidencia de validación
 
+**Corrección posterior:** los recuentos de suite completa de este documento se
+capturaron con `docker compose exec backend python -m pytest tests/ -q` sin fijar
+`FIXTURES_DIR`. PR 9 encontró que, en ese modo, `fixture_loader.load_prompts()`
+resuelve un directorio por defecto que no existe dentro del contenedor y **devuelve 0
+fixtures en vez de fallar** — varias aserciones sobre el catálogo completo (incluidas
+las de `test_security_rubrics.py`, citadas más abajo) pasaban en falso, sin comprobar
+nada. Se repitió la comprobación específica de PR 8 con `FIXTURES_DIR` correcto
+(`docker compose exec -e FIXTURES_DIR=/app/tests/fixtures ...`): los 26 tests
+relevantes (los 23 de antes + los 3 nuevos) siguen en verde, esta vez de forma
+genuina — el runtime pasó de 0,20 s a 0,85 s, señal de que sí recorrió los 111
+fixtures reales. El detalle y el fix quedan en
+[PR 9](./pr-09-fixture-loader-resuelve-fixtures-dir-sin-variable-de-entorno.md).
+Los recuentos de "suite completa" de abajo no cambian su conclusión (cero
+regresiones), pero deben leerse sabiendo que una parte de lo que contaban no se
+había ejecutado.
+
 ## Qué se hizo
 
 1. Migración de datos: 75 fixtures `attack-prompts` con `evaluation.method: deterministic`

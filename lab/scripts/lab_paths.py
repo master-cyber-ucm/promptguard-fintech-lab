@@ -80,6 +80,35 @@ def find_config(filename: str, *, env_var: str | None = None) -> Path | None:
     return None
 
 
+def fixtures_candidates() -> tuple[Path, ...]:
+    """Rutas donde puede vivir `tests/fixtures`, en orden de preferencia.
+
+    Mismo problema que `config_candidates`: `docker-compose.yml` monta
+    `./backend/tests` en `/app/tests`, así que la ruta cambia con el layout. Antes de
+    esta función, `fixture_loader.py` cableaba `HERE.parent / "backend" / "tests" /
+    "fixtures"` — válido en host, inexistente en contenedor — y como recorrer un
+    directorio inexistente no lanza excepción, `load_prompts()` devolvía una lista
+    vacía en vez de fallar: varias aserciones sobre "todo el catálogo" pasaban sin
+    haber mirado ningún fixture (PR9).
+    """
+    raiz = lab_root()
+    return (raiz / "tests" / "fixtures", raiz / "backend" / "tests" / "fixtures")
+
+
+def find_fixtures_dir(*, env_var: str | None = "FIXTURES_DIR") -> Path | None:
+    """Localiza el directorio de fixtures. La variable de entorno manda."""
+    import os  # noqa: PLC0415
+
+    if env_var:
+        declarado = os.environ.get(env_var, "").strip()
+        if declarado and Path(declarado).is_dir():
+            return Path(declarado)
+    for candidate in fixtures_candidates():
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
 def display_path(path: Path) -> str:
     """Ruta de un artefacto tal como puede volver a pasarse por `--run`.
 

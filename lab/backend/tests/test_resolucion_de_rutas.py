@@ -85,6 +85,44 @@ def test_la_config_se_encuentra_en_el_layout_del_contenedor(container_layout):
     assert int(resultado.stdout.strip()) > 0
 
 
+def test_las_fixtures_se_encuentran_en_el_layout_del_contenedor_sin_fixtures_dir(container_layout):
+    """PR9: antes de esto, `FIXTURES_DIR` sin fijar resolvía a una ruta inexistente
+    en el contenedor y `load_prompts()` devolvía `[]` en vez de fallar — varias
+    aserciones sobre "todo el catálogo" pasaban sin haber mirado ningún fixture."""
+    resultado = subprocess.run(
+        [sys.executable, "-c", (
+            "import sys; sys.path.insert(0, 'scripts');"
+            "from fixture_loader import load_prompts;"
+            "print(len(load_prompts(kind=None)))"
+        )],
+        cwd=container_layout, capture_output=True, text=True, timeout=60,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin"},  # sin FIXTURES_DIR a propósito
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    assert int(resultado.stdout.strip()) > 0
+
+
+def test_la_variable_de_entorno_sigue_mandando_sobre_las_fixtures(tmp_path):
+    """`find_fixtures_dir` no puede ignorar un `FIXTURES_DIR` explícito (`smoke:`,
+    `make suite`, `evaluate.py --run` ya dependen de este contrato)."""
+    sys.path.insert(0, str(SCRIPTS))
+    import lab_paths  # noqa: PLC0415
+
+    otro = tmp_path / "otras_fixtures"
+    otro.mkdir()
+    import os  # noqa: PLC0415
+
+    previo = os.environ.get("FIXTURES_DIR")
+    os.environ["FIXTURES_DIR"] = str(otro)
+    try:
+        assert lab_paths.find_fixtures_dir() == otro
+    finally:
+        if previo is None:
+            os.environ.pop("FIXTURES_DIR", None)
+        else:
+            os.environ["FIXTURES_DIR"] = previo
+
+
 def test_el_corpus_del_juez_se_encuentra_en_el_layout_del_contenedor(container_layout):
     resultado = _ejecutar(container_layout, "-c", (
         "import sys; sys.path.insert(0, 'scripts');"

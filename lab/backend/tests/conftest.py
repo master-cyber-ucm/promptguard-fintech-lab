@@ -11,9 +11,36 @@ El aislamiento es de sesión y automático: ningún test tiene que acordarse de 
 
 from __future__ import annotations
 
-import pytest
+import sys
+from pathlib import Path
 
-from src.soc import store
+# Bootstrap de imports: en host este archivo vive en `lab/backend/tests/`, con
+# `scripts/` en `parents[2]`; en el contenedor vive en `/app/tests/`, sin `/app/backend`
+# de por medio, con `scripts/` en `parents[1]`. Probar ambos candidatos y quedarse con
+# el que exista es el mismo patrón que ya usa `lab_paths.py` para `src`/`config` (PR9)
+# — no puede importarse `lab_paths` todavía porque vive precisamente en `scripts/`.
+_AQUI = Path(__file__).resolve()
+for _candidato in (_AQUI.parents[2] / "scripts", _AQUI.parents[1] / "scripts"):
+    if _candidato.is_dir():
+        if str(_candidato) not in sys.path:
+            sys.path.insert(0, str(_candidato))
+        break
+
+import pytest  # noqa: E402
+
+import lab_paths  # noqa: E402
+
+lab_paths.ensure_src_importable()
+# Varios tests importan con `from scripts.xxx import ...` (paquete, no módulo suelto):
+# necesitan el padre de `scripts/` en el path, no solo `scripts/` en sí. `python -m
+# pytest` ya lo añade solo cuando el cwd es esa raíz (por eso `docker compose exec
+# backend python -m pytest tests/` funcionaba sin esto: cwd=/app=lab_root() ahí
+# dentro), pero no cuando se invoca desde `lab/backend/` o `pytest lab/` en el host.
+_LAB_ROOT = str(lab_paths.lab_root())
+if _LAB_ROOT not in sys.path:
+    sys.path.insert(0, _LAB_ROOT)
+
+from src.soc import store  # noqa: E402
 
 
 @pytest.fixture(autouse=True, scope="session")
