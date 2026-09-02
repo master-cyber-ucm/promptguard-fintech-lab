@@ -35,9 +35,19 @@ nuevos, encontrados sobre datos posteriores a esos fixes.
 - [Log](../../lab/audit/logs/suite-final.4.log)
 - [Catálogo de rúbricas de seguridad](../../lab/backend/config/security-rubrics.yaml)
 
+## Cierre del ciclo
+
+Los seis PR (8–13) están implementados, validados con evidencia real (tests
+unitarios + reanálisis contra `evaluate.py`/`report.py`/el backend en marcha, sin
+mocks donde fue posible) y commiteados uno a uno, sin avanzar al siguiente sin
+cerrar el anterior. PR 13 queda con alcance parcial explícitamente declarado
+(5/16 fixtures de OBFUSCATION+LLM07; el resto son bloqueadores anotados, no
+adivinados) — es el único de los seis que no cierra el problema al 100%, por
+diseño: forzar el resto sin la misma solidez de validación habría repetido el
+patrón que PR 8/PR 9 corrigieron en otra capa.
+
 ## Nota de alcance
 
 PR 8 es un cambio de datos (configuración de fixtures), no de arquitectura: reutiliza
 `HybridAttackEvaluator` y el catálogo de rúbricas ya validados por
-`test_security_rubrics.py` y `test_hybrid_attack_evaluator.py`. PR 9–12 se detallan en
-sus propios documentos antes de implementarse, en el momento en que les toca el turno.
+`test_security_rubrics.py` y `test_hybrid_attack_evaluator.py`.
