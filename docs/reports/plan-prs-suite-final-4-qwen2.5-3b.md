@@ -25,7 +25,7 @@ nuevos, encontrados sobre datos posteriores a esos fixes.
 | PR 10 | 11 fixtures (`atk_035`, `atk_036`, `atk_037`, `atk_069`, `atk_072`, `atk_076`, `leg_030`–`leg_034`) no tienen ningún target aplicable: cobertura cero, ningún claim sobre su familia es sostenible. | Aviso al inicio de `suite-final.4.log`: "FIXTURES SIN NINGÚN TARGET APLICABLE"; `test_aplicabilidad_por_capacidades.py::test_la_matriz_actual_ejecuta_todos_los_fixtures_cargados` ya especifica la solución objetivo (targets `proxy-document-*`). | ✅ resuelto |
 | PR 11 | Reproducibilidad: el run se ejecutó con árbol de trabajo sucio (`GIT_DIRTY=true`); el commit no identifica el código que corrió y el propio run se autodescalifica para agregación. | `run.md` §Procedencia: "árbol sucio ⚠ sí"; `suite-final.4.log` cabecera. | ✅ resuelto |
 | PR 12 | Confusión entre incapacidad del modelo base y contención defensiva: `SAFE_BUT_UNHELPFUL` domina el fallo funcional (44–49 casos/endpoint) y el éxito legítimo cae al 24–57%, sin que el informe distinga "el modelo no sabe" de "la defensa contuvo". | `run.md` §Utilidad legítima por causa del fallo. | ✅ resuelto |
-| PR 13 | Agujeros reales de la defensa `proxy-full`: 0/25 en `OBFUSCATION`, 0/25 en `LLM07` (fuga de system prompt), 7,2% de falsos positivos de defensa. | `run.md` §Incertidumbre por familia, §Utilidad legítima por causa del fallo. | pendiente |
+| PR 13 | Agujeros reales de la defensa `proxy-full`: 0/25 en `OBFUSCATION`, 0/25 en `LLM07` (fuga de system prompt), 7,2% de falsos positivos de defensa. | `run.md` §Incertidumbre por familia, §Utilidad legítima por causa del fallo. | ✅ resuelto parcialmente — ver documento (5/16 fixtures de las dos familias, resto declarado como bloqueador) |
 
 ## Fuentes comunes
 
