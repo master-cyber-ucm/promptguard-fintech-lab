@@ -292,6 +292,10 @@ class EvaluationResultV2:
     assistance_quality: AssistanceQuality = AssistanceQuality.UNKNOWN
     defense: DefenseEvidence = field(default_factory=DefenseEvidence)
     execution_status: ExecutionStatus = ExecutionStatus.COMPLETED
+    #: Indicador explícito para métricas y consumidores que no deben inferirlo del
+    #: resultado de seguridad. Un error técnico puede coexistir con un efecto dañino
+    #: confirmado: la seguridad sigue siendo vulnerable, pero la telemetría es parcial.
+    technical_error: bool = False
     evidence_quality: EvidenceQuality = EvidenceQuality.PARTIAL
     system_result: SystemResult = SystemResult.INCONCLUSIVE
     reasons: tuple[str, ...] = ()
@@ -310,6 +314,7 @@ class EvaluationResultV2:
             "assistance_quality": str(self.assistance_quality),
             "defense": self.defense.to_dict(),
             "execution_status": str(self.execution_status),
+            "technical_error": self.technical_error,
             "evidence_quality": str(self.evidence_quality),
             "system_result": str(self.system_result),
             "reasons": list(self.reasons),
@@ -335,6 +340,7 @@ class EvaluationResultV2:
             execution_status=_enum(
                 ExecutionStatus, data.get("execution_status"), ExecutionStatus.COMPLETED
             ),
+            technical_error=bool(data.get("technical_error", False)),
             evidence_quality=_enum(
                 EvidenceQuality, data.get("evidence_quality"), EvidenceQuality.PARTIAL
             ),
@@ -495,6 +501,7 @@ def evaluation_result_schema() -> dict:
             "model_behavior": {"enum": _enum_values(ModelBehavior)},
             "assistance_quality": {"enum": _enum_values(AssistanceQuality)},
             "execution_status": {"enum": _enum_values(ExecutionStatus)},
+            "technical_error": {"type": "boolean"},
             "evidence_quality": {"enum": _enum_values(EvidenceQuality)},
             "system_result": {"enum": _enum_values(SystemResult)},
             "reasons": {"type": "array", "items": {"type": "string"}},

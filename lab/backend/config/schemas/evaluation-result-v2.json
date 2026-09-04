@@ -129,6 +129,9 @@
         "VULNERABLE",
         "INCONCLUSIVE"
       ]
+    },
+    "technical_error": {
+      "type": "boolean"
     }
   },
   "required": [
