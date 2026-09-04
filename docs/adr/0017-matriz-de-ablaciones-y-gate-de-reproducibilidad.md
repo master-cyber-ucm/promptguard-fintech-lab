@@ -1,7 +1,9 @@
 # Matriz de ablaciones y gate de reproducibilidad para baseline/full
 
-Estado: **aceptado** (perfiles y gate); **decisión diferida documentada** (desacoplar
-`vulnerable` de las comparaciones causales — ver Consequences).
+Estado: **aceptado** (perfiles); **gate retirado 2026-09-02** (ver
+[pr-11-gate-de-arbol-limpio-por-defecto.md § Corrección posterior](../reports/pr-11-gate-de-arbol-limpio-por-defecto.md#corrección-posterior-2026-09-02--el-gate-se-retira));
+**decisión diferida documentada** (desacoplar `vulnerable` de las comparaciones
+causales — ver Consequences).
 
 ## Contexto
 
@@ -35,10 +37,14 @@ baseline/full — no hay ramas `only-*` que ejecutar.
    and not request.vulnerable`): es una ablación condicionada, documentada como tal,
    no una independencia fingida (el propio informe descarta "todas las 2⁵ combinaciones
    sin priorizar" — de-primer-orden y las condicionadas conocidas responden antes).
-2. **Gate de reproducibilidad accionable**: `--require-clean-tree` en
-   `run_attack_suite.py` convierte el aviso histórico de árbol sucio (que hasta ahora
-   solo imprimía una advertencia y continuaba) en un abort previo a abrir tráfico. El
-   resto del gate que pide el informe —digest de modelo/juez, hashes de fixtures/policy/
+2. **Gate de reproducibilidad accionable** *(retirado 2026-09-02 — ver nota de
+   Estado arriba)*: `--require-clean-tree` en `run_attack_suite.py` convertía el
+   aviso histórico de árbol sucio (que solo imprimía una advertencia y
+   continuaba) en un abort previo a abrir tráfico. Se decidió que esa dependencia
+   no aportaba valor suficiente a este proyecto (laboratorio de un único
+   investigador) frente a su coste (suites abortadas por ficheros sucios ajenos
+   al código evaluado); queda solo el aviso pasivo, sin abortar. El resto del
+   gate que pide el informe —digest de modelo/juez, hashes de fixtures/policy/
    evaluador, plan sellado antes de la primera petición— ya existe en
    `provenance.build()`/`artifact_digests()` y se persiste en `provenance.json` antes de
    la primera request; no requería cambio de código, solo confirmarlo (ver Consequences).

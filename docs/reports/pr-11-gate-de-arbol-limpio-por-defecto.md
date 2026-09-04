@@ -1,6 +1,6 @@
 # PR 11 — `make suite` exige árbol limpio por defecto
 
-**Estado:** implementado
+**Estado:** revertido (2026-09-02) — ver "Corrección posterior" al final
 **Prioridad:** P1 — no bloquea análisis, sí bloquea que un run sea citable
 **Origen:** análisis de `20260901_190305_qwen2.5-3b` (problema original #2 del backlog)
 **Dependencias:** ninguna
@@ -79,3 +79,32 @@ añadida a la recta de `suite:`. Comportamiento:
 Se corrige además `make help`, que describía `make suite` como "Matriz principal
 (sin documentos)" — desactualizado desde PR10, que activó el canal documental por
 defecto.
+
+## Corrección posterior (2026-09-02) — el gate se retira
+
+Al usarlo en la práctica (`audit/logs/suite-final.5.log`, run
+`20260902_200130_qwen2.5-3b`), el gate abortó un `make suite` real por 3 ficheros
+sucios ajenos al código evaluado (un cambio cosmético en el propio `Makefile` y
+dos ficheros sueltos fuera de `lab/`), sin enviar ninguna petición. El dueño del
+proyecto decidió explícitamente que esta dependencia — que el comando que lanza
+ataques dependa del estado de `git` del host — no tiene sentido para un
+laboratorio de un único investigador iterando localmente: el coste (una suite de
+horas abortada en el segundo 0 por un fichero de notas sin commitear) supera el
+beneficio (poder citar un run como "reproducible" formalmente), que este TFM no
+llegó a necesitar en la práctica.
+
+Se retira:
+- `Makefile`: `REQUIRE_CLEAN_TREE`/`CLEAN_TREE_FLAG` y su paso a `suite:`.
+- `scripts/run_attack_suite.py`: el flag `--require-clean-tree` y el `sys.exit(1)`
+  asociado.
+
+Se conserva sin cambios (no es el gate, es información pasiva que no bloquea
+nada): `provenance.py` sigue registrando `git.commit`/`git.dirty` en
+`provenance.json` de cada run, y `run_attack_suite.py` sigue imprimiendo el aviso
+"árbol de trabajo sucio: el commit no identifica el código que corre" si
+corresponde — solo deja de poder abortar la ejecución.
+
+Validado con la suite completa de tests tras el cambio: 903 passed, 0 failed (los
+tests de `provenance.build()`/`git.dirty` en `test_reproducibilidad_e_incertidumbre.py`
+y `test_resolucion_de_rutas.py` prueban la detección pasiva, no el flag retirado,
+así que no requirieron cambios).

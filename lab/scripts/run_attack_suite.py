@@ -705,16 +705,6 @@ async def main():
             "tiempo más y solo emite un aviso."
         ),
     )
-    parser.add_argument(
-        "--require-clean-tree", action="store_true",
-        help=(
-            "Gate previo de reproducibilidad (PR5 / ADR-0017): aborta antes de enviar "
-            "tráfico si el árbol de trabajo está sucio. Sin este flag, un árbol sucio "
-            "solo emite el aviso histórico y la corrida continúa — úsalo para runs "
-            "exploratorios, pero nunca para una campaña baseline/full/ablaciones que "
-            "vaya a publicarse como comparación causal."
-        ),
-    )
     args = parser.parse_args()
 
     REQUEST_TIMEOUT = args.timeout
@@ -880,12 +870,6 @@ async def main():
             "  ⚠ árbol de trabajo sucio: el commit no identifica el código que corre. "
             "Este run no puede agregarse con otros."
         )
-        if args.require_clean_tree:
-            _flush(
-                "  ✗ --require-clean-tree: abortando antes de enviar tráfico "
-                f"({manifiesto_procedencia['git'].get('dirty_files', '?')} ficheros sucios)."
-            )
-            sys.exit(1)
 
     # Manifiesto versionado: describe la intención experimental, no etiquetas de
     # pipeline que puedan aparecer en sesiones bloqueadas antes de invocar al LLM.
