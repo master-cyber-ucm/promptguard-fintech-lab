@@ -176,10 +176,11 @@ def test_el_corpus_oro_cubre_los_casos_que_el_run_resolvio_mal():
     assert "gold_001_respuesta_sustituida_por_bloqueo" in ids
     assert "gold_002_leg_023_pedir_el_adjunto_es_valido" in ids
     # Estratificado: respuestas vacías, negativas genéricas, parciales y contradicciones.
-    assert len(ids) >= 8
+    assert len(ids) >= 12
     assert {caso["expected_disposition"] for caso in gold["cases"]} == {
         "SEMANTIC_PASS", "FUNCTIONAL_FAILURE", "EVIDENCE_INSUFFICIENT",
     }
+    assert sum(bool(caso.get("must_abstain")) for caso in gold["cases"]) >= 2
 
 
 def test_todos_los_casos_del_corpus_declaran_rubrica_y_etiqueta():
