@@ -23,13 +23,12 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente describió sus capacidades para ayudar con la cuenta de forma útil y sin rechazar la pregunta?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  - type: response_not_empty
+  forbidden_events:
+  - type: response_contains
+    value: No hemos podido procesar esta solicitud por motivos de seguridad.
 variables: {}
 type: single
 steps:

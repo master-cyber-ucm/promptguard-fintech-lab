@@ -20,12 +20,31 @@ BACKEND_PORT  ?= 8000
 FRONTEND_PORT ?= 3000
 
 JUDGE_TIMEOUT ?= 300
+LEVEL         ?= evaluation
+
+# Procedencia de git: el contenedor no monta el repositorio (solo `src`, `scripts` y
+# `audit`), así que el commit se inyecta desde el host. Sin esto, `provenance.json`
+# saldría sin commit y el run no sería reproducible ni agregable (P14).
+GIT_COMMIT      := $(shell git rev-parse HEAD 2>/dev/null)
+GIT_BRANCH      := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+GIT_DIRTY_FILES := $(shell git status --porcelain 2>/dev/null | grep -c . )
+GIT_DIRTY       := $(shell test "$(GIT_DIRTY_FILES)" -gt 0 2>/dev/null && echo true || echo false)
+GIT_ENV          = -e GIT_COMMIT=$(GIT_COMMIT) -e GIT_BRANCH=$(GIT_BRANCH) \
+                   -e GIT_DIRTY=$(GIT_DIRTY) -e GIT_DIRTY_FILES=$(GIT_DIRTY_FILES)
 REPEAT        ?= 1
 MODELS_FILE   ?= models.txt
+# Matriz principal del TFM. El canal documental entra con sus propias posturas sobre
+# el mismo target `proxy` (PR7/ADR-0018 movió el documento a un campo opcional de los
+# endpoints existentes; ya no es una ruta propia) — sin `--document-profile`, once
+# fixtures (seis ataques de inyección indirecta y cinco legítimos sobre documentos
+# benignos) quedaban cargados y nunca ejecutados — ver P10 / PR10.
+SUITE_ENDPOINTS   ?= simple-prompt complex-prompt complex-with-context proxy
+PROXY_PROFILES    ?= baseline full
+DOCUMENT_PROFILES ?= document-baseline document-full
 
 .PHONY: up down restart restart-backend restart-front \
         logs logs-backend run suite check-suite \
-        evaluate report eval-all-steps \
+        evaluate report final-report eval-all-steps \
         eval eval-all eval-local eval-all-local \
         smoke test help
 
@@ -71,25 +90,46 @@ logs-backend:
 # Suite de ataques
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Envía los fixtures al agente y guarda Session Files en audit/runs/
+# Envía los fixtures al agente y guarda Session Files en audit/runs/. La matriz
+# incluye los tres escenarios de prompt y cuatro posturas del mismo proxy.
+# Se puede acotar sin crear comandos nuevos, p. ej.:
+#   make suite SUITE_ENDPOINTS="proxy" PROXY_PROFILES="baseline full"
 #   make suite
 #   make suite ARGS="--kind attack-prompts"
 #   make suite ARGS="--id atk_001"
 #   make suite REPEAT=5
+# suite:
+# 	$(COMPOSE) exec \
+# 		-e FIXTURES_DIR=$(FIXTURES) \
+# 		$(GIT_ENV) \
+# 		backend \
+# 		python scripts/run_attack_suite.py --repeat $(REPEAT) \
+# 			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
+# 			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) 
+
 suite:
 	$(COMPOSE) exec \
 		-e FIXTURES_DIR=$(FIXTURES) \
+		$(GIT_ENV) \
 		backend \
-		python scripts/run_attack_suite.py --repeat $(REPEAT) $(ARGS)
+		python scripts/run_attack_suite.py --repeat $(REPEAT) \
+			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
+			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) \
+			$(foreach profile,$(DOCUMENT_PROFILES),--document-profile $(profile)) \
+			$(ARGS)
 
-# Comprueba que cada combinación fixture-endpoint esperada dejó evidencia.
+# Reconcilia el Run Folder contra su Plan de cobertura sellado: cada ejecución
+# planificada debe tener exactamente un estado terminal, aunque sea un error técnico.
+# Niveles acumulativos: plan | execution | evidence | evaluation.
 #   make check-suite RUN=20260827_133926_qwen2.5-3b
+#   make check-suite RUN=X LEVEL=execution
+#   make check-suite RUN=X CHECK_ARGS=--json
 check-suite:
 	@if [ -z "$(RUN)" ]; then echo "RUN es obligatorio: make check-suite RUN=<Run Folder>"; exit 2; fi
 	$(COMPOSE) exec \
 		-e FIXTURES_DIR=$(FIXTURES) \
 		backend \
-		python scripts/check_suite_run.py --run $(RUN)
+		python scripts/check_suite_run.py --run $(RUN) --level $(LEVEL) $(CHECK_ARGS)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Evaluación
@@ -124,6 +164,12 @@ report:
 		$(if $(RUN),--run $(RUN),) \
 		$(if $(FORCE),--force,) \
 		$(ARGS)
+
+# Consolida Run Folders ya evaluados.
+final-report:
+	@if [ -z "$(RUNS)" ]; then echo "RUNS es obligatorio: make final-report RUNS='run_a run_b'"; exit 2; fi
+	$(COMPOSE) exec backend python scripts/final_report.py \
+		$(foreach run,$(RUNS),--run $(run)) --output audit/final-results.md
 
 # Encadena evaluate + report sobre todos los runs pendientes
 eval-all-steps:
@@ -248,7 +294,9 @@ smoke:
 		backend python scripts/smoke_test.py
 
 test:
-	$(COMPOSE) exec backend python -m pytest tests/ -v
+	$(COMPOSE) exec \
+		-e FIXTURES_DIR=$(FIXTURES) \
+		backend python -m pytest tests/ -v
 
 help:
 	@echo ""
@@ -260,10 +308,11 @@ help:
 	@echo ""
 	@echo "  Suite de ataques"
 	@echo "  ─────────────────────────────────────────────────────────────────"
-	@echo "  make suite                             Todos los fixtures"
+	@echo "  make suite                             Matriz principal (texto + documentos)"
 	@echo "  make suite ARGS='--kind attack-prompts'  Solo ataques"
 	@echo "  make suite ARGS='--id atk_001'           Un fixture concreto"
 	@echo "  make suite REPEAT=5                    5 repeticiones por fixture"
+	@echo "  make suite SUITE_ENDPOINTS='proxy' PROXY_PROFILES='baseline full'  Matriz acotada"
 	@echo ""
 	@echo "  Evaluación"
 	@echo "  ─────────────────────────────────────────────────────────────────"
@@ -273,6 +322,7 @@ help:
 	@echo "  make report                            Genera run.md + run.json"
 	@echo "  make report FORCE=1                    Regenera todos los reports"
 	@echo "  make report RUN=audit/runs/X/          Run específico"
+	@echo "  make final-report RUNS='X Y'           Consolida runs en audit/final-results.md"
 	@echo "  make eval-all-steps                    evaluate + report (pendientes)"
 	@echo ""
 	@echo "  Por modelo (ollama Docker)"

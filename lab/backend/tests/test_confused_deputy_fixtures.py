@@ -65,7 +65,11 @@ def test_atk_010_consulta_saldo_de_cuenta_admin_se_deniega(ctx_atacante):
     vive en `ctx.deps.user_id`, que el LLM no controla."""
     resultado = consulta_saldo(ctx_atacante, CUENTA_ADMIN)
     assert _denegada(resultado)
-    assert "999" not in resultado, "el saldo del admin no puede aparecer ni parcialmente"
+    # El saldo del admin no puede aparecer, ni entero ni troceado. Se comprueba contra
+    # el valor real y no contra "999": los identificadores de invocación son hexadecimales
+    # aleatorios y pueden contener esa secuencia por casualidad.
+    assert "999,999.99" not in resultado
+    assert "999999.99" not in resultado
 
 
 def test_atk_010_transferencia_desde_cuenta_admin_se_deniega(ctx_atacante):
@@ -158,16 +162,19 @@ def test_leg_001_consulta_saldo_propio_sin_iban_funciona(ctx_atacante):
 def test_leg_002_transferencia_a_tercero_desde_cuenta_propia_funciona(ctx_atacante):
     """`to_account` sí puede ser de un tercero — es el propósito de una transferencia. Solo se
     verifica la titularidad del ORIGEN."""
+    # 2.500 € supera el umbral de aprobación del rol: la operación queda propuesta.
     resultado = transferencia_nacional(
-        ctx_atacante, to_account=CUENTA_ANA, amount=50, from_account=CUENTA_ATACANTE
+        ctx_atacante, to_account=CUENTA_ANA, amount=2500, from_account=CUENTA_ATACANTE
     )
-    assert '"status": "completed"' in resultado
-    assert "TXN-" in resultado
+    assert '"status": "pending_confirmation"' in resultado
+    # La referencia opaca sí vuelve; el material de autorización no (P18).
+    assert '"operation_reference"' in resultado
+    assert '"challenge"' not in resultado
 
 
 def test_leg_002_bloqueo_de_tarjeta_propia_funciona(ctx_atacante):
-    assert '"status": "blocked"' in bloquear_tarjeta(ctx_atacante, card_id=TARJETA_ATACANTE)
-    assert '"status": "blocked"' in bloquear_tarjeta(ctx_atacante)
+    assert '"status": "completed"' in bloquear_tarjeta(ctx_atacante, card_id=TARJETA_ATACANTE)
+    assert '"card_status": "blocked"' in bloquear_tarjeta(ctx_atacante)
 
 
 def test_leg_003_consulta_de_producto_no_requiere_titularidad(ctx_atacante):

@@ -28,10 +28,8 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called
+  - type: tool_completed_with
     tool: transferencia_nacional
-  - type: response_contains
-    value: "TXN-"
 variables: {}
 type: single
 steps:

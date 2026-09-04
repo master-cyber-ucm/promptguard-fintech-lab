@@ -59,10 +59,16 @@ def test_consulta_saldo_sin_account_id_usa_la_cuenta_propia():
 # --- transferencia_nacional ---
 
 def test_transferencia_desde_cuenta_propia_permitida():
+    """50 € desde cuenta propia: propiedad verificada y por debajo del umbral (P19).
+
+    Por debajo del umbral la policy ya no compromete directamente (PR 2): la
+    propiedad verificada evita un `denied`, pero el commit sigue exigiendo
+    autorización de transacción fuera del canal LLM."""
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
+    assert result["invocation_state"] == "AWAITING_CONFIRMATION"
+    assert result["to_account"] == OTHER_ACCOUNT
 
 
 def test_transferencia_desde_cuenta_ajena_denegada():
@@ -74,12 +80,25 @@ def test_transferencia_desde_cuenta_ajena_denegada():
 
 
 def test_transferencia_a_cuenta_ajena_es_valida_ese_es_el_proposito():
-    """El destino SÍ puede ser de un tercero — es lo que hace una transferencia."""
+    """El destino SÍ puede ser de un tercero — es lo que hace una transferencia.
+
+    Con 50 € la policy no deniega: el umbral de aprobación de "customer" son 1.000 €,
+    así que la propuesta no cae por límite (P19). Pero "no denegada" no es "comprometida
+    sin autorización" (PR 2): sigue quedando `AWAITING_CONFIRMATION`.
+    """
     result = json.loads(
         transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=50.0)
     )
-    assert result["status"] == "completed"
-    assert result["to"] == OTHER_ACCOUNT
+    assert result["invocation_state"] == "AWAITING_CONFIRMATION"
+    assert result["to_account"] == OTHER_ACCOUNT
+
+
+def test_transferencia_sobre_el_umbral_requiere_autorizacion():
+    result = json.loads(
+        transferencia_nacional(_ctx("usr_001"), from_account=OWN_ACCOUNT, to_account=OTHER_ACCOUNT, amount=2500.0)
+    )
+    assert result["status"] == "pending_confirmation"
+    assert result["to_account"] == OTHER_ACCOUNT
 
 
 def test_transferencia_sin_from_account_usa_la_cuenta_propia():
@@ -88,17 +107,18 @@ def test_transferencia_sin_from_account_usa_la_cuenta_propia():
     falsos positivos detectada en la verificación manual (IBAN mal transcrito -> denegación
     indebida al titular real)."""
     result = json.loads(
-        transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=50.0)
+        transferencia_nacional(_ctx("usr_001"), to_account=OTHER_ACCOUNT, amount=2500.0)
     )
-    assert result["status"] == "completed"
-    assert result["from"] == OWN_ACCOUNT
+    assert result["status"] == "pending_confirmation"
+    assert result["resolved"]["from_account"] == OWN_ACCOUNT
 
 
 # --- bloquear_tarjeta ---
 
 def test_bloquear_tarjeta_propia_permitido():
     result = json.loads(bloquear_tarjeta(_ctx("usr_001"), OWN_CARD))
-    assert result["status"] == "blocked"
+    assert result["status"] == "completed"
+    assert result["card_status"] == "blocked"
 
 
 def test_bloquear_tarjeta_ajena_denegado():
@@ -110,14 +130,16 @@ def test_bloquear_tarjeta_propia_en_minusculas_tambien_permitido():
     """Regresión: un bug inicial (mock con mayúsculas/minúsculas mezcladas en MOCK_CARDS vs.
     normalización a mayúsculas en _owns_card) hacía que incluso la tarjeta propia se denegara."""
     result = json.loads(bloquear_tarjeta(_ctx("usr_001"), OWN_CARD.lower()))
-    assert result["status"] == "blocked"
+    assert result["status"] == "completed"
+    assert result["card_status"] == "blocked"
 
 
 def test_bloquear_tarjeta_sin_card_id_usa_la_tarjeta_propia():
     """Mejora Fase 2.7: si el LLM omite card_id (p. ej. "bloquea mi tarjeta"), se resuelve la
     tarjeta propia desde ctx.deps.user_id en vez de exigir que el LLM transcriba el identificador."""
     result = json.loads(bloquear_tarjeta(_ctx("usr_001")))
-    assert result["status"] == "blocked"
+    assert result["status"] == "completed"
+    assert result["card_status"] == "blocked"
     assert result["card_id"] == OWN_CARD
 
 

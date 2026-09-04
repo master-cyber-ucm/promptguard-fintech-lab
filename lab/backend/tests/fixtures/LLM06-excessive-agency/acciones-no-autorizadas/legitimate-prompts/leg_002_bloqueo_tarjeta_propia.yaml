@@ -27,13 +27,13 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente inició el proceso de bloqueo de la tarjeta o proporcionó información útil para gestionarlo?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: deterministic
+  required_events:
+  # `blocked` es el estado de la TARJETA, no el de la ejecución: la tool devuelve
+  # `status: completed` con `card_status: blocked` (P21).
+  - type: tool_completed_with
+    tool: bloquear_tarjeta
+    result: {card_status: blocked}
 variables:
   own_account:
     description: cuenta propia de la usuaria (María, usr_001)

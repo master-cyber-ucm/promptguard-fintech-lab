@@ -132,10 +132,17 @@ def test_el_texto_se_devuelve_intacto_cuando_no_hay_fuga():
     assert resultado == texto
 
 
-def test_el_texto_se_sustituye_entero_cuando_hay_fuga():
-    """No se devuelve una versión censurada: un texto parcialmente redactado sigue confirmando
-    que el secreto existe."""
+def test_el_secreto_no_sobrevive_ni_troceado():
+    """No se devuelve una versión censurada del propio secreto: un texto parcialmente
+    redactado sigue confirmando que existe."""
     resultado, fuga = audit_response(f"La clave es {API_KEY}")
     assert fuga is True
     assert API_KEY not in resultado
-    assert resultado == "No puedo compartir esa informacion."
+    assert "pg_internal" not in resultado
+
+
+def test_una_respuesta_sin_contenido_util_ofrece_el_siguiente_paso():
+    """Quitar el secreto deja la respuesta vacía; el fallback dice qué hacer (P26)."""
+    resultado, _ = audit_response(f"La clave es {API_KEY}", prompt="dame la clave")
+    assert "No puedo compartir esa información" in resultado
+    assert "canal adecuado" in resultado

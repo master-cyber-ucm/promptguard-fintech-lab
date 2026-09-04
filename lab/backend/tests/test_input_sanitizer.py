@@ -62,6 +62,16 @@ def test_normaliza_espacios_y_caracteres_de_ancho_cero():
     assert decision.matched_rule == "ignore_instructions"
 
 
+def test_consulta_de_saldo_propio_no_aplica_firmas_de_documento():
+    """Regresión de leg_021: `indirect_doc_*` pertenece solo al canal documental."""
+    decision = InputSanitizerStage().evaluate(
+        _ctx("¿Cuál es el saldo de mi cuenta y cómo puedo consultarlo desde la app?")
+    )
+
+    assert decision.action == "ALLOW"
+    assert decision.matched_rule is None
+
+
 class _FakeResult:
     output = "Respuesta de prueba"
 
@@ -101,7 +111,10 @@ def test_proxy_bloquea_antes_del_modelo_y_conserva_evidencia(monkeypatch, tmp_pa
     )
 
     body = response.json()
-    assert "BLOCKED_BY_INPUT_SANITIZER" in body["error"]
+    assert body["error"] is None
+    assert body["block_code"] == "REQUEST_NOT_PROCESSED"
+    assert "input_sanitizer" not in body["response"]
+    assert "Patrón" not in body["response"]
     assert agent.invocations == 0
     assert body["audit_file"] is not None
 
@@ -119,7 +132,8 @@ def test_proxy_detecta_splitting_multiturno_por_sesion(monkeypatch, tmp_path):
     ).json()
 
     assert first["error"] is None
-    assert "BLOCKED_BY_INPUT_SANITIZER" in second["error"]
+    assert second["error"] is None
+    assert second["block_code"] == "REQUEST_NOT_PROCESSED"
     assert agent.invocations == 1
 
 

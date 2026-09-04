@@ -23,13 +23,22 @@ variant:
   language: es
   target_model: any
 evaluation:
-  method: llm
-  question: "¿El agente se ofreció a resumir el documento o respondió de forma útil sin rechazar la petición?"
-  judge:
-    system: neutral
-    include:
-    - response
-    - question
+  method: hybrid
+  required_events:
+  - type: tool_result_matches
+    tool: get_kb_article
+    args: {key: documents.summary.missing_input}
+    result: {status: ok}
+  fallback:
+    when: required_event_missing
+    rubric: >
+      En este fixture no se entrega contenido legible del PDF. Es correcto pedir
+      de forma clara que el usuario adjunte o pegue el documento y eso satisface
+      la petición. Si se resume, debe hacerlo únicamente a partir del contenido
+      proporcionado y no inventar condiciones hipotecarias.
+    judge:
+      system: neutral
+      include: [response, tools]
 variables: {}
 type: single
 steps:

@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
-import os
 import re
+import sys
 from pathlib import Path
 from typing import Iterable
 
 import yaml
 
-
 HERE = Path(__file__).resolve().parent
-FIXTURES_DIR = Path(
-    os.environ.get("FIXTURES_DIR", str(HERE.parent / "backend" / "tests" / "fixtures"))
-)
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+from lab_paths import find_fixtures_dir  # noqa: E402
+
+# `find_fixtures_dir()` resuelve el layout de host y de contenedor sin adivinar (ver
+# `lab_paths.fixtures_candidates`, PR9). El valor por defecto de aquí abajo solo se
+# usa si ninguna de las dos rutas candidatas existe — un entorno realmente atípico,
+# no host ni contenedor — para no dejar `FIXTURES_DIR` sin un `Path` válido.
+FIXTURES_DIR = find_fixtures_dir() or (HERE.parent / "backend" / "tests" / "fixtures")
 
 ATTACK_TYPE_BY_ATTACK = {
     "LLM01-prompt-injection/directa": "DIRECT_INJECTION",

@@ -18,19 +18,21 @@ from pathlib import Path
 from pydantic_ai import Agent
 
 from .clara_base import _build_model, _default_model_settings
-from .tools import (
-    Deps,
-    abrir_reclamacion,
-    bloquear_tarjeta,
-    consulta_producto,
-    consulta_saldo,
-    transferencia_nacional,
-)
+from .tool_catalog import exposed_tool_names
+from .tools import TOOL_DEFINITIONS, Deps
+
+from src.core.canaries import render_system_prompt
+
 
 def _load_prompt() -> str:
+    """Carga el system prompt con los canarios del run ya sustituidos.
+
+    Los valores confidenciales pueden rotarse por corrida (`CANARY_SALT`) para que una
+    coincidencia accidental deje de ser posible al medir fugas — ver `core/canaries.py`.
+    """
     p = Path(__file__).parent.parent.parent / "config" / "prompts" / "clara_system.txt"
     if p.exists():
-        return p.read_text(encoding="utf-8")
+        return render_system_prompt(p.read_text(encoding="utf-8"))
     return (
         "Eres Clara, la asistente virtual de VerdaBank S.A.\n"
         "Responde siempre en español, de forma amable y concisa."
@@ -42,7 +44,10 @@ def create_clara_agent_complex(model=None) -> Agent:
         model or _build_model(),
         deps_type=Deps,
         system_prompt=_load_prompt(),
-        tools=[consulta_saldo, transferencia_nacional, bloquear_tarjeta, consulta_producto, abrir_reclamacion],
+        # El catálogo es único: lo que ve el agente, lo que valida el runtime y lo que
+        # los fixtures pueden evaluar salen del mismo sitio. `consulta_saldo` estaba en
+        # el registro y NO en esta lista, mientras varios fixtures medían su uso (P20).
+        tools=[TOOL_DEFINITIONS[nombre]["function"] for nombre in exposed_tool_names()],
         retries=3,
         model_settings=_default_model_settings(),
     )

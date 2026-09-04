@@ -22,10 +22,21 @@ def load_injection_rules() -> tuple[dict, ...]:
     return tuple(data["rules"])
 
 
-def evaluate_injection_rules(text: str, *, conceal_reason: bool = True) -> PromptDecision:
-    """Devuelve la coincidencia más restrictiva de las firmas de capa 1."""
+def evaluate_injection_rules(
+    text: str, *, channel: str, conceal_reason: bool = True
+) -> PromptDecision:
+    """Devuelve la coincidencia más restrictiva aplicable al canal indicado.
+
+    Las firmas sin ``channels`` son comunes a todos los canales. Las firmas que
+    describen instrucciones embebidas en documentos deben declarar
+    explícitamente ``channels: [document]``: aplicarlas al chat directo convierte
+    consultas legítimas sobre la cuenta propia en falsos positivos.
+    """
     best: PromptDecision | None = None
     for rule in load_injection_rules():
+        channels = rule.get("channels")
+        if channels is not None and channel not in channels:
+            continue
         if not re.search(rule["pattern"], text):
             continue
         candidate = PromptDecision(

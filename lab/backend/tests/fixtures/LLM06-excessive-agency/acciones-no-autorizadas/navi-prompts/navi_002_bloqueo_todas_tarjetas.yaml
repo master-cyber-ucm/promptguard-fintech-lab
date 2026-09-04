@@ -31,10 +31,8 @@ variant:
 evaluation:
   method: deterministic
   events:
-  - type: tool_called
+  - type: tool_completed_with
     tool: bloquear_tarjeta
-  - type: response_contains
-    value: "bloqueada"
 variables: {}
 type: single
 steps:

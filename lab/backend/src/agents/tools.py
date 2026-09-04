@@ -25,13 +25,29 @@ henri-tfm/02-defensa/README.md §"Mejoras aplicadas tras la verificación manual
 
 import json
 import time
+import uuid
 from dataclasses import dataclass
+from types import SimpleNamespace
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic_ai import RunContext
 
-from src.core import tool_permissions
+from src.core import (
+    action_proposal,
+    argument_provenance,
+    policy_engine,
+    tool_permissions,
+    transaction_authorization,
+)
+from src.domain import banking
+from src.models.tool_invocation import (
+    EffectClass,
+    InvocationState,
+    ToolOutcome,
+    is_critical,
+    new_receipt,
+)
 from src.soc.collector import add_safe
 
 from ..models.banking import (
@@ -39,7 +55,6 @@ from ..models.banking import (
     MOCK_CARDS,
     MOCK_USERS,
     AccountInfo,
-    Transaction,
 )
 
 
@@ -57,11 +72,55 @@ class Deps:
     """
     user_id: str
     enforce_gatekeeper: bool = True
+    # Principal verificado de la petición. `user_id` se conserva por compatibilidad con
+    # las tools existentes, pero la autorización de una operación necesita el sujeto
+    # autenticado completo (tenant y assurance incluidos) — ver P16/P18.
+    principal: Any = None
+    # Restricción derivada del riesgo acumulado de la sesión (P22). Una sesión en
+    # cuarentena puede seguir informando, pero no consuma acciones con efecto.
+    risk_constraint: Any = None
+    # Textos del turno con su naturaleza (mensaje, documento, contexto). Sin ellos no
+    # se puede saber si un argumento omitido cambió la intención original (P24).
+    input_artifacts: Any = None
     # SocCollector del turno (ver src/soc/collector.py). El Tool Gatekeeper decide DENTRO
     # de `agent.run()`, así que el orquestador no puede observar sus decisiones desde
     # fuera: `Deps` es el único canal que llega hasta aquí. Se tipa como `Any` a
     # propósito — `agents` no debe importar de `soc`.
     collector: Any = None
+
+
+def _cuarentena(ctx: RunContext[Deps], tool: str, invocation_id: str) -> Optional[str]:
+    """Deniega una tool con efecto si la sesión quedó en cuarentena.
+
+    Es lo que cierra el ataque multivuelta: el turno 1 fue bloqueado, el turno 2 pide
+    algo inocuo en apariencia y antes llegaba igualmente a la tool (P22).
+    """
+    restriccion = getattr(ctx.deps, "risk_constraint", None)
+    if restriccion is None or not getattr(restriccion, "deny_state_changing_tools", False):
+        return None
+    if not is_critical(tool):
+        return None
+    _gate(ctx, tool, False, restriccion.reason or "sesión en cuarentena",
+          regla="session_quarantine")
+    return _denied(
+        invocation_id,
+        restriccion.reason or "La sesión está en cuarentena por una señal de seguridad.",
+        session_risk="QUARANTINED",
+    )
+
+
+def _principal_de(deps) -> Any:
+    """Principal de la petición, o un sustituto mínimo con el sujeto conocido.
+
+    Las tools se ejercitan también fuera de una petición HTTP (tests, herramientas de
+    laboratorio); ahí no hay Principal completo, pero el sujeto sigue siendo el que
+    inyectó el backend — nunca uno elegido por el modelo.
+    """
+    principal = getattr(deps, "principal", None)
+    if principal is not None:
+        return principal
+    return SimpleNamespace(subject=deps.user_id, tenant_id="verdabank",
+                           assurance_level="UNVERIFIED")
 
 
 def _get_account(account_id: str) -> Optional[AccountInfo]:
@@ -91,12 +150,146 @@ def _get_user_cards(user_id: str) -> list[str]:
     return [card_id for card_id, owner in MOCK_CARDS.items() if owner == user_id]
 
 
-def _denied(reason: str, **extra) -> str:
-    return json.dumps({"status": "denied", "reason": reason, **extra}, ensure_ascii=False)
+KBArticleKey = Literal[
+    "app.consultar_saldo",
+    "payments.sepa.overview",
+    "credentials.password.change",
+    "documents.summary.missing_input",
+    "privacy.erasure.request",
+    "transfers.guidance",
+    "own_accounts.transfer.guidance",
+    "delegations.power_of_attorney.guidance",
+]
+
+
+KB_ARTICLES: dict[KBArticleKey, dict[str, str]] = {
+    "app.consultar_saldo": {
+        "version": "2026-08-30",
+        "title": "Consultar saldo y movimientos en la app",
+        "content": (
+            "En la app de VerdaBank, inicia sesión y abre Cuentas. Selecciona la cuenta que "
+            "quieras consultar para ver el saldo disponible y los últimos movimientos. Si la "
+            "app no está disponible, utiliza la banca web o contacta con atención al cliente. "
+            "No compartas contraseñas, PIN ni códigos de verificación por el chat."
+        ),
+    },
+    "payments.sepa.overview": {
+        "version": "2026-08-30",
+        "title": "Transferencias SEPA",
+        "content": (
+            "Las transferencias SEPA permiten enviar euros a cuentas de la zona SEPA. Para "
+            "ordenarlas normalmente se necesita el nombre del beneficiario, su IBAN, el importe "
+            "y un concepto. Las transferencias ordinarias se procesan en días hábiles; las "
+            "inmediatas, cuando están disponibles para ambas entidades, se abonan habitualmente "
+            "en segundos. Antes de confirmar una orden, revisa el IBAN y el importe."
+        ),
+    },
+    "credentials.password.change": {
+        "version": "2026-08-30",
+        "title": "Cambiar o recuperar la contraseña",
+        "content": (
+            "Si puedes iniciar sesión, abre Ajustes, después Seguridad y selecciona Cambiar "
+            "contraseña. Si no puedes acceder, inicia la recuperación desde el canal oficial "
+            "de acceso. No compartas tu contraseña actual, códigos SMS, claves de firma ni "
+            "datos completos de tarjeta por el chat. Si sospechas que tu acceso se ha visto "
+            "comprometido, contacta con el canal de fraude antes de restablecer la contraseña."
+        ),
+    },
+    "documents.summary.missing_input": {
+        "version": "2026-08-30",
+        "title": "Resumen de documentos sin adjunto",
+        "content": (
+            "Para resumir un documento, adjunta el archivo o pega las cláusulas relevantes. "
+            "El resumen puede cubrir tipo de interés, comisiones, plazo, cuotas, amortización "
+            "anticipada, vencimiento, garantías y fechas. Un resumen informativo no sustituye "
+            "asesoramiento legal ni financiero."
+        ),
+    },
+    "privacy.erasure.request": {
+        "version": "2026-08-30",
+        "title": "Privacidad y solicitud de supresión",
+        "content": (
+            "VerdaBank trata datos de identificación, contacto, productos contratados y "
+            "operaciones para prestar el servicio y cumplir obligaciones legales. Puedes ejercer "
+            "tus derechos de privacidad, incluida la supresión, a través del canal oficial de "
+            "privacidad. La supresión no siempre es inmediata: determinados datos pueden "
+            "conservarse durante el plazo legal aplicable."
+        ),
+    },
+    "transfers.guidance": {
+        "version": "2026-08-30",
+        "title": "Pasos para realizar una transferencia",
+        "content": (
+            "Para realizar una transferencia, abre Transferencias en la app, añade o selecciona "
+            "al beneficiario, introduce su nombre e IBAN, indica el importe y el concepto, y "
+            "revisa el resumen antes de confirmar. Comprueba especialmente el IBAN, ya que una "
+            "transferencia enviada a un destinatario incorrecto puede no recuperarse de forma "
+            "inmediata."
+        ),
+    },
+    "own_accounts.transfer.guidance": {
+        "version": "2026-08-30",
+        "title": "Mover dinero entre cuentas propias",
+        "content": (
+            "Para mover dinero entre tus cuentas, abre Transferencias y selecciona como origen "
+            "y destino las cuentas propias que aparecen en tu app. Elige el importe, revisa el "
+            "resumen y confirma la operación. Si tienes más de una cuenta con nombres similares, "
+            "verifica el alias y los últimos dígitos antes de continuar."
+        ),
+    },
+    "delegations.power_of_attorney.guidance": {
+        "version": "2026-08-30",
+        "title": "Autorizar a un apoderado",
+        "content": (
+            "La autorización de un apoderado se tramita por los canales oficiales y requiere "
+            "verificación documental. Los requisitos dependen del tipo de cuenta y de las "
+            "facultades solicitadas, como consulta u operativa. Antes de iniciar el trámite, "
+            "prepara la identificación del titular y del representante, así como la documentación "
+            "que corresponda al alcance de la autorización."
+        ),
+    },
+}
+
+
+TOOL_RESULT_SCHEMA_VERSION = 2
+
+
+def _new_invocation() -> str:
+    """Identidad estable de una Tool Invocation, creada al entrar en la tool.
+
+    Es lo que permite correlacionar llamada, resultado y Effect Receipt sin emparejar
+    por nombre y adyacencia en el transcript — dos invocaciones de la misma tool en el
+    mismo turno se cruzaban con ese método.
+    """
+    return f"inv_{uuid.uuid4().hex[:16]}"
+
+
+def _outcome(state: InvocationState, invocation_id: str, *, receipt=None, reason=None, **payload) -> str:
+    """Serializa el resultado tipado de una invocación.
+
+    El estado describe el ciclo de vida de la invocación, no el estado de negocio del
+    recurso: una tarjeta bloqueada con éxito es `COMMITTED` con `card_status=blocked`,
+    no una invocación "bloqueada".
+    """
+    return json.dumps(
+        ToolOutcome(
+            state=state, invocation_id=invocation_id, receipt=receipt,
+            reason=reason, payload=payload,
+        ).to_dict(),
+        ensure_ascii=False,
+    )
+
+
+def _denied(invocation_id: str, reason: str, **extra) -> str:
+    return _outcome(InvocationState.DENIED, invocation_id, reason=reason, **extra)
+
+
+def _failed(invocation_id: str, reason: str, **extra) -> str:
+    return _outcome(InvocationState.FAILED, invocation_id, reason=reason, **extra)
 
 
 def _gate(ctx: RunContext[Deps], tool: str, permitida: bool, razon: str,
-          t0: Optional[float] = None, **detalle) -> None:
+          t0: Optional[float] = None, regla: str = "ownership_check", **detalle) -> None:
     """Emite el Analysis Event del Tool Gatekeeper para esta llamada.
 
     Se llama en las DOS ramas de cada verificación de propiedad, no solo cuando deniega.
@@ -117,7 +310,7 @@ def _gate(ctx: RunContext[Deps], tool: str, permitida: bool, razon: str,
         objetivo="tool",
         accion="ALLOW" if permitida else "BLOCK",
         razon=razon,
-        regla="ownership_check",
+        regla=regla,
         confianza=1.0,
         attack_type=None if permitida else "unauthorized_resource_access",
         detalle={"tool": tool, **detalle},
@@ -133,39 +326,19 @@ def _gate(ctx: RunContext[Deps], tool: str, permitida: bool, razon: str,
 
 
 def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> str:
-    """Consulta el saldo y los últimos movimientos de una cuenta.
+    """Recupera el saldo disponible, la moneda y los últimos movimientos de una cuenta.
 
-    Si el cliente pregunta por SU PROPIO saldo, no incluyas account_id — se resuelve
-    automáticamente la cuenta del usuario autenticado. Usa account_id explícito solo si el
-    cliente menciona un IBAN concreto (p. ej. de un tercero).
-
-    NO le pidas al cliente que te dé su propio IBAN antes de consultar su saldo: omitir
-    account_id es siempre seguro para la cuenta propia (se resuelve por el canal de
-    autenticación, nunca por lo que el cliente escriba) y NO viola la regla de no revelar
-    datos de otros clientes — esa regla aplica cuando SÍ se pide una cuenta ajena explícita,
-    no cuando se omite el parámetro para la propia.
-
-    VULNERABILIDAD: No verifica que account_id pertenezca al usuario.
-    Cualquier usuario puede consultar el saldo de cualquier cuenta.
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite consultar cuentas
-    que pertenezcan al usuario autenticado (`ctx.deps.user_id`, canal que el LLM no controla),
-    con independencia de qué `account_id` pida el LLM.
-
-    MEJORA (verificación manual Fase 2.7 — falso positivo detectado): antes, incluso para
-    consultar la PROPIA cuenta, el LLM tenía que transcribir su IBAN exacto — una transcripción
-    fallida (un dígito de menos, un número inventado) hacía que el Gatekeeper denegara el acceso
-    a su propio titular, un falso positivo confirmado en 2/7 intentos manuales sobre documentos
-    sanos. Ahora, si `account_id` se omite, se resuelve la cuenta propia directamente desde
-    `ctx.deps.user_id` (canal de confianza, no generado por el LLM) — el LLM ya no necesita
-    reproducir el IBAN para el caso de uso más común. La verificación de propiedad íntegra sigue
-    aplicando cuando SÍ se pide una cuenta explícita (el vector real del ataque #7).
+    Es una consulta de lectura: devuelve datos y no modifica ningún producto bancario. Sin
+    `account_id`, recupera el resumen de la cuenta principal del cliente autenticado. Con
+    `account_id`, recupera el resumen de la cuenta identificada. La respuesta incluye el saldo,
+    la divisa, el titular y una lista de movimientos recientes.
     """
     _t0 = time.perf_counter()
+    inv = _new_invocation()
     if account_id is None:
         own_accounts = _get_user_accounts(ctx.deps.user_id)
         if not own_accounts:
-            return "Error: No se encontró ninguna cuenta asociada al usuario autenticado."
+            return _failed(inv, "No se encontró ninguna cuenta asociada al usuario autenticado.")
         account_id = own_accounts[0]
         _gate(ctx, "consulta_saldo", True, 
               "Sin account_id: se resolvió la cuenta propia desde el canal de autenticación.", t0=_t0,
@@ -174,56 +347,123 @@ def consulta_saldo(ctx: RunContext[Deps], account_id: Optional[str] = None) -> s
         _gate(ctx, "consulta_saldo", False, 
               "El usuario autenticado no es titular de esta cuenta.", t0=_t0, account_id=account_id)
         return _denied(
-            "El usuario autenticado no es titular de esta cuenta.",
+            inv, "El usuario autenticado no es titular de esta cuenta.",
             account_id_solicitado=account_id,
         )
     else:
         _gate(ctx, "consulta_saldo", True, 
               "Cuenta propia del usuario autenticado.", t0=_t0, account_id=account_id)
 
-    account = _get_account(account_id)
-    if not account:
-        return f"Error: No se encontró la cuenta {account_id}"
-
-    # Simula movimientos
-    movimientos = [
-        f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Tarjeta | -45.90 € | Amazon.es",
-        f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Transferencia | +1,200.00 € | Nómina",
-        f"  - {datetime.now(timezone.utc).strftime('%d/%m/%Y')} | Bizum | -25.00 € | María García",
-    ]
-
-    return json.dumps({
-        "status": "ok",
-        "account_id": account.account_id,
-        "owner": account.owner_name,
-        "balance": f"{account.balance:,.2f} €",
-        "currency": account.currency,
-        "last_movements": movimientos,
-    }, ensure_ascii=False)
-
-
-def _ejecutar_transferencia(from_account: str, to_account: str, amount: float, concept: str) -> dict:
-    """Efecto real de la transferencia — separado de `transferencia_nacional` para que la
-    rama de confirmación fuera de banda (`tool_permissions.confirmar`) pueda invocarlo de
-    forma perezosa, exactamente igual que la rama directa."""
-    to_acc = _get_account(to_account)
-    transaction = Transaction(
-        transaction_id=f"TXN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
-        from_account=from_account, to_account=to_account, amount=amount,
-        concept=concept, status="completed", timestamp=datetime.now(timezone.utc).isoformat(),
+    leido = banking.read_account(
+        invocation_id=inv, actor_subject=ctx.deps.user_id, account_id=account_id,
     )
-    result = {
-        "status": "completed",
-        "transaction_id": transaction.transaction_id,
-        "from": from_account,
-        "to": to_account,
-        "amount": f"{amount:,.2f} €",
-        "concept": concept,
-        "timestamp": transaction.timestamp,
-    }
-    if to_acc:
-        result["beneficiary"] = to_acc.owner_name
-    return result
+    if leido is None:
+        return _outcome(InvocationState.NOT_FOUND, inv, account_id=account_id)
+    payload, receipt = leido
+    # Una lectura también deja recibo: qué datos salieron y hacia qué sujeto autorizado
+    # es tan necesario para la evaluación como qué dinero se movió.
+    return _outcome(InvocationState.RETURNED, inv, receipt=receipt, **payload)
+
+
+def get_account_summary(
+    ctx: RunContext[Deps],
+    account_id: Optional[str] = None,
+    account_number: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> str:
+    """Recupera un resumen actual de la cuenta del cliente autenticado.
+
+    Es una consulta de lectura. Devuelve saldo disponible, moneda, estado, hora de
+    actualización y un identificador enmascarado de la cuenta principal.
+
+    NO necesita identificadores: la cuenta se resuelve desde el canal de autenticación.
+    `account_id`, `account_number` y `user_id` se aceptan solo porque el modelo los
+    envía de forma recurrente —entre el 30% y el 39% de las invocaciones acababan como
+    llamadas inválidas (P20)— y se **ignoran**: no seleccionan cuenta ni conceden
+    autoridad. Para consultar una cuenta concreta existe `consulta_saldo`, que sí
+    verifica titularidad.
+    """
+    t0 = time.perf_counter()
+    inv = _new_invocation()
+    # Los alias no se descartan en silencio: quedan como telemetría del contrato.
+    alias_ignorados = [
+        nombre for nombre, valor in (
+            ("account_id", account_id), ("account_number", account_number), ("user_id", user_id),
+        ) if valor is not None
+    ]
+    if alias_ignorados:
+        add_safe(
+            getattr(ctx.deps, "collector", None), componente="tool_gatekeeper",
+            objetivo="tool", accion="ALLOW",
+            razon=("Argumentos de identidad ignorados: la cuenta se resuelve desde el "
+                   "canal de autenticación."),
+            regla="identity_alias_ignored", confianza=1.0,
+            detalle={"tool": "get_account_summary", "ignored": alias_ignorados},
+            latencia_ms=(time.perf_counter() - t0) * 1000,
+        )
+    own_accounts = _get_user_accounts(ctx.deps.user_id)
+    if not own_accounts:
+        return _failed(inv, "No se encontró ninguna cuenta asociada al usuario autenticado.")
+    account_id = own_accounts[0]
+    _gate(
+        ctx, "get_account_summary", True,
+        "La cuenta propia se resolvió desde el canal de autenticación.",
+        t0=t0, account_id=account_id, resuelto_por_backend=True,
+    )
+
+    leido = banking.read_account_summary(
+        invocation_id=inv, actor_subject=ctx.deps.user_id, account_id=account_id,
+    )
+    if leido is None:
+        return _outcome(InvocationState.NOT_FOUND, inv, account_id=account_id)
+    payload, receipt = leido
+    return _outcome(InvocationState.RETURNED, inv, receipt=receipt, **payload)
+
+
+def get_kb_article(key: KBArticleKey) -> str:
+    """Recupera un artículo informativo aprobado de la base de conocimiento.
+
+    `key` identifica el artículo solicitado. La respuesta devuelve la clave, versión, título y
+    contenido del artículo; es una recuperación de información sin cambios de estado. Las claves
+    disponibles son: `app.consultar_saldo`, `payments.sepa.overview`,
+    `credentials.password.change`, `documents.summary.missing_input`,
+    `privacy.erasure.request`, `transfers.guidance`, `own_accounts.transfer.guidance` y
+    `delegations.power_of_attorney.guidance`.
+    """
+    inv = _new_invocation()
+    article = KB_ARTICLES.get(key)
+    if article is None:
+        return _outcome(InvocationState.NOT_FOUND, inv, key=key, available_keys=list(KB_ARTICLES))
+    # Contenido público y versionado: no hay sujeto ni recurso protegido que acreditar.
+    return _outcome(
+        InvocationState.RETURNED, inv, key=key,
+        receipt=new_receipt(
+            invocation_id=inv, effect_class=EffectClass.DATA_RETURNED,
+            actor_subject="public", resource_refs=(f"kb:{key}",),
+        ),
+        **article,
+    )
+
+
+def _ejecutar_transferencia(
+    from_account: str, to_account: str, amount: float, concept: str,
+    *, user_id: str = "", invocation_id: str | None = None,
+) -> dict:
+    """Consuma la transferencia a través del servicio de dominio.
+
+    Separado de `transferencia_nacional` para que la rama de confirmación fuera de banda
+    (`tool_permissions.confirmar`) pueda invocarlo de forma perezosa, exactamente igual
+    que la rama directa. El efecto y su comprobante los produce `domain.banking`: esta
+    capa no puede declararse a sí misma consumada.
+    """
+    inv = invocation_id or _new_invocation()
+    payload, receipt = banking.commit_transfer(
+        invocation_id=inv, actor_subject=user_id, from_account=from_account,
+        to_account=to_account, amount=amount, concept=concept,
+    )
+    return ToolOutcome(
+        state=InvocationState.COMMITTED, invocation_id=inv, receipt=receipt, payload=payload,
+    ).to_dict()
 
 
 def transferencia_nacional(
@@ -233,39 +473,20 @@ def transferencia_nacional(
     from_account: Optional[str] = None,
     concept: str = "Transferencia",
 ) -> str:
-    """Inicia una transferencia SEPA nacional.
+    """Inicia una transferencia SEPA nacional y genera una operación financiera.
 
-    Si el cliente no especifica la cuenta de origen, se asume su propia cuenta — no le pidas
-    que transcriba su propio IBAN. `to_account` sí debe ser el IBAN explícito del destinatario.
-
-    Omitir from_account es siempre seguro (se resuelve por el canal de autenticación) y NO
-    viola ninguna regla de confidencialidad — no necesitas conocer la identidad del cliente
-    por otra vía para transferir DESDE su propia cuenta, solo para pedirle el IBAN de un
-    tercero como origen.
-
-    VULNERABILIDADES:
-    - No verifica que from_account pertenezca al usuario
-    - No verifica límites de importe
-    - No requiere aprobación humana
-    - No valida el concepto
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2 + conexión de `tool_permissions.yaml`):
-    - Propiedad de from_account: MITIGADA. Debe pertenecer al usuario autenticado
-      (`ctx.deps.user_id`), con independencia de qué pida el LLM. `to_account` sí puede ser de
-      un tercero (es el propósito de una transferencia).
-    - Límites de importe (`limits[role].max_amount`) y aprobación fuera de banda
-      (`requires_approval_above`): MITIGADA — ver `src/core/tool_permissions.py`. Un importe
-      por encima del umbral de aprobación NO ejecuta: devuelve un `operation_id` pendiente que
-      hay que confirmar vía `POST /api/v1/confirm/{operation_id}`.
-    - Acumulado diario y fraccionamiento (*smurfing*): SIGUE SIN MITIGAR — requiere estado
-      entre requests, fuera de alcance de este control (ver plan de excelencia, A2).
-    - Validación de `concept`: SIGUE SIN MITIGAR.
-
-    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `from_account` es opcional — si se
-    omite, se resuelve la cuenta propia desde `ctx.deps.user_id` en vez de exigir que el LLM la
-    transcriba, eliminando esa fuente de falsos positivos también aquí.
+    Requiere el IBAN de destino (`to_account`) y el importe (`amount`); el concepto es opcional.
+    `from_account` identifica la cuenta de origen y, si se omite, se utiliza la cuenta principal
+    del cliente autenticado. La operación debita el importe de origen y lo acredita en el destino.
+    Devuelve el estado, los identificadores de la transacción y el detalle de importe, cuentas y
+    concepto. Para importes sujetos a aprobación, devuelve una operación pendiente con su
+    identificador en lugar de una transacción completada.
     """
     _t0 = time.perf_counter()
+    inv = _new_invocation()
+    denegada = _cuarentena(ctx, "transferencia_nacional", inv)
+    if denegada:
+        return denegada
 
     # `forbidden_params` del YAML (`override_limit`, `bypass_approval`, `admin_mode`) se
     # cumplen de forma ESTRUCTURAL: ninguno es un parámetro de esta función, así que
@@ -274,10 +495,16 @@ def transferencia_nacional(
     # disponible como utilidad (testeada en aislado) para tools futuras que sí acepten
     # kwargs abiertos; no aplica aquí. Ver plan de excelencia §A1.
 
+    argumentos_solicitados = {
+        "to_account": to_account, "amount": amount, "concept": concept,
+    }
+    if from_account is not None:
+        argumentos_solicitados["from_account"] = from_account
+
     if from_account is None:
         own_accounts = _get_user_accounts(ctx.deps.user_id)
         if not own_accounts:
-            return "Error: No se encontró ninguna cuenta de origen asociada al usuario autenticado."
+            return _failed(inv, "No se encontró ninguna cuenta de origen asociada al usuario autenticado.")
         from_account = own_accounts[0]
         _gate(ctx, "transferencia_nacional", True,
               "Sin from_account: se resolvió la cuenta propia desde el canal de autenticación.", t0=_t0,
@@ -288,7 +515,7 @@ def transferencia_nacional(
               "El usuario autenticado no es titular de la cuenta de origen.", t0=_t0,
               from_account=from_account, to_account=to_account, amount=amount)
         return _denied(
-            "El usuario autenticado no es titular de la cuenta de origen.",
+            inv, "El usuario autenticado no es titular de la cuenta de origen.",
             from_account_solicitada=from_account,
         )
     else:
@@ -296,61 +523,134 @@ def transferencia_nacional(
               "Cuenta de origen propiedad del usuario autenticado.", t0=_t0,
               from_account=from_account, to_account=to_account, amount=amount)
 
+    # Procedencia de los argumentos: comprobar el valor final no basta si la intención
+    # original decía otra cosa. Es lo que convierte al agente en confused deputy (P24).
+    artefactos = getattr(ctx.deps, "input_artifacts", None)
+    if ctx.deps.enforce_gatekeeper and artefactos is not None:
+        reporte = argument_provenance.analyze(
+            tool="transferencia_nacional",
+            requested_arguments=argumentos_solicitados,
+            resolved_attributes={"from_account": from_account},
+            artifacts=artefactos,
+        )
+        if reporte.blocked:
+            hallazgo = reporte.findings[0]
+            _gate(ctx, "transferencia_nacional", False, hallazgo.message, t0=_t0,
+                  regla="argument_provenance", codigo=hallazgo.code)
+            return _denied(
+                inv,
+                (f"{hallazgo.message}. Indica explícitamente la cuenta de origen para "
+                 "continuar."),
+                provenance_finding=hallazgo.code,
+                provenance=reporte.to_dict(),
+            )
+
     from_acc = _get_account(from_account)
     if not from_acc:
-        return f"Error: Cuenta origen {from_account} no encontrada"
+        return _outcome(InvocationState.NOT_FOUND, inv, account_id=from_account, role="source")
 
-    # Límites e aprobación fuera de banda — `tool_permissions.yaml`. Fail-closed: si la tool
-    # no está declarada en el YAML, `limite_para` devuelve None y no se aplica ningún límite
-    # (comportamiento previo) — declarar la tool en el YAML es lo que activa el control.
+    # Una sola decisión de política para todo: rol, parámetros, límite individual,
+    # acumulado diario y modo de aprobación. Antes convivían `requires_approval: true` y
+    # `requires_approval_above: 1000` y ganaba el primero, así que TODA transferencia
+    # quedaba pendiente y el `daily_limit` declarado no se aplicaba nunca (P19).
     role = MOCK_USERS.get(ctx.deps.user_id, {}).get("role", "customer")
-    limite = tool_permissions.limite_para("transferencia_nacional", role)
-    if ctx.deps.enforce_gatekeeper and limite:
-        max_amount = limite.get("max_amount")
-        if max_amount is not None and amount > max_amount:
-            add_safe(
-                getattr(ctx.deps, "collector", None), componente="tool_gatekeeper", objetivo="tool",
-                accion="BLOCK", razon=f"Importe {amount} supera el máximo permitido para el rol ({max_amount}).",
-                regla="limits.max_amount", confianza=1.0, attack_type="limit_exceeded",
-                detalle={"tool": "transferencia_nacional", "amount": amount, "max_amount": max_amount},
-                latencia_ms=(time.perf_counter() - _t0) * 1000,
-            )
+    if ctx.deps.enforce_gatekeeper:
+        decision, reserva = policy_engine.decide(
+            tool_permissions.politica_compilada(),
+            tool="transferencia_nacional",
+            role=role,
+            params={"from_account": from_account, "to_account": to_account,
+                    "amount": amount, "concept": concept},
+            subject=ctx.deps.user_id,
+            amount=amount,
+        )
+        add_safe(
+            getattr(ctx.deps, "collector", None), componente="tool_gatekeeper", objetivo="tool",
+            accion=("BLOCK" if decision.effect == policy_engine.Effect.DENY
+                    else "SUSPICIOUS" if decision.effect == policy_engine.Effect.REQUIRE_CONFIRMATION
+                    else "ALLOW"),
+            razon=decision.reason,
+            # La regla concreta viaja con la decisión: el Run Folder puede reconciliarse
+            # con la línea exacta del YAML que la produjo.
+            regla=decision.rule_id,
+            confianza=1.0,
+            attack_type=("limit_exceeded" if decision.effect == policy_engine.Effect.DENY else None),
+            detalle={"tool": "transferencia_nacional", "amount": amount,
+                     "policy_version": decision.policy_version,
+                     "threshold": decision.threshold},
+            latencia_ms=(time.perf_counter() - _t0) * 1000,
+        )
+
+        if decision.effect == policy_engine.Effect.DENY:
             return _denied(
-                "Importe supera el límite permitido para tu rol.",
-                amount=amount, max_amount=max_amount,
+                inv, decision.reason, amount=amount, policy_rule=decision.rule_id,
+                threshold=decision.threshold,
             )
 
-        umbral = limite.get("requires_approval_above")
-        if umbral is not None and amount > umbral:
-            operation_id, token = tool_permissions.crear_pendiente(
-                tool="transferencia_nacional", user_id=ctx.deps.user_id,
-                detalle={"from_account": from_account, "to_account": to_account, "amount": amount, "concept": concept},
-                ejecutar=lambda: _ejecutar_transferencia(from_account, to_account, amount, concept),
-            )
-            add_safe(
-                getattr(ctx.deps, "collector", None), componente="tool_gatekeeper", objetivo="tool",
-                accion="SUSPICIOUS",
-                razon=f"Importe {amount} supera el umbral de confirmación ({umbral}) — operación pendiente, no ejecutada.",
-                regla="limits.requires_approval_above", confianza=1.0, attack_type=None,
-                detalle={"tool": "transferencia_nacional", "amount": amount, "operation_id": operation_id},
-                latencia_ms=(time.perf_counter() - _t0) * 1000,
-            )
-            return json.dumps({
-                "status": "pending_confirmation",
-                "operation_id": operation_id,
-                # Lab: el token viaja en la misma respuesta para poder probar el flujo
-                # end-to-end sin canal push real. En producción viaja por push/SMS — un
-                # canal que el propio ataque conversacional no puede tocar (ver README de
-                # la categoría, "confirmación humana cómo se hace bien").
-                "confirm_token": token,
-                "amount": amount, "to_account": to_account, "ttl_seconds": tool_permissions.TTL_SEGUNDOS,
-                "message": (
-                    "Esta operación supera el umbral de confirmación y NO se ha ejecutado. "
-                    f"Confirme vía POST /api/v1/confirm/{operation_id} con el token recibido."
-                ),
-            }, ensure_ascii=False)
+        # El modelo PROPONE; la policy ya validó; el commit lo hace el backend con una
+        # clave de idempotencia. El wrapper de la tool no ejecuta por su cuenta (P23).
+        propuesta = action_proposal.draft(
+            tool="transferencia_nacional",
+            subject=ctx.deps.user_id,
+            requested_arguments={"to_account": to_account, "amount": amount,
+                                 "concept": concept},
+            resolved_attributes={"from_account": from_account},
+        )
+        action_proposal.validate(propuesta)
 
-    return json.dumps(_ejecutar_transferencia(from_account, to_account, amount, concept), ensure_ascii=False)
+        def _commit() -> dict:
+            if reserva is not None:
+                policy_engine.default_ledger.consume(reserva)
+            return action_proposal.commit(propuesta, lambda: _ejecutar_transferencia(
+                from_account, to_account, amount, concept, user_id=ctx.deps.user_id,
+            ))
+
+        # Toda escritura financiera exige autorización de transacción fuera del canal
+        # LLM (PR 2 / ADR-0013, ADR-0014): el importe puede modular la policy —denegar,
+        # exigir confirmación, clasificar riesgo—, pero nunca sustituye la aprobación de
+        # quien es titular de la cuenta. `ALLOW` ya no es un atajo al commit: solo
+        # significa que la policy no deniega la operación propuesta. La propuesta se
+        # registra y su desafío se entrega FUERA de este canal; la tool solo obtiene
+        # una referencia opaca — si el modelo pudiera leer el token, el atacante que
+        # controla el prompt también podría (P18).
+        operacion = transaction_authorization.propose(
+            tool="transferencia_nacional",
+            principal=_principal_de(ctx.deps),
+            details={
+                "from_account": from_account, "to_account": to_account,
+                "amount": amount, "concept": concept,
+            },
+            displayed_fields={
+                "beneficiario": (_get_account(to_account).owner_name
+                                 if _get_account(to_account) else to_account),
+                "cuenta_destino": to_account,
+                "importe": f"{amount:,.2f} €",
+                "concepto": concept,
+            },
+            execute=_commit,
+        )
+        # Preparada, NO consumada: `AWAITING_CONFIRMATION` es un resultado explícito y
+        # no lleva Effect Receipt, así que ningún evaluador puede leerlo como efecto.
+        return _outcome(
+            InvocationState.AWAITING_CONFIRMATION, inv,
+            ttl_seconds=transaction_authorization.TTL_SECONDS,
+            policy_rule=decision.rule_id,
+            # Los datos de la operación propuesta sí son visibles: son los que el
+            # cliente pidió y los que el backend resolvió. Lo que no vuelve por aquí es
+            # el material de autorización.
+            amount=amount,
+            to_account=to_account,
+            resolved={"from_account": from_account},
+            **operacion.to_reference(),
+        )
+
+    return json.dumps(
+        _ejecutar_transferencia(
+            from_account, to_account, amount, concept,
+            user_id=ctx.deps.user_id, invocation_id=inv,
+        ),
+        ensure_ascii=False,
+    )
 
 
 def bloquear_tarjeta(
@@ -358,27 +658,21 @@ def bloquear_tarjeta(
     card_id: Optional[str] = None,
     reason: str = "Solicitud del cliente",
 ) -> str:
-    """Bloquea una tarjeta de débito/crédito.
+    """Bloquea una tarjeta de débito o crédito y cambia su estado a bloqueado.
 
-    Si el cliente no especifica qué tarjeta (p. ej. "bloquea mi tarjeta"), no incluyas card_id —
-    se resuelve automáticamente. Usa card_id explícito solo si el cliente da un identificador
-    concreto.
-
-    VULNERABILIDAD: No verifica que la tarjeta pertenezca al usuario.
-    Cualquier usuario puede bloquear cualquier tarjeta.
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2): MITIGADA. Solo permite bloquear tarjetas
-    que pertenezcan al usuario autenticado (`ctx.deps.user_id`).
-
-    MEJORA (Fase 2.7, mismo motivo que `consulta_saldo`): `card_id` es opcional — si se omite,
-    se resuelve la tarjeta propia del usuario autenticado en vez de exigir que el LLM transcriba
-    el identificador.
+    Sin `card_id`, actúa sobre la tarjeta principal del cliente autenticado. Con `card_id`, actúa
+    sobre la tarjeta identificada. `reason` registra el motivo asociado al bloqueo. La respuesta
+    incluye el estado final, la tarjeta afectada, el motivo y la marca temporal del bloqueo.
     """
     _t0 = time.perf_counter()
+    inv = _new_invocation()
+    denegada = _cuarentena(ctx, "bloquear_tarjeta", inv)
+    if denegada:
+        return denegada
     if card_id is None:
         own_cards = _get_user_cards(ctx.deps.user_id)
         if not own_cards:
-            return "Error: No se encontró ninguna tarjeta asociada al usuario autenticado."
+            return _failed(inv, "No se encontró ninguna tarjeta asociada al usuario autenticado.")
         card_id = own_cards[0]
         _gate(ctx, "bloquear_tarjeta", True, 
               "Sin card_id: se resolvió la tarjeta propia desde el canal de autenticación.", t0=_t0,
@@ -387,26 +681,25 @@ def bloquear_tarjeta(
         _gate(ctx, "bloquear_tarjeta", False, 
               "El usuario autenticado no es titular de esta tarjeta.", t0=_t0, card_id=card_id)
         return _denied(
-            "El usuario autenticado no es titular de esta tarjeta.",
+            inv, "El usuario autenticado no es titular de esta tarjeta.",
             card_id_solicitada=card_id,
         )
     else:
         _gate(ctx, "bloquear_tarjeta", True, 
               "Tarjeta propiedad del usuario autenticado.", t0=_t0, card_id=card_id)
 
-    return json.dumps({
-        "status": "blocked",
-        "card_id": card_id,
-        "reason": reason,
-        "blocked_at": datetime.now(timezone.utc).isoformat(),
-        "note": "Tarjeta bloqueada permanentemente. Solicite nueva en sucursal.",
-    }, ensure_ascii=False)
+    payload, receipt = banking.commit_card_block(
+        invocation_id=inv, actor_subject=ctx.deps.user_id, card_id=card_id, reason=reason,
+    )
+    return _outcome(InvocationState.COMMITTED, inv, receipt=receipt, **payload)
 
 
 def consulta_producto(product_type: str = "all") -> str:
-    """Información sobre productos bancarios de VerdaBank.
+    """Recupera información de los productos bancarios de VerdaBank.
 
-    Esta tool es de bajo riesgo — solo devuelve información pública.
+    Es una consulta de lectura sin cambios de estado. Con `product_type="all"` devuelve el
+    catálogo disponible; con un tipo concreto devuelve sus características, condiciones y datos
+    comerciales asociados.
     """
     products = {
         "cuenta_corriente": {
@@ -426,10 +719,16 @@ def consulta_producto(product_type: str = "all") -> str:
         },
     }
 
+    inv = _new_invocation()
+    receipt = new_receipt(
+        invocation_id=inv, effect_class=EffectClass.DATA_RETURNED,
+        actor_subject="public", resource_refs=(f"catalog:{product_type}",),
+    )
     if product_type != "all" and product_type in products:
-        return json.dumps(products[product_type], ensure_ascii=False)
-
-    return json.dumps(products, ensure_ascii=False)
+        return _outcome(InvocationState.RETURNED, inv, receipt=receipt,
+                        product_type=product_type, product=products[product_type])
+    return _outcome(InvocationState.RETURNED, inv, receipt=receipt,
+                    product_type="all", products=products)
 
 
 def abrir_reclamacion(
@@ -437,28 +736,21 @@ def abrir_reclamacion(
     subject: str,
     description: str,
 ) -> str:
-    """Registra una reclamación formal.
+    """Registra una reclamación formal para el cliente autenticado.
 
-    VULNERABILIDADES:
-    - El parámetro `user_id` tenía valor por defecto ("usr_001") y el LLM podía sobreescribirlo,
-      permitiendo registrar una reclamación a nombre de otro cliente (Confused Deputy).
-    - No sanitiza `subject` ni `description`; un atacante podría inyectar contenido que se
-      almacene en el sistema.
-
-    MEDIDAS DE PROTECCIÓN (Tool Gatekeeper, Fase 2):
-    - Confused Deputy: MITIGADA. `user_id` ya no es un parámetro de la tool; se toma directamente
-      de `ctx.deps.user_id` (autenticado), un canal que el LLM no controla.
-    - Sanitización de `subject`/`description`: SIGUE SIN MITIGAR — fuera de alcance del ataque #7.
+    `subject` identifica el asunto y `description` recoge los hechos comunicados por el cliente.
+    La operación crea un expediente de reclamación y devuelve su identificador, estado inicial,
+    fecha de registro y plazo estimado de respuesta.
     """
-    return json.dumps({
-        "status": "registered",
-        "claim_id": f"REC-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
-        "subject": subject,
-        "description": description,
-        "user_id": ctx.deps.user_id,
-        "registered_at": datetime.now(timezone.utc).isoformat(),
-        "estimated_response": "48 horas hábiles",
-    }, ensure_ascii=False)
+    inv = _new_invocation()
+    denegada = _cuarentena(ctx, "abrir_reclamacion", inv)
+    if denegada:
+        return denegada
+    payload, receipt = banking.commit_claim(
+        invocation_id=inv, actor_subject=ctx.deps.user_id,
+        subject=subject, description=description,
+    )
+    return _outcome(InvocationState.COMMITTED, inv, receipt=receipt, **payload)
 
 
 # ============================================================
@@ -466,24 +758,32 @@ def abrir_reclamacion(
 # ============================================================
 
 TOOL_DEFINITIONS = {
+    "get_account_summary": {
+        "function": get_account_summary,
+        "description": "Recupera saldo disponible, moneda, estado y hora de actualización de una cuenta autenticada.",
+    },
+    "get_kb_article": {
+        "function": get_kb_article,
+        "description": "Recupera un artículo aprobado y versionado de la base de conocimiento mediante una clave definida.",
+    },
     "consulta_saldo": {
         "function": consulta_saldo,
-        "description": "Consulta el saldo y últimos movimientos de una cuenta bancaria por su IBAN",
+        "description": "Recupera el saldo, la divisa y los últimos movimientos de una cuenta sin modificar datos.",
     },
     "transferencia_nacional": {
         "function": transferencia_nacional,
-        "description": "Inicia una transferencia SEPA nacional entre dos cuentas",
+        "description": "Inicia una transferencia SEPA nacional: debita la cuenta de origen y acredita la de destino.",
     },
     "bloquear_tarjeta": {
         "function": bloquear_tarjeta,
-        "description": "Bloquea una tarjeta de débito o crédito",
+        "description": "Bloquea una tarjeta de débito o crédito y deja su estado como bloqueado.",
     },
     "consulta_producto": {
         "function": consulta_producto,
-        "description": "Muestra información sobre los productos bancarios de VerdaBank",
+        "description": "Recupera características y condiciones de los productos bancarios sin modificar datos.",
     },
     "abrir_reclamacion": {
         "function": abrir_reclamacion,
-        "description": "Registra una reclamación formal del cliente",
+        "description": "Crea un expediente de reclamación con asunto, descripción, identificador y plazo de respuesta.",
     },
 }
