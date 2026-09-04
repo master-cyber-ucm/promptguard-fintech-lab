@@ -109,9 +109,10 @@ Verificado contra tráfico real:
 Cada turno guarda su `postura`, así que el vacío se explica solo: *"modo vulnerable — 0
 componentes activos"*, nunca un fallo de captura ambiguo.
 
-Con el Input Sanitizer todavía en esqueleto, el SOC muestra
-`input_sanitizer · ALLOW · "esqueleto no-op"` en todo prompt de texto plano. Es correcto:
-hace visible el hueco en vez de fingirlo.
+El Input Sanitizer registra todas sus decisiones, incluidas `ALLOW`. Aplica firmas
+de inyección tras normalizar Unicode, decodificar Base64 y considerar una ventana
+acotada de la sesión. Es una capa de reducción de riesgo basada en patrones, no una
+garantía frente a cualquier paráfrasis o técnica nueva.
 
 ## Base de conocimiento
 

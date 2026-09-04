@@ -16,14 +16,17 @@ window.SOC = window.SOC || {};
   // ======================================================================
 
   V.postura = {
+    endpoint: '',
     titulo: 'Postura',
-    subtitulo: 'Qué componentes están vigilando qué, y qué vectores siguen descubiertos. ' +
-               'Actividad del sistema — no evalúa si el proxy acertó: eso es el Analyze Pass.',
+    subtitulo: 'Qué componentes han bloqueado cada vector y qué turnos siguieron adelante. ' +
+               'Actividad observada — no evalúa si el proxy acertó: eso es el Analyze Pass.',
     render: function (el) {
       el.innerHTML = '<div class="stack">' + esqueleto() + '</div>';
-      return api.overview().then(function (d) {
+      return api.overview(self.endpoint).then(function (d) {
         var t = d.totales;
         var partes = [];
+
+        partes.push(filtroEndpointPostura(self.endpoint));
 
         if (!t.turnos) {
           partes.push(vacioGlobal());
@@ -39,8 +42,8 @@ window.SOC = window.SOC || {};
 
         partes.push(
           '<section class="panel"><div class="panel-head">' +
-          '<h2>Mapa de cobertura</h2>' +
-          '<span class="hint">Qué componente defiende cada vector y si esa defensa existe de verdad</span>' +
+          '<h2>Bloqueos por vector</h2>' +
+          '<span class="hint">Turnos observados y componente que los bloqueó; no mide eficacia ni atribuye causalidad exclusiva</span>' +
           '</div><div class="panel-body">' + cobertura(d.cobertura) + '</div></section>'
         );
 
@@ -53,9 +56,33 @@ window.SOC = window.SOC || {};
         }
 
         el.innerHTML = '<div class="stack">' + partes.join('') + '</div>';
+        var selector = el.querySelector('#postura-endpoint');
+        selector.addEventListener('change', function () {
+          self.endpoint = selector.value;
+          window.SOC.app.rerender();
+        });
       });
     }
   };
+
+  function filtroEndpointPostura(seleccionado) {
+    var endpoints = {
+      'simple-prompt': 'Prompt simple',
+      'complex-prompt': 'Prompt avanzado',
+      'complex-with-context': 'Con contexto',
+      'proxy': 'Proxy protegido',
+      'complex-with-document': 'Documento adjunto'
+    };
+    var opciones = '<option value="">Todos los endpoints</option>' +
+      Object.keys(endpoints).map(function (endpoint) {
+        return '<option value="' + esc(endpoint) + '"' +
+          (seleccionado === endpoint ? ' selected' : '') + '>' + esc(endpoints[endpoint]) + '</option>';
+      }).join('');
+    return '<section class="panel"><div class="filters">' +
+      '<label for="postura-endpoint">Endpoint</label>' +
+      '<select id="postura-endpoint">' + opciones + '</select>' +
+      '</div></section>';
+  }
 
   function vacioGlobal() {
     return '<section class="panel"><div class="panel-body">' + ui.vacio(
@@ -96,61 +123,28 @@ window.SOC = window.SOC || {};
   }
 
   function cobertura(filas) {
-    var descubiertos = (filas || []).filter(function (f) { return !f.implementada; }).length;
-    var aviso = descubiertos
-      ? ui.banner('warn', '<span><strong>' + descubiertos + '</strong> subcategorías sin defensa implementada. ' +
-          'El panel las muestra tal cual: no hay componente que las evalúe.</span>')
-      : '';
-
-    return aviso + '<div class="coverage-wrap">' +
+    var componentes = ui.COMPONENTES;
+    return '<div class="coverage-wrap">' +
       '<table class="coverage"><thead><tr>' +
-        '<th>Vector</th><th>Componente que defiende</th><th>Estado</th>' +
-        '<th style="text-align:right">Turnos</th><th>Quién bloqueó</th>' +
+        '<th>Vector</th><th style="text-align:right">Turnos</th>' +
+        componentes.map(function (c) { return '<th style="text-align:right">' + esc(c) + '</th>'; }).join('') +
+        '<th style="text-align:right">No bloqueado</th>' +
       '</tr></thead><tbody>' +
       (filas || []).map(function (f) {
-        var clase = !f.documentada ? 'is-undocumented' : (!f.implementada ? 'is-uncovered' : '');
-        var estado = !f.implementada
-          ? '<span class="tag block">SIN DEFENSA</span>'
-          : '<span class="tag allow">ACTIVA</span>';
         var docs = f.documentada
           ? '<a href="#/conocimiento?cat=' + encodeURIComponent(f.categoria) +
             '&sub=' + encodeURIComponent(f.subcategoria) + '">documentación</a>'
           : '<span class="mono" style="font-size:11px">sin documentación</span>';
-        return '<tr class="' + clase + '">' +
+        var bloqueos = f.bloqueos_por_componente || {};
+        return '<tr>' +
           '<td class="vector">' + esc(ui.vector(f.categoria)) +
             '<span class="sub">' + esc(f.subcategoria) + ' · ' + docs + '</span></td>' +
-          '<td class="mono" style="font-size:12px">' + esc(f.componente || '—') + '</td>' +
-          '<td>' + estado + '</td>' +
           '<td class="num">' + f.turnos + '</td>' +
-          '<td>' + quienBloqueo(f) + '</td>' +
+          componentes.map(function (c) { return '<td class="num">' + (bloqueos[c] || 0) + '</td>'; }).join('') +
+          '<td class="num">' + f.no_bloqueados + '</td>' +
         '</tr>';
       }).join('') +
       '</tbody></table></div>';
-  }
-
-  /**
-   * Qué componente bloqueó de verdad en este vector.
-   *
-   * Un vector "sin defensa" con bloqueos parecía una contradicción del panel; en
-   * realidad significa que lo cazó OTRA capa. Decirlo convierte una lectura confusa en
-   * el argumento de la defensa en profundidad: el vector está descubierto en su punto
-   * de entrada, y aun así algo lo detuvo más abajo.
-   */
-  function quienBloqueo(f) {
-    var porComp = f.bloqueos_por_componente || {};
-    var nombres = Object.keys(porComp);
-    if (!nombres.length) {
-      return '<span class="mono" style="font-size:11px;color:var(--ink-3)">sin bloqueos</span>';
-    }
-    nombres.sort(function (a, b) { return porComp[b] - porComp[a]; });
-    return nombres.map(function (n) {
-      var propio = n === f.componente;
-      return '<span class="mono" style="font-size:11px;display:block' +
-        (propio ? '' : ';color:var(--ink-3)') + '">' +
-        esc(n) + ' <b>' + porComp[n] + '</b>' +
-        (propio ? '' : ' <span title="otra capa, no la asignada a este vector">·otra capa</span>') +
-        '</span>';
-    }).join('');
   }
 
   // ======================================================================
