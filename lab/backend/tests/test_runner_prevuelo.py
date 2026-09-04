@@ -176,3 +176,9 @@ def test_el_run_folder_impreso_es_reutilizable(corrida, app_layout):
     assert lineas
     impresa = lineas[-1].split(":", 1)[1].strip()
     assert (app_layout / impresa).resolve() == run.resolve()
+
+
+def test_el_runner_exige_excepcion_explicita_para_arbol_sucio():
+    runner = (LAB / "scripts" / "run_attack_suite.py").read_text(encoding="utf-8")
+    assert '"--allow-dirty"' in runner
+    assert "no agregable" in runner

@@ -689,6 +689,14 @@ async def main():
         ),
     )
     parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help=(
+            "Permite ejecutar con cambios locales sin commit. El run queda marcado "
+            "como no agregable; usar solo para experimentos de laboratorio."
+        ),
+    )
+    parser.add_argument(
         "--seed", type=int, default=int(os.environ.get("SUITE_SEED", "20260831")),
         metavar="N",
         help=(
@@ -859,6 +867,11 @@ async def main():
     manifiesto_procedencia = provenance.build(
         model_info, seed=args.seed, repeat=args.repeat, judge_bundle=judge_bundle(),
     )
+    if manifiesto_procedencia["git"]["dirty"] is True and not args.allow_dirty:
+        parser.error(
+            "árbol de trabajo sucio: crea un commit antes de ejecutar la suite "
+            "o usa --allow-dirty para un experimento no agregable"
+        )
     procedencia_path = run_folder / "provenance.json"
     if not (args.resume_run and procedencia_path.is_file()):
         procedencia_path.write_text(
