@@ -206,8 +206,17 @@ cerrada: la Fase 3 (comparativa de modelos) depende de que la Fase 1 exista, y l
 - [ ] Kill chain dibujada completa — hoy parcial, 5 de 7 vectores (§4)
 - [ ] Mapeo a CAPEC y CWE cuando aplique — 0 menciones hoy en `docs/` (§4)
 - [ ] CI que corra la suite en cada PR y bloquee el merge si una defensa retrocede (§8)
-- [ ] **Scope de Garak** _(feedback profe)_ — qué automatiza Garak vs qué queda como
-  validación manual profunda (§8)
+- [x] **Scope de Garak** _(feedback profe)_ — qué automatiza Garak vs qué queda como
+  validación manual profunda (§8) — verificado con probes reales, no solo el config
+  sin usar de `Red Team_/`: cobertura real y relevante solo en 2 de las 6 Técnicas
+  del harness (`directa`, `filtrado-por-repeticion` — técnicas genéricas de LLM,
+  independientes del dominio). Las otras 4 (`cross-context-leakage`,
+  `pii-harvesting`, `acciones-no-autorizadas`, `confused-deputy`) son específicas
+  del dominio bancario multi-usuario de VerdaBank — exigen conocer cuentas/IBANes
+  concretos o tools bancarias concretas, y ninguna librería de probes genérica
+  tiene equivalente; siguen dependiendo del Modelo atacante propio o de validación
+  manual. Detalle completo: `lab/redteam-agent/sources/README.md` y
+  `docs/reports/plan-fusion-redteam-validacion.md`.
 - [ ] Configuración recomendada para producción documentada: umbrales,
   `tool_permissions.yaml`, regex (§11)
 - [ ] Groq como proveedor online alternativo — documentar
