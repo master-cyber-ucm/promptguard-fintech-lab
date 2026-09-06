@@ -12,6 +12,7 @@ from typing import Protocol
 
 from attacker import AttackerBrain
 from models import Intento
+from sources import SeedSource
 
 
 class EvolutionEngine(Protocol):
@@ -22,14 +23,42 @@ class EvolutionEngine(Protocol):
         ...
 
 
-def get_engine(nombre: str) -> EvolutionEngine:
+class SeededEngine:
+    """Envuelve cualquier motor con una Fuente de semillas externa (`sources/`):
+    en el primer Intento de un Ejercicio (historial vacío) usa la siguiente semilla
+    disponible para esa Técnica en vez de generarla; si la fuente no tiene semillas
+    para esa Técnica, o ya se agotaron, delega en el motor envuelto sin cambios —
+    ver plan-fusion-redteam.md. `ultima_fuente` queda expuesto para que el
+    orquestador pueda registrar la procedencia del payload en el Informe."""
+
+    def __init__(self, inner: EvolutionEngine, source: SeedSource) -> None:
+        self.name = f"{inner.name}+{source.name}"
+        self._inner = inner
+        self._source = source
+        self.ultima_fuente = "propio"
+
+    def abrir_intento(self, *, tecnica: dict, historial: list[Intento], brain: AttackerBrain) -> str:
+        if not historial:
+            semilla = self._source.siguiente(tecnica)
+            if semilla:
+                self.ultima_fuente = self._source.name
+                return semilla
+        self.ultima_fuente = "propio"
+        return self._inner.abrir_intento(tecnica=tecnica, historial=historial, brain=brain)
+
+
+def get_engine(nombre: str, seed_source: SeedSource | None = None) -> EvolutionEngine:
     if nombre == "autorreflexivo":
         from evolution.self_reflect import SelfReflectEngine
-        return SelfReflectEngine()
-    if nombre == "genetico":
+        engine: EvolutionEngine = SelfReflectEngine()
+    elif nombre == "genetico":
         from evolution.genetic import GeneticEngine
-        return GeneticEngine()
-    if nombre == "taxonomia":
+        engine = GeneticEngine()
+    elif nombre == "taxonomia":
         from evolution.taxonomy_guided import TaxonomyGuidedEngine
-        return TaxonomyGuidedEngine()
-    raise ValueError(f"Motor de evolución desconocido: {nombre!r}")
+        engine = TaxonomyGuidedEngine()
+    else:
+        raise ValueError(f"Motor de evolución desconocido: {nombre!r}")
+    if seed_source is not None:
+        engine = SeededEngine(engine, seed_source)
+    return engine

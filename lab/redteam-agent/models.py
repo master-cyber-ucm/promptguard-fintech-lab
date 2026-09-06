@@ -23,6 +23,7 @@ class Intento:
     veredicto: str  # SUCCESS | FAILED | ERROR
     razonamiento: str
     soc_eventos: list[dict] = field(default_factory=list)  # solo en Modo caja gris
+    fuente: str = "propio"  # "propio" | nombre de la Fuente de semillas (ver sources/), solo si --seed-source
 
     @property
     def payload_inicial(self) -> str:

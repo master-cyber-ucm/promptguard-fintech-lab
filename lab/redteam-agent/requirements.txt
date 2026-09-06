@@ -1,0 +1,8 @@
+# Dependencias del Agente de red-team en ejecución. Deliberadamente ligeras — las
+# fuentes de semillas externas (sources/) leen datos ya vendorizados en
+# sources/data/*.json, no requieren nada más pesado en tiempo de ejecución. Para
+# regenerar esos JSON, ver sources/tools/requirements-generate.txt (garak, pyrit —
+# solo para ese uso puntual, no para lanzar Campañas).
+
+httpx>=0.28,<0.29
+PyYAML>=6.0,<7.0

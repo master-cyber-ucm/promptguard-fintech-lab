@@ -268,6 +268,10 @@ _Avoid_: estrategia (a secas), algoritmo
 El modelo Ollama que razona y genera los payloads del Agente de red-team. Parámetro de Campaña independiente del modelo que sirve a Clara (`OLLAMA_MODEL` del lab) — por defecto uno de mayor capacidad, para que el "pensamiento lateral" no esté limitado por el mismo modelo pequeño que defiende el target.
 _Avoid_: attacker model (en inglés), juez (reservado al LLM-judge del Analyze Pass, que es un rol distinto)
 
+**Fuente de semillas**:
+Un origen externo de payloads de apertura ya escritos (no generados por el Modelo atacante), vendorizado en `lab/redteam-agent/sources/data/*.json` y ofrecido al Motor de evolución configurado solo para el primer Intento de un Ejercicio — ver `sources/README.md`. Opcional (`--seed-source`, default `ninguna`) y aditivo: si la Técnica no tiene semillas de esa fuente, el motor genera el payload igual que sin ella. El Informe de Campaña registra la procedencia (`fuente`) de cada Intento.
+_Avoid_: dataset (a secas — reservado al fichero vendorizado en sí, no al mecanismo), prompt library
+
 ### Entidades del sistema
 
 **Playground**:

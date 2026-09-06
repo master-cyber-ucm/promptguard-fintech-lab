@@ -31,7 +31,7 @@ def escribir_informe(campania: Campania) -> Path:
                         "numero": i.numero, "veredicto": i.veredicto, "razonamiento": i.razonamiento,
                         "n_turnos": len(i.turnos), "payload_inicial": i.payload_inicial,
                         "respuesta_final": i.respuesta_final, "session_id": i.session_id,
-                        "soc_eventos": i.soc_eventos,
+                        "soc_eventos": i.soc_eventos, "fuente": i.fuente,
                         "tools_used": i.turnos[-1].tools_used if i.turnos else [],
                     }
                     for i in e.intentos
@@ -59,6 +59,7 @@ def _render_md(campania: Campania) -> str:
         f"| Target | `{campania.config['target']}`{' (vulnerable=True, control)' if campania.config['vulnerable'] else ''} |",
         f"| Modo | `{campania.config['modo']}` |",
         f"| Motor de evolución | `{campania.config['motor']}` |",
+        f"| Fuente de semillas | `{campania.config.get('fuente_semillas', 'ninguna')}` |",
         f"| Modelo atacante | `{campania.config['attacker_model']}` |",
         f"| Presupuesto por Ejercicio | {campania.config['max_intentos_por_ejercicio']} intentos |",
         f"| Ejercicios | {total} |",
@@ -92,7 +93,8 @@ def _render_md(campania: Campania) -> str:
             lines.append(f"**Session**: `{ultimo.session_id}` — ver Session File en `{e.tecnica_id}/`\n")
         lines.append("\n<details><summary>Todos los intentos</summary>\n")
         for i in e.intentos:
-            lines.append(f"\n**Intento {i.numero}** — {i.veredicto} — {i.razonamiento}\n")
+            origen = f" — fuente: `{i.fuente}`" if i.fuente != "propio" else ""
+            lines.append(f"\n**Intento {i.numero}** — {i.veredicto} — {i.razonamiento}{origen}\n")
             lines.append(f"```\n{i.payload_inicial}\n```\n")
         lines.append("\n</details>\n\n---\n")
 
