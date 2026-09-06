@@ -42,7 +42,15 @@ services:
       - ../docs:/app/docs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    # umask 0000: el backend corre como root y crea lab/audit/runs/... en el volumen
+    # montado en cada petición de chat (audit_repository.append_turn). Sin esto, un
+    # proceso del HOST (p.ej. redteam-agent/cli.py, que corre fuera de Docker) no
+    # puede escribir run.json/run.md en el mismo Run Folder que el backend acaba de
+    # crear como root:root 755 — PermissionError. No cambia quién es el usuario del
+    # contenedor (root sigue siendo root); solo relaja el modo de los ficheros/
+    # directorios NUEVOS que ese proceso cree a partir de ahora. Ver
+    # docs/reports/plan-fusion-redteam-validacion.md § hallazgo de permisos.
+    command: sh -c "umask 0000 && exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
     restart: unless-stopped
 
   frontend:

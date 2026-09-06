@@ -203,26 +203,49 @@ primera vez que se ejecuta el agente de extremo a extremo contra el stack
 dockerizado en este repo, y el problema estaba ahí desde `orchestrator.py`/
 `reporting.py` originales, sin relación con `sources/`.
 
-Workaround aplicado para completar la prueba (root del propio contenedor, sin
-`sudo` en el host):
+Workaround usado para completar esta prueba antes del fix (root del propio
+contenedor, sin `sudo` en el host):
 ```bash
 docker compose exec -u root backend chown -R 1000:1000 /app/audit/runs/<run_folder>
 ```
 
-Esto **no** es un fix estructural — hay que repetirlo tras cada Campaña real
-lanzada desde el host. Dos arreglos reales posibles, ninguno aplicado en esta
-pasada por tocar infraestructura compartida con el resto del lab (`docker-compose.yml`/
-`backend/Dockerfile`, usados también por `make suite`/`evaluate`/`report` y el SOC)
-fuera del alcance de esta fusión:
+### Fix estructural aplicado y verificado
 
-1. Añadir `user: "${UID:-1000}:${GID:-1000}"` al servicio `backend` en
-   `lab/docker-compose.yml` — la solución estándar de Compose para este problema.
-   Requiere probar que el resto de scripts que hacen `docker compose exec backend
-   ...` (make suite, evaluate, report) siguen funcionando como usuario no-root.
-2. Un paso de `chmod`/`chown` al final de `make run`/`make eval` en el `Makefile`.
+Se aplicó la opción de menor blast radius de las dos consideradas: **`umask 0000`
+en el `command:` del servicio `backend`** de `lab/docker-compose.yml`, en vez de
+cambiar el usuario del contenedor (`user: "${UID}:${GID}"`). Razón: el usuario del
+contenedor sigue siendo `root` (sin riesgo de que algo dentro de la imagen deje de
+ser legible/ejecutable para un UID distinto); solo se relaja el modo con el que se
+crean ficheros/directorios NUEVOS a partir de ahora, exactamente donde vive el
+problema (`audit_repository.append_turn` → `target_dir.mkdir(...)`, en
+`lab/backend/src/utils/audit_repository.py:213`, invocado por el proceso servidor
+en cada petición de chat).
 
-Recomendado para quien retome esto: aplicar la opción 1 y correr la suite de tests
-del backend (`make test`) más una Campaña real para confirmar que no rompe nada.
+```yaml
+command: sh -c "umask 0000 && exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
+```
+
+Verificado:
+- `Umask: 0000` confirmado en `/proc/1/status` dentro del contenedor (el proceso
+  real que atiende peticiones, no un `docker compose exec` aparte — un `exec` nuevo
+  no hereda el umask de `command:`, por eso el fix tiene que ir ahí y no en un paso
+  suelto).
+- Campaña real repetida (`--seed-source garak --techniques filtrado-por-repeticion`)
+  completó `run.json`/`run.md` **sin** el `chown` manual — `run.json`/`run.md`
+  quedan `henri:henri`, el Run Folder y sus subcarpetas quedan `root:root` pero
+  `777` (escribibles por cualquiera, aceptable en un lab de desarrollo local, no
+  producción).
+- `make test` (`docker compose exec backend python -m pytest tests/ -q`): **874
+  passed, 8 failed, 21 errors** — idéntico con y sin el fix (se probó revirtiendo
+  `docker-compose.yml` con `git stash` y repitiendo los mismos ficheros de test).
+  Los fallos son de `test_resolucion_de_rutas.py`/`test_runner_prevuelo.py`/
+  `test_reproducibilidad_e_incertidumbre.py` — pruebas de resolución de rutas
+  host-vs-contenedor que fallan igual estando o no este cambio, preexistentes y sin
+  relación con permisos de fichero. No se investigaron más a fondo por quedar fuera
+  del alcance de esta fusión — quien retome el punto 2 de los siguientes pasos
+  debería mirarlas aparte.
+- No fue necesario reconstruir la imagen (`docker compose up -d backend` basta,
+  el cambio es de configuración de Compose, no del `Dockerfile`).
 
 ## Cómo reproducir manualmente
 
@@ -256,17 +279,14 @@ python cli.py --techniques directa --max-attempts 3
 python cli.py --seed-source garak --techniques directa filtrado-por-repeticion --max-attempts 3
 ```
 
-**Si el backend corre en Docker** (lo normal, `make run`), es probable que la
-Campaña termine con `PermissionError` al escribir `run.json`/`run.md` — el backend
-crea el Run Folder como `root` dentro del contenedor. Es un problema preexistente
-de la infraestructura del lab, no de esta fusión (ver hallazgo arriba). Antes de
-lanzar la Campaña, o justo después si falla, arréglalo con:
-```bash
-cd lab && docker compose exec -u root backend chown -R "$(id -u):$(id -g)" /app/audit/runs
-```
-(el comando anterior lo hace para todos los Run Folders existentes; repítelo tras
-cada Campaña real hasta que se aplique un fix estructural — ver el hallazgo arriba
-para las dos opciones).
+**Nota histórica**: la primera vez que se probó esto (backend en Docker, agente en
+el host) dio `PermissionError` al escribir `run.json`/`run.md` — el backend crea el
+Run Folder como `root` dentro del contenedor. Ya está arreglado de forma
+estructural (`umask 0000` en `lab/docker-compose.yml`, ver hallazgo arriba) — con
+la imagen actualizada (`docker compose up -d backend` tras el cambio) no hace falta
+ningún paso manual. Si aun así ves `PermissionError`, comprueba que tu
+`docker-compose.yml` tiene el `command:` con `umask 0000` y que el contenedor se
+recreó después del cambio.
 
 Verificar en el informe (`lab/audit/runs/{ts}_redteam-agent/run.md`):
 - La tabla de cabecera debe mostrar `Fuente de semillas: garak`.
