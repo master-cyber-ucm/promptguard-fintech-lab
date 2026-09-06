@@ -23,6 +23,15 @@ class OllamaClient:
                 "model": self.model,
                 "messages": messages,
                 "stream": False,
+                # La familia qwen3.5 tiene modo "thinking" activado por defecto: si no se
+                # desactiva, el modelo puede gastar todo `num_predict` razonando y devolver
+                # `message.content` VACÍO (el texto real queda en `message.thinking`) — visto
+                # de verdad en la campaña de 6 técnicas del 2026-09-06 (fusión con Red Team_):
+                # las 5 técnicas sin semilla de Garak generaron el fallback fijo de
+                # `attacker.py::_extraer_payload` en TODOS los intentos porque `chat()`
+                # devolvía "". Mismo bug que ya había documentado y evitado
+                # `Red Team_/attack_loop.py::ollama_generate()` para este mismo modelo.
+                "think": False,
                 "options": {
                     "temperature": temperature if temperature is not None else self.temperature,
                     "num_predict": self.max_tokens,
@@ -35,4 +44,11 @@ class OllamaClient:
         )
         resp.raise_for_status()
         data = resp.json()
-        return (data.get("message") or {}).get("content", "").strip()
+        message = data.get("message") or {}
+        contenido = (message.get("content") or "").strip()
+        if contenido:
+            return contenido
+        # Defensivo: si pese a `think: False` el modelo sigue devolviendo el texto útil por
+        # `thinking` (visto en algunas versiones de Ollama con esta familia de modelos), no lo
+        # descartamos — es mejor que caer siempre al fallback fijo de `_extraer_payload`.
+        return (message.get("thinking") or "").strip()
