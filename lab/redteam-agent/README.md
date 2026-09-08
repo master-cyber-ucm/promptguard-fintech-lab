@@ -37,7 +37,8 @@ python cli.py --engine genetico --max-attempts 12
 python cli.py --engine taxonomia
 python cli.py --techniques directa cross-context-leakage   # subconjunto de la taxonomía
 python cli.py --attacker-model llama3.1:8b
-python cli.py --seed-source garak                          # abre cada Ejercicio con una semilla externa si existe
+python cli.py --seed-source garak                          # semillas de probes reales de Garak
+python cli.py --seed-source memoria                         # reinyecta bypasses/near-misses de Campañas anteriores
 ```
 
 Ver todas las flags: `python cli.py --help`.

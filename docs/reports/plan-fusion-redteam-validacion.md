@@ -535,6 +535,51 @@ habría detectado — dependía de que la otra salvaguarda cubriera el hueco. **
 `_tool_confirmada` cuente una tool de `confused-deputy` como confirmada. 2 tests
 de regresión (el caso exacto observado, y un control con la cuenta correcta).
 
+## Memoria persistente entre Campañas (`--seed-source memoria`, 2026-09-08)
+
+Al revisar las dos campañas reales completas (140 intentos totales), surgió una
+pregunta legítima: si el harness "aprende y muta payloads", ¿por qué cada
+`python cli.py` nuevo empieza en blanco, sin aprovechar nada de campañas
+anteriores? Cierto — no era un bug, era un límite de scope heredado del agente
+original (ADR-0008: la memoria estaba acotada a un Ejercicio de una sola
+Campaña), pero dejaba sin usar exactamente el tipo de señal que este sistema
+existe para producir.
+
+**Implementado**: `sources/memoria_source.py`, una tercera Fuente de semillas
+(mismo `SeedSource` Protocol que `GarakSource`, mismo `--seed-source`, mismo
+`SeededEngine`) con una diferencia de diseño clave: no es de solo lectura.
+
+- **Grabar es incondicional**: `cli.py` llama a `registrar_campania()` al cerrar
+  cualquier Campaña, con independencia de qué `--seed-source` se haya usado.
+  Persiste en `sources/data/memoria.json` los Intentos con veredicto
+  `SUCCESS`/`CONTINUE` de cada Ejercicio (nunca `FAILED` — no aporta nada que
+  reinyectar), deduplicados por payload exacto dentro de la Técnica.
+- **Leer es opt-in** (`--seed-source memoria`): `MemoriaSource.siguiente()`
+  agota el histórico de esa Técnica (SUCCESS antes que CONTINUE) igual que
+  `GarakSource`, cae al motor de evolución configurado cuando se acaba.
+  `memoria.json` **no se versiona en git** — es estado local acumulado, no un
+  dataset fijo.
+
+Verificado de extremo a extremo, no solo con tests unitarios: una Campaña real
+(backend HTTP falso, con la misma `ejecutar_campania()` real) con solo `FAILED`
+no escribe fichero; con un `SUCCESS` inyectado, `registrar_campania()` lo
+persiste con todo el contexto (`payload`, `veredicto`, `razonamiento`,
+`run_folder`, `attacker_model`); y una `MemoriaSource` nueva, apuntando al mismo
+fichero, reinyecta ese payload para la Técnica correcta y devuelve `None` para
+las que no tienen nada aprendido — round-trip completo.
+
+**Bug encontrado y corregido en el camino**: `config.py` mantenía su propia
+tupla `FUENTES_SEMILLA = ("ninguna", "garak")` duplicada de `sources.FUENTES` —
+al añadir `memoria` a esta última, `--help` seguía anunciando solo
+`{ninguna,garak}` porque la copia de `config.py` no se actualizó. Corregido
+importando `FUENTES` directamente en vez de mantener dos listas — elimina la
+causa, no solo el síntoma de esta vez.
+
+Dato honesto: en las 2 campañas reales completas corridas hasta ahora (140
+intentos), **0 SUCCESS/CONTINUE** — `memoria.json` no tiene todavía ningún
+contenido real que aportar. La infraestructura está lista y probada; el valor
+real llegará con el primer bypass genuino que alguna Campaña produzca.
+
 ## Trabajo futuro (no implementado en esta pasada)
 
 - **Fase 3b** (Garak como `Generator` contra `TargetClient`, barridos completos con

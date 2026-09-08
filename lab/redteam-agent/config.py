@@ -11,6 +11,8 @@ import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sources import FUENTES as FUENTES_SEMILLA
+
 HERE = Path(__file__).resolve().parent
 
 # Relativos a `CampaignConfig.api_base` (que YA incluye /api/v1) — a diferencia de
@@ -29,7 +31,10 @@ CHAT_ENDPOINTS: dict[str, str] = {
 
 MOTORES = ("autorreflexivo", "genetico", "taxonomia")
 MODOS = ("caja-negra", "caja-gris")
-FUENTES_SEMILLA = ("ninguna", "garak")
+# FUENTES_SEMILLA importado de sources.FUENTES (arriba) — antes era una tupla
+# duplicada aquí, que se desincronizó de sources/__init__.py al añadir la fuente
+# `memoria` (2026-09-08): --help seguía anunciando solo {ninguna,garak}. Una sola
+# fuente de verdad ahora.
 
 
 @dataclass
@@ -77,9 +82,10 @@ def parse_args(argv: list[str] | None = None) -> CampaignConfig:
     p.add_argument("--engine", dest="motor", choices=MOTORES, default="autorreflexivo",
                     help="Motor de evolución: autorreflexivo (default) | genetico | taxonomia")
     p.add_argument("--seed-source", dest="fuente_semillas", choices=FUENTES_SEMILLA, default="ninguna",
-                    help="Fuente externa de payloads de apertura para el primer Intento de cada "
-                         "Ejercicio (aditiva, nunca bloqueante): ninguna (default) | garak "
-                         "(semillas vendorizadas de probes de Garak, ver sources/README.md)")
+                    help="Fuente de payloads de apertura para Intentos nuevos, hasta agotar su "
+                         "catálogo (aditiva, nunca bloqueante): ninguna (default) | garak "
+                         "(semillas vendorizadas de probes de Garak) | memoria (Intentos con "
+                         "SUCCESS/CONTINUE de Campañas anteriores) — ver sources/README.md")
     p.add_argument("--attacker-model", default="qwen3.5:9b",
                     help="Modelo Ollama que hace de cerebro atacante (default: qwen3.5:9b)")
     p.add_argument("--max-attempts", dest="max_intentos_por_ejercicio", type=int, default=20,

@@ -96,6 +96,39 @@ explícitamente etiquetado como fuera del harness (moderación de contenido gen�
 no resistencia a manipulación bancaria) — ver su docstring y el de
 `generate_harmbench_seeds.py` para el detalle completo.
 
+### `memoria` — [`memoria_source.py`](memoria_source.py)
+
+A diferencia de `garak` (externa, de solo lectura, vendorizada una vez), esta es
+la propia experiencia acumulada del agente **entre Campañas**. Sin ella, cada
+`python cli.py` nuevo empezaba en blanco: el trabajo de una Campaña no le enseñaba
+nada a la siguiente, con independencia de cuántas se hubieran corrido antes — el
+mismo hueco que `Red Team_/learning_loop.py` intentaba resolver con
+`attack_memory.jsonl` sin llegar a conectarlo a nada.
+
+```bash
+python cli.py --seed-source memoria                 # reinyecta lo aprendido
+python cli.py                                        # graba igual, con cualquier flag
+```
+
+**Grabar es incondicional** — al cerrar cualquier Campaña, `cli.py` llama a
+`registrar_campania()`, que añade a `sources/data/memoria.json` los Intentos con
+veredicto `SUCCESS`/`CONTINUE` de cada Ejercicio (deduplicados por payload exacto
+dentro de la Técnica). Un `FAILED` no aporta nada que reinyectar — ya sabemos que
+ese payload no funciona tal cual contra las defensas actuales. Grabar no depende
+de `--seed-source`: puedes correr campañas normales y seguir acumulando memoria
+para cuando decidas leerla.
+
+**Leer es opt-in** (`--seed-source memoria`) — `MemoriaSource.siguiente()` agota
+el histórico de esa Técnica (SUCCESS antes que CONTINUE) igual que `GarakSource`,
+y cae al motor de evolución configurado cuando se acaba. Si `memoria.json` no
+existe todavía (ninguna Campaña anterior dejó nada aprendible — el caso normal al
+principio, dado que las defensas del lab son buenas), se comporta como una fuente
+vacía: nunca bloquea.
+
+`memoria.json` **no se versiona en git** (`.gitignore`) — es estado local
+acumulado, no un dataset fijo como `garak_seeds.json`. Cada persona/máquina
+construye su propia memoria según las campañas que corra.
+
 ## Extender con una fuente nueva
 
 1. `sources/tools/generate_<fuente>_seeds.py` — genera `sources/data/<fuente>_seeds.json`

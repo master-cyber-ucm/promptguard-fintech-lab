@@ -40,6 +40,11 @@ lab/audit/
 # evidencia canónica y estos cuadernos se regeneran en cada Campaña.
 lab/redteam-agent/ejercicios/*/[0-9]*_redteam-agent.md
 
+# Memoria persistente entre Campañas del agente de red-team (--seed-source
+# memoria): estado local acumulado, distinto de sources/data/garak_seeds.json
+# (dataset fijo generado una vez y sí versionado).
+lab/redteam-agent/sources/data/memoria.json
+
 # Documentos Word del TFM (edición local, fuera del repo)
 *.docx
 .~lock.*#
