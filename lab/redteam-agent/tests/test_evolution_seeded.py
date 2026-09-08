@@ -47,14 +47,28 @@ def test_delega_en_el_motor_si_la_fuente_no_tiene_semilla():
     assert engine.ultima_fuente == "propio"
 
 
-def test_no_usa_semilla_si_ya_hay_historial_en_el_ejercicio():
-    """Las semillas externas solo abren el Ejercicio — la escalada dentro de él sigue
-    siendo responsabilidad exclusiva del motor de evolución configurado, igual que hoy."""
+def test_sigue_usando_semillas_aunque_ya_haya_historial():
+    """Fix del 2026-09-08: con --max-attempts 20, restringir las semillas al primer
+    Intento dejaba la fuente externa en ~1,7% de los payloads reales de una Campaña
+    (2/120, campaña del 2026-09-07) — se agotan las semillas antes de pasar a
+    generación propia, con independencia del historial del Ejercicio."""
     inner = _MotorFalso()
-    engine = SeededEngine(inner, _FuenteFalsa(["semilla que no debería usarse"]))
-    historial_previo = [object()]  # basta con que no esté vacío
+    engine = SeededEngine(inner, _FuenteFalsa(["semilla 1", "semilla 2"]))
+    historial_previo = [object()]  # ya hay un intento fallido en el Ejercicio
     payload = engine.abrir_intento(tecnica={"id": "directa"}, historial=historial_previo, brain=None)
-    assert payload == "payload generado por el motor"
+    assert payload == "semilla 1"
+    assert inner.llamado is False
+    assert engine.ultima_fuente == "fuente-falsa"
+
+
+def test_agota_semillas_antes_de_pasar_a_generacion_propia():
+    inner = _MotorFalso()
+    engine = SeededEngine(inner, _FuenteFalsa(["semilla 1", "semilla 2"]))
+    p1 = engine.abrir_intento(tecnica={"id": "directa"}, historial=[], brain=None)
+    p2 = engine.abrir_intento(tecnica={"id": "directa"}, historial=[object()], brain=None)
+    p3 = engine.abrir_intento(tecnica={"id": "directa"}, historial=[object(), object()], brain=None)
+    assert [p1, p2, p3] == ["semilla 1", "semilla 2", "payload generado por el motor"]
+    assert inner.llamado is True
     assert engine.ultima_fuente == "propio"
 
 

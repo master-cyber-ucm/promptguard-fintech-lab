@@ -15,13 +15,20 @@ python cli.py --seed-source garak --techniques directa     # solo esa técnica
 ```
 
 Sin `--seed-source` (default `ninguna`), el comportamiento es idéntico al agente
-antes de esta fusión — el flag es aditivo, nunca bloqueante. Cada Ejercicio usa una
-semilla externa solo para el **primer** Intento; si la fuente se agota o no tiene
-semillas para esa Técnica, el Motor de evolución configurado (`--engine`) genera el
-payload exactamente como si no hubiera fuente. La escalada dentro de un Intento
-multi-turno, y todos los Intentos siguientes de un Ejercicio, siguen siendo
-responsabilidad exclusiva del motor — una semilla externa nunca sustituye eso, solo
-le da un punto de partida distinto a `AttackerBrain.generar_apertura()`.
+antes de esta fusión — el flag es aditivo, nunca bloqueante. Cada Ejercicio consume
+semillas externas en **cada** Intento nuevo hasta que se agotan (34 para `directa`,
+10 para `filtrado-por-repeticion`); a partir de ahí, o si la Técnica nunca tuvo
+semillas, el Motor de evolución configurado (`--engine`) genera el payload
+exactamente como si no hubiera fuente. La escalada DENTRO de un Intento multi-turno
+sigue siendo responsabilidad exclusiva del motor — una semilla externa nunca
+sustituye eso, solo le da un punto de partida distinto a
+`AttackerBrain.generar_apertura()` para cada Intento nuevo mientras dure el
+catálogo.
+
+v1 (2026-09-06) sembraba solo el primer Intento de cada Ejercicio; con
+`--max-attempts 20` eso dejaba la fuente externa en ~1,7% de los payloads reales de
+una Campaña (2/120, ver `plan-fusion-redteam-validacion.md`), sin importar cuántas
+semillas hubiera disponibles — corregido el 2026-09-08.
 
 El campo `fuente` de cada Intento (`propio` o el nombre de la fuente) queda en
 `run.json`/`run.md`, para poder desglosar bypasses por procedencia del prompt.

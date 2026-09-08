@@ -25,11 +25,20 @@ class EvolutionEngine(Protocol):
 
 class SeededEngine:
     """Envuelve cualquier motor con una Fuente de semillas externa (`sources/`):
-    en el primer Intento de un Ejercicio (historial vacío) usa la siguiente semilla
-    disponible para esa Técnica en vez de generarla; si la fuente no tiene semillas
-    para esa Técnica, o ya se agotaron, delega en el motor envuelto sin cambios —
-    ver plan-fusion-redteam.md. `ultima_fuente` queda expuesto para que el
-    orquestador pueda registrar la procedencia del payload en el Informe."""
+    en CADA Intento de un Ejercicio consulta primero si quedan semillas para esa
+    Técnica y, si las hay, usa la siguiente en vez de generarla; solo cuando la
+    fuente se agota (o nunca tuvo semillas para esa Técnica) delega en el motor
+    envuelto sin cambios. `ultima_fuente` queda expuesto para que el orquestador
+    registre la procedencia del payload en el Informe.
+
+    v1 (2026-09-06) solo sembraba el Intento 1 (`if not historial`) y dejaba la
+    evolución del resto en manos del motor — pero con --max-attempts 20 eso deja
+    la fuente externa en ~1,7% de los payloads reales de una Campaña (2/120,
+    campaña del 2026-09-07), sin importar cuántas semillas hubiera disponibles.
+    Ahora se agotan las semillas primero (34 para `directa`, 10 para
+    `filtrado-por-repeticion`) antes de pasar a generación propia — cobertura
+    sistemática del catálogo externo por delante de la adaptación del motor, no
+    al revés."""
 
     def __init__(self, inner: EvolutionEngine, source: SeedSource) -> None:
         self.name = f"{inner.name}+{source.name}"
@@ -38,11 +47,10 @@ class SeededEngine:
         self.ultima_fuente = "propio"
 
     def abrir_intento(self, *, tecnica: dict, historial: list[Intento], brain: AttackerBrain) -> str:
-        if not historial:
-            semilla = self._source.siguiente(tecnica)
-            if semilla:
-                self.ultima_fuente = self._source.name
-                return semilla
+        semilla = self._source.siguiente(tecnica)
+        if semilla:
+            self.ultima_fuente = self._source.name
+            return semilla
         self.ultima_fuente = "propio"
         return self._inner.abrir_intento(tecnica=tecnica, historial=historial, brain=brain)
 
