@@ -47,6 +47,7 @@ import json
 import logging
 import os
 import time
+from uuid import uuid4
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -415,6 +416,7 @@ async def _process_chat(
     else:
         # El canal documental crea el collector un escalón antes; su postura ya
         # describe las capas del documento y aquí se completa con las del pipeline.
+        collector.session_id = session_id
         effective_posture = {**collector.postura_efectiva, **effective_posture}
         collector.set_postura(collector.postura, efectiva=effective_posture)
     collector.fixture_execution_id = request.fixture_execution_id
@@ -1240,7 +1242,7 @@ def _document_blocked_response(
     guarda como si el modelo lo hubiera visto (`model_invoked=False`), pero SÍ deja
     evidencia completa — categoría, regla y latencia por fase, nunca el contenido.
     """
-    session_id_final = request.session_id or f"ses_{int(time.time())}"
+    session_id_final = collector.session_id
     client_response = client_message_for(blocked.decision.matched_rule or "document_sanitizer")
     technical_reason = (
         f"{blocked.blocked_by}: {blocked.decision.reason} (regla: {blocked.decision.matched_rule}) | "
@@ -1582,7 +1584,7 @@ async def chat_proxy(
     collector: SocCollector | None = None
     if document is not None:
         collector = SocCollector(
-            session_id=request.session_id or f"ses_{int(time.time())}",
+            session_id=request.session_id or f"ses_{uuid4().hex}",
             user_id=principal.subject, endpoint="proxy", audit_subdir=request.audit_subdir,
             fixture_id=request.fixture_id, fixture_kind=request.fixture_kind,
             fixture_expected_result=request.fixture_expected_result,
@@ -1686,7 +1688,7 @@ async def chat_complex_with_document(
     user_id = principal.subject
 
     collector = SocCollector(
-        session_id=session_id or f"ses_{int(time.time())}", user_id=user_id,
+        session_id=session_id or f"ses_{uuid4().hex}", user_id=user_id,
         endpoint="complex-with-document", audit_subdir=audit_subdir,
         fixture_id=fixture_id, fixture_kind=fixture_kind,
         fixture_expected_result=fixture_expected_result,

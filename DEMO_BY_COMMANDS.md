@@ -103,6 +103,9 @@ a un ensayo de capacidad de producción. El catálogo de escenarios está en
 ## 6. Campaña autónoma
 
 Con el stack en marcha y el modelo `qwen3.5:9b` descargado, abrir otro terminal.
+Esperar antes a que terminen las suites, las evaluaciones y los envíos del navegador.
+En CPU, ejecutar un experimento cada vez: la inferencia concurrente puede agotar
+los timeouts aunque los modelos estén descargados.
 En macOS/Linux o WSL, desde la raíz y con Python 3.11+:
 
 ```bash

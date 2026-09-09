@@ -346,3 +346,24 @@ def test_catalogo_visual_carga_el_mensaje_del_pdf(fixture_id, client, monkeypatc
                     if f['id'] == fixture_id)
     assert fixture['type'] == 'document-upload'
     assert fixture['rendered_steps'] == [{'step': 1, 'role': 'user', 'content': original['message']}]
+
+
+@pytest.mark.parametrize('endpoint', ['proxy', 'complex-with-document'])
+@pytest.mark.parametrize('blocked', [False, True])
+def test_sesion_documental_correlaciona_respuesta_y_soc(endpoint, blocked, client, fake_agent):
+    document = ('nomina.pdf', _pdf_with_hidden_payload(), 'application/pdf') if blocked else (
+        'reclamacion.docx', _docx_sano(), 'application/octet-stream')
+    response = client.post(
+        '/api/v1/chat/'+endpoint,
+        data={'user_id': 'usr_001', 'message': 'Adjunto mi documento.', 'fixture_id': 'doc-session-check'},
+        files={'document': document},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body['session_id'] != 'null'
+    session = client.get('/api/v1/soc/sessions/'+body['session_id'])
+    assert session.status_code == 200
+    turns = session.json()['turnos']
+    assert len(turns) == 1
+    assert turns[0]['fixture_id'] == 'doc-session-check'
+    assert turns[0]['audit_file'] == body['audit_file']

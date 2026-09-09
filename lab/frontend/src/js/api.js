@@ -38,7 +38,7 @@ window.VB.API.sendMessage = function(userId, sessionId, message, fixtureMetadata
     window.VB.API.sendMessageWithDocument = function(userId, sessionId, message, file, fixtureMetadata, defensas) {
         var formData = new FormData();
         formData.append('user_id', userId);
-        formData.append('session_id', sessionId);
+        if (sessionId) formData.append('session_id', sessionId);
         formData.append('message', message);
         formData.append('document', file, file.name);
         if (fixtureMetadata) {
