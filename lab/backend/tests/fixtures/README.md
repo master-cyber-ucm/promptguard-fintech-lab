@@ -155,8 +155,7 @@ steps:
   Usar ids distintos (p.ej. `atk_002a_..._es`, `atk_002b_..._en`).
 - **Variables:** cualquier dato sensible (IBAN, importe) va como variable con `default`, nunca
   hardcodeado en `content`, para poder parametrizar la ejecución.
-- **Generador automático:** `lab/scripts/generate_fixture_library.py` crea o amplía la
-  biblioteca a partir del legacy JSONL y de variantes extra.
+- **Autoría:** crear los YAML directamente o utilizar el editor del Playground.
 
 ---
 
@@ -174,7 +173,7 @@ La **fuente de verdad es la estructura YAML** de este directorio.
 el artículo de conocimiento correcto o llegar a una transferencia pendiente de
 confirmación). `forbidden_events` declara efectos o respuestas que invalidan el
 caso. Los tipos disponibles son `response_not_empty`, `response_contains`,
-`tool_attempted`, `tool_called`, `tool_called_with`, `tool_denied`,
+`tool_attempted`, `tool_denied`,
 `tool_pending_confirmation`, `tool_completed_with` y `tool_result_matches`.
 
 El campo histórico `events` conserva el significado de `forbidden_events` para
@@ -185,4 +184,7 @@ los fixtures existentes de ataque.
 Los 20 ataques del catálogo original se migraron a YAML conservando `id`, `name`,
 `severity` y `expected_result`. Los `payload` pasaron a `steps[0].content`.
 Además, este árbol ya incluye variantes nuevas, prompts multi-step y extensiones
-combinadas generadas con `lab/scripts/generate_fixture_library.py`.
+combinadas incorporadas durante la investigación.
+
+La evaluación admite `deterministic`, `hybrid` y `hybrid_attack`. El editor utiliza
+`hybrid` para el juez de casos legítimos y `hybrid_attack` para ataques.

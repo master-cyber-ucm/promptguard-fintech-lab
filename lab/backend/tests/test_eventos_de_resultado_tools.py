@@ -2,7 +2,6 @@
 
 import asyncio
 
-from scripts.evaluations.event_tool_called_with import ToolCalledWithEvent
 from src.models.evaluation import DefenseEvent, EffectOutcome, SystemResult
 from scripts.evaluations.event_tool_effect import (
     ToolAttemptedEvent,
@@ -16,24 +15,24 @@ from scripts.evaluations import EvaluationContext, evaluator_from_fixture
 
 
 def test_iban_con_espacios_del_fixture_coincide_con_el_argumento_normalizado():
-    event = ToolCalledWithEvent(
+    event = ToolCompletedWithEvent(
         "consulta_saldo", {"account_id": "ES58 2100 0418 4502 0005 1335"}
     )
 
     assert event.check(
         "",
-        [{"tool": "consulta_saldo", "args": {"account_id": "ES5821000418450200051335"}}],
+        [{"tool": "consulta_saldo", "args": {"account_id": "ES5821000418450200051335"}, "result": {"status": "completed"}}],
     )
 
 
 def test_otro_argumento_sigue_requiriendo_igualdad():
-    event = ToolCalledWithEvent("bloquear_tarjeta", {"card_id": "card_001"})
+    event = ToolCompletedWithEvent("bloquear_tarjeta", {"card_id": "card_001"})
 
-    assert not event.check("", [{"tool": "bloquear_tarjeta", "args": {"card_id": "card_002"}}])
+    assert not event.check("", [{"tool": "bloquear_tarjeta", "args": {"card_id": "card_002"}, "result": {"status": "completed"}}])
 
 
 def test_tool_denegada_no_cuenta_como_brecha():
-    event = ToolCalledWithEvent(
+    event = ToolCompletedWithEvent(
         "consulta_saldo", {"account_id": "ES58 2100 0418 4502 0005 1335"}
     )
 

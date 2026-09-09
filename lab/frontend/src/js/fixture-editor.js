@@ -91,7 +91,7 @@ function _suggestions(lastResponse, lastTools) {
     for (const t of lastTools) {
         const tool = t.tool || t;
         const key = 'tc:' + tool;
-        if (tool && !seen.has(key)) { seen.add(key); out.push({ type: 'tool_called', tool }); }
+        if (tool && !seen.has(key)) { seen.add(key); out.push({ type: 'tool_completed_with', tool }); }
     }
     return out;
 }
@@ -207,7 +207,7 @@ function _buildModal({ existing, subcatsByCat, steps, lastResponse, lastTools })
     const rowMethod = _el('div', 'fe-method');
     rowMethod.innerHTML =
         '<label><input type="radio" name="fe-method" value="deterministic" checked> determinista</label>' +
-        '<label><input type="radio" name="fe-method" value="llm"> juez (llm)</label>';
+        '<label><input type="radio" name="fe-method" value="semantic"> juez semántico</label>';
     body.appendChild(rowMethod);
 
     // Deterministic panel: event rows + suggestions
@@ -217,7 +217,7 @@ function _buildModal({ existing, subcatsByCat, steps, lastResponse, lastTools })
     function addEvent(ev) {
         const row = _el('div', 'fe-event');
         const selType = _el('select', 'fe-input fe-event-type');
-        ['response_contains', 'tool_called', 'tool_called_with'].forEach(t =>
+        ['response_contains', 'tool_completed_with', 'tool_denied', 'tool_pending_confirmation'].forEach(t =>
             selType.appendChild(_option(t, t, ev && ev.type === t)));
         const inpVal = _el('input', 'fe-input fe-event-val');
         function syncPlaceholder() {
@@ -243,7 +243,7 @@ function _buildModal({ existing, subcatsByCat, steps, lastResponse, lastTools })
         const chipBox = _el('div', 'fe-chips');
         chipBox.appendChild(_el('span', 'fe-chips-label', 'Sugerencias de la respuesta:'));
         suggestions.forEach(s => {
-            const label = s.type === 'tool_called' ? `🔧 ${s.tool}` : `"${_truncate(s.value, 24)}"`;
+            const label = s.type === 'tool_completed_with' ? `🔧 ${s.tool}` : `"${_truncate(s.value, 24)}"`;
             const chip = _el('button', 'fe-chip', label);
             chip.title = 'Añadir como evento';
             chip.addEventListener('click', () => addEvent(s));
@@ -257,7 +257,7 @@ function _buildModal({ existing, subcatsByCat, steps, lastResponse, lastTools })
     const llmPanel = _el('div', 'fe-eval-panel fe-hidden');
     const taQuestion = _el('textarea', 'fe-input');
     taQuestion.rows = 2;
-    taQuestion.placeholder = '¿El agente hizo lo que debía? (pregunta SI/NO para el juez)';
+    taQuestion.placeholder = '¿El agente hizo lo que debía? (criterio de evaluación para el juez)';
     llmPanel.appendChild(_field('question', taQuestion, true));
     const selSystem = _el('select', 'fe-input');
     selSystem.appendChild(_option('neutral', 'neutral (calidad de servicio)'));
@@ -270,7 +270,7 @@ function _buildModal({ existing, subcatsByCat, steps, lastResponse, lastTools })
         r.addEventListener('change', () => {
             const m = rowMethod.querySelector('input[name="fe-method"]:checked').value;
             detPanel.classList.toggle('fe-hidden', m !== 'deterministic');
-            llmPanel.classList.toggle('fe-hidden', m !== 'llm');
+            llmPanel.classList.toggle('fe-hidden', m !== 'semantic');
         }));
 
     // --- footer / actions ---
@@ -317,7 +317,7 @@ function _buildModal({ existing, subcatsByCat, steps, lastResponse, lastTools })
                         return type === 'response_contains' ? { type, value: val } : { type, tool: val };
                     }).filter(e => (e.value || e.tool)),
                 }
-                : { method: 'llm', question: taQuestion.value.trim(), system: selSystem.value },
+                : { method: selKind.value === 'legitimate-prompts' ? 'hybrid' : 'hybrid_attack', question: taQuestion.value.trim(), system: selSystem.value },
         };
 
         status.textContent = 'Guardando…';

@@ -85,6 +85,8 @@ class HybridEvaluator(Evaluator):
                     )
                 return await self._evaluate_semantically(context, detail)
 
+        if self.fallback_when == "always":
+            return await self._evaluate_semantically(context, "evaluación semántica solicitada")
         if is_attack:
             return self._no_effect(context, None)
         return attach_functional_result(context, EvaluationResult(

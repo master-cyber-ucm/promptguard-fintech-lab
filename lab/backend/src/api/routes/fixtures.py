@@ -20,7 +20,7 @@ _ALL_KINDS = ["attack-prompts", "legitimate-prompts", "navi-prompts"]
 class EventSpec(BaseModel):
     type: str = Field(
         ...,
-        description=("response_contains | tool_called | tool_called_with | tool_attempted | "
+        description=("response_contains | tool_attempted | "
                      "tool_denied | tool_pending_confirmation | tool_completed_with | tool_result_matches"),
     )
     value: Optional[str] = None
@@ -31,7 +31,7 @@ class EventSpec(BaseModel):
 
 
 class EvaluationSpec(BaseModel):
-    method: str = Field(default="deterministic", description="deterministic | llm")
+    method: str = Field(default="deterministic", description="deterministic | hybrid | hybrid_attack")
     events: list[EventSpec] = Field(default_factory=list)
     question: Optional[str] = None
     system: Optional[str] = Field(default="neutral", description="neutral | security")

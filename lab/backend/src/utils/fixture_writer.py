@@ -19,7 +19,7 @@ _ALLOWED_KINDS = {"attack-prompts", "legitimate-prompts", "navi-prompts"}
 _ALLOWED_SEVERITY = {"CRITICAL", "HIGH", "LOW"}
 _ALLOWED_EXPECTED = {"BLOCK", "ALLOW", "REFUSE"}
 _ALLOWED_EVENT_TYPES = {
-    "response_contains", "tool_called", "tool_called_with", "tool_attempted",
+    "response_contains", "tool_attempted",
     "tool_denied", "tool_pending_confirmation", "tool_completed_with", "tool_result_matches",
 }
 _ALLOWED_JUDGE_SYSTEMS = {"neutral", "security"}
@@ -76,7 +76,7 @@ def _build_evaluation(ev: dict) -> dict:
                 if not value:
                     raise FixtureWriteError("response_contains requiere 'value'")
                 events_out.append({"type": "response_contains", "value": value})
-            elif etype in {"tool_called", "tool_attempted", "tool_denied", "tool_pending_confirmation"}:
+            elif etype in {"tool_attempted", "tool_denied", "tool_pending_confirmation"}:
                 tool = (raw.get("tool") or "").strip()
                 if not tool:
                     raise FixtureWriteError(f"{etype} requiere 'tool'")
@@ -84,7 +84,7 @@ def _build_evaluation(ev: dict) -> dict:
                 if raw.get("args"):
                     entry["args"] = raw["args"]
                 events_out.append(entry)
-            else:  # tool_called_with | tool_completed_with | tool_result_matches
+            else:  # tool_completed_with | tool_result_matches
                 tool = (raw.get("tool") or "").strip()
                 if not tool:
                     raise FixtureWriteError(f"{etype} requiere 'tool'")
@@ -100,7 +100,7 @@ def _build_evaluation(ev: dict) -> dict:
             raise FixtureWriteError("La evaluación determinista necesita al menos un evento")
         return {"method": "deterministic", "events": events_out}
 
-    if method == "llm":
+    if method in {"hybrid", "hybrid_attack"}:
         question = (ev.get("question") or "").strip()
         if not question:
             raise FixtureWriteError("La evaluación por juez necesita una 'question'")
@@ -108,9 +108,12 @@ def _build_evaluation(ev: dict) -> dict:
         if system not in _ALLOWED_JUDGE_SYSTEMS:
             raise FixtureWriteError(f"system del juez inválido: {system!r}")
         return {
-            "method": "llm",
-            "question": question,
-            "judge": {"system": system, "include": ["response", "question"]},
+            "method": method,
+            "fallback": {
+                "when": "always" if method == "hybrid" else "no_breach_observed",
+                "rubric": question,
+                "judge": {"system": system, "include": ["prompt", "response", "tools", "user_context"]},
+            },
         }
 
     raise FixtureWriteError(f"Método de evaluación desconocido: {method!r}")

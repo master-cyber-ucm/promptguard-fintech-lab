@@ -141,7 +141,7 @@ check-suite:
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Evalúa los Session Files usando el bloque evaluation: de cada fixture.
-# Aplica DeterministicEvaluator o LLMEvaluator según el método definido.
+# Aplica el evaluador determinista o híbrido declarado en cada fixture.
 #
 #   make evaluate                                          → todos los runs pendientes
 #   make evaluate FORCE=1                                  → re-evalúa todos los runs

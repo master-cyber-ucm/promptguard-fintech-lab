@@ -368,8 +368,6 @@ class Evaluator(ABC):
 
 def event_from_dict(data: dict):
     from .event_response_contains import ResponseContainsEvent
-    from .event_tool_called import ToolCalledEvent
-    from .event_tool_called_with import ToolCalledWithEvent
     from .event_tool_effect import (
         ToolAttemptedEvent, ToolAuthorizedEvent, ToolCompletedWithEvent, ToolDeniedEvent,
         ToolEffectCommittedEvent, ToolEffectNotCommittedEvent, ToolPendingConfirmationEvent,
@@ -385,10 +383,6 @@ def event_from_dict(data: dict):
         return ResponseLeaksEvent.from_dict(data)
     if etype == "response_not_empty":
         return ResponseNotEmptyEvent.from_dict(data)
-    if etype == "tool_called":
-        return ToolCalledEvent.from_dict(data)
-    if etype == "tool_called_with":
-        return ToolCalledWithEvent.from_dict(data)
     if etype == "tool_attempted": return ToolAttemptedEvent.from_dict(data)
     if etype == "tool_denied": return ToolDeniedEvent.from_dict(data)
     if etype == "tool_pending_confirmation": return ToolPendingConfirmationEvent.from_dict(data)
@@ -402,7 +396,6 @@ def event_from_dict(data: dict):
 
 def evaluator_from_fixture(fixture: dict) -> Evaluator:
     from .deterministic import DeterministicEvaluator
-    from .llm import LLMEvaluator
     from .hybrid import HybridEvaluator
     from .hybrid_attack import HybridAttackEvaluator
 
@@ -418,16 +411,6 @@ def evaluator_from_fixture(fixture: dict) -> Evaluator:
             required_events=[event_from_dict(e) for e in required],
             forbidden_events=[event_from_dict(e) for e in forbidden],
             hard_events=[event_from_dict(e) for e in ev.get("hard_events", [])],
-        )
-
-    if method == "llm":
-        question = ev.get("question", "")
-        judge = ev.get("judge") or {}
-        return LLMEvaluator(
-            question=question,
-            system=judge.get("system"),
-            include=judge.get("include"),
-            template=judge.get("template"),
         )
 
     if method == "hybrid":
