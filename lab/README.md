@@ -41,8 +41,11 @@ make run BACKEND_PORT=9000 FRONTEND_PORT=4000
 | `make restart` | Reinicia backend y frontend |
 | `make logs` | Sigue los logs de todos los servicios |
 | `make logs-backend` | Sigue solo los logs del backend |
-| `make suite` | Corre la suite completa de fixtures |
+| `make suite` | Corre la suite completa de fixtures (incluye la matriz de ablaciones `only-*`, ver ADR-0017) |
 | `make suite ARGS="--kind attack-prompts"` | Suite con filtros |
+| `make evaluate RUN=<run>` | Reintenta errores técnicos retryable, evalúa pendientes e inconclusas y repite hasta `RETRY_ROUNDS` rondas |
+| `make evaluate RUN=<run> FORCE=1` | Fuerza la reevaluación completa, manteniendo también los reintentos técnicos |
+| `make report RUN=<run>` | Ejecuta `evaluate` y después genera `run.md`/`run.json`; nunca reporta una sesión pendiente sin intentar evaluarla |
 | `make smoke` | Smoke test del stack |
 
 ### Sin Make (equivalentes directos)

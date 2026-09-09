@@ -409,6 +409,59 @@ def build_executions(
     return executions
 
 
+def load_retryable_execution_ids(run_folder: Path) -> set[str]:
+    """Devuelve las ejecuciones terminales con error transitorio reintentable.
+
+    El retry de un run existente debe reutilizar la identidad sellada en
+    ``coverage-plan.json``. No se reconstruye el UUID ni se crea una nueva fila del
+    denominador: se busca la última terminación de cada identidad en el ledger y solo
+    se reintenta si su error sigue marcado como retryable.
+    """
+    ledger_path = run_folder / "execution-ledger.jsonl"
+    if not ledger_path.is_file():
+        return set()
+    ultimos: dict[str, dict] = {}
+    for linea in ledger_path.read_text(encoding="utf-8").splitlines():
+        try:
+            evento = json.loads(linea)
+        except json.JSONDecodeError:
+            continue
+        if evento.get("event") == "FINISHED" and evento.get("fixture_execution_id"):
+            ultimos[evento["fixture_execution_id"]] = evento
+    return {
+        exec_id for exec_id, evento in ultimos.items()
+        if evento.get("execution_status") == "TECHNICAL_ERROR"
+        and bool((evento.get("failure") or {}).get("retryable"))
+    }
+
+
+def restore_plan_execution_ids(executions: list[dict], run_folder: Path) -> list[dict]:
+    """Reata los objetos reconstruidos a los IDs naturales del plan sellado.
+
+    Al reanudar una corrida parcial, el catálogo actual puede ser más amplio que el
+    plan original. Las combinaciones que no pertenecen al plan se descartan; nunca se
+    añaden accidentalmente al denominador histórico.
+    """
+    try:
+        plan = json.loads((run_folder / "coverage-plan.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            "--retry-errors-only requiere coverage-plan.json válido"
+        ) from exc
+    ids = {
+        (row["fixture_id"], row["target"], row["repetition"]): row["fixture_execution_id"]
+        for row in plan.get("rows", [])
+    }
+    restauradas = []
+    for execution in executions:
+        key = (execution["fixture_id"], execution["target"], execution["repetition"])
+        if key not in ids:
+            continue
+        execution["fixture_execution_id"] = ids[key]
+        restauradas.append(execution)
+    return restauradas
+
+
 def applicable_targets(fixture: dict, endpoints: dict[str, str]) -> list[str]:
     """Targets en los que este fixture mide algo real.
 
@@ -689,6 +742,14 @@ async def main():
         ),
     )
     parser.add_argument(
+        "--retry-errors-only", action="store_true",
+        help=(
+            "Con --resume-run, reejecuta solo las Fixture Executions cuya última "
+            "terminación fue un error técnico retryable. Reutiliza los IDs del plan "
+            "sellado y conserva los intentos anteriores en el ledger."
+        ),
+    )
+    parser.add_argument(
         "--seed", type=int, default=int(os.environ.get("SUITE_SEED", "20260831")),
         metavar="N",
         help=(
@@ -706,6 +767,9 @@ async def main():
         ),
     )
     args = parser.parse_args()
+
+    if args.retry_errors_only and not args.resume_run:
+        parser.error("--retry-errors-only requiere --resume-run")
 
     REQUEST_TIMEOUT = args.timeout
 
@@ -763,6 +827,39 @@ async def main():
             endpoints[target] = proxy_path
             proxy_profile_by_target[target] = profile
 
+    if args.retry_errors_only:
+        # La reanudación debe reconstruir exactamente los targets del plan original.
+        # No basta con usar los defaults actuales: una campaña con `proxy_profiles`
+        # produce targets como `proxy-only-input`, que desaparecerían si el runner se
+        # invocara sin repetir todos los flags originales.
+        resume_folder = RUNS_DIR / args.resume_run
+        try:
+            resume_plan = json.loads(
+                (resume_folder / "coverage-plan.json").read_text(encoding="utf-8")
+            )
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            parser.error(f"no se puede reanudar sin plan válido: {exc}")
+        target_rows: dict[str, dict] = {}
+        for row in resume_plan.get("rows", []):
+            target_rows.setdefault(row["target"], row)
+        endpoints = {}
+        proxy_profile_by_target = {}
+        document_profile_by_target = {}
+        for target, row in target_rows.items():
+            if target.startswith("proxy"):
+                endpoints[target] = CHAT_ENDPOINTS["proxy"]
+                proxy_profile_by_target[target] = row.get("proxy_profile")
+                document_profile_by_target[target] = (
+                    target.removeprefix("proxy-")
+                    if target.startswith("proxy-document-") else None
+                )
+            elif target in CHAT_ENDPOINTS:
+                endpoints[target] = CHAT_ENDPOINTS[target]
+                proxy_profile_by_target[target] = None
+                document_profile_by_target[target] = None
+        if not endpoints:
+            parser.error("el plan de reanudación no contiene targets reconocibles")
+
     kinds = [args.kind] if args.kind else ALL_KINDS
     fixtures: list[dict] = []
     fixture_ids = args.fixture_ids or [None]
@@ -808,6 +905,18 @@ async def main():
         repeat=args.repeat, run_folder_name=ts_file,
         document_profile_by_target=document_profile_by_target,
     )
+    if args.retry_errors_only:
+        run_folder = RUNS_DIR / ts_file
+        executions = restore_plan_execution_ids(executions, run_folder)
+        retryable_ids = load_retryable_execution_ids(run_folder)
+        executions = [
+            execution for execution in executions
+            if execution["fixture_execution_id"] in retryable_ids
+        ]
+        if not executions:
+            _flush("  No hay errores técnicos retryable pendientes.")
+            return
+        _flush(f"  Reintentando {len(executions)} Fixture Executions con error técnico retryable.")
 
     # Cobertura cero: un fixture cargado que ningún target puede ejecutar no genera ni
     # un hueco que reclamar. Se declara antes de empezar, no se descubre en el informe.
@@ -864,11 +973,6 @@ async def main():
         procedencia_path.write_text(
             json.dumps(manifiesto_procedencia, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
-        )
-    if manifiesto_procedencia["git"]["dirty"]:
-        _flush(
-            "  ⚠ árbol de trabajo sucio: el commit no identifica el código que corre. "
-            "Este run no puede agregarse con otros."
         )
 
     # Manifiesto versionado: describe la intención experimental, no etiquetas de
@@ -1016,6 +1120,23 @@ async def main():
 
     # El registro de ejecuciones es lo que permite comprobar después que ninguna
     # desapareció en silencio y con qué postura corrió cada una.
+    if args.retry_errors_only:
+        try:
+            anteriores = json.loads(
+                (run_folder / "executions.json").read_text(encoding="utf-8")
+            )
+        except (FileNotFoundError, json.JSONDecodeError):
+            anteriores = []
+        por_id = {
+            item.get("fixture_execution_id"): item
+            for item in anteriores if item.get("fixture_execution_id")
+        }
+        por_id.update({
+            item.get("fixture_execution_id"): item
+            for item in resultados if item.get("fixture_execution_id")
+        })
+        resultados = list(por_id.values())
+
     (run_folder / "executions.json").write_text(
         json.dumps(resultados, indent=2, ensure_ascii=False) + "\n", encoding="utf-8",
     )

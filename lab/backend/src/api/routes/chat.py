@@ -1420,9 +1420,23 @@ async def chat_proxy(
     y nunca llega al LLM (mismo contrato que ya tenía `/complex-with-document`).
     """
     request, document = await _parse_chat_request(http_request)
+    # `vulnerable` desacoplado de "baseline" (ADR-0017, "Considered Options — desacoplar
+    # `vulnerable`", opción elegida): antes "baseline" era el único perfil con
+    # `vulnerable=True`, y ese campo NO es uno de los `DEFENSE_CONTROLS` declarados —
+    # `TargetPosture.comparable_fingerprint` lo trataba como invariante y bloqueaba
+    # cualquier comparación causal contra "full" o la matriz `only-*` con
+    # "factores no defensivos distintos: ['vulnerable']". `vulnerable=True` además
+    # condicionaba, con independencia de los 5 flags declarados: el cap de tokens de
+    # salida (#8 LLM10:2025), el registro del Budget Guard y el bypass de
+    # `enforce_gatekeeper` — ninguno de ellos es una dimensión de la matriz de
+    # ablaciones, así que no deben variar entre posturas. "baseline" ahora expresa la
+    # línea base causal únicamente como los 5 flags declarados en `False`, igual que
+    # ya hacían "full" y `only-*`: queda `is_causal_baseline` (cero controles
+    # externos) sin depender ya de un interruptor aparte.
     profiles = {
         "baseline": {
-            "vulnerable": True,
+            "vulnerable": False,
+            "documento_defendido": False,
             "defensa_tool_gatekeeper": False,
             "defensa_pii_shield": False,
             "defensa_input_sanitizer": False,
@@ -1431,6 +1445,7 @@ async def chat_proxy(
         },
         "gatekeeper": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": True,
             "defensa_pii_shield": False,
             "defensa_input_sanitizer": False,
@@ -1439,6 +1454,7 @@ async def chat_proxy(
         },
         "output": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": True,
             "defensa_pii_shield": True,
             "defensa_input_sanitizer": False,
@@ -1447,6 +1463,7 @@ async def chat_proxy(
         },
         "full": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": True,
             "defensa_pii_shield": True,
             "defensa_input_sanitizer": True,
@@ -1454,13 +1471,14 @@ async def chat_proxy(
             "defensa_leak_guard": True,
         },
         # Matriz de ablaciones (PR5 / ADR-0017): un control a la vez, con el mismo
-        # `vulnerable=False` que "full" — ninguno de estos perfiles activa la rama
-        # `vulnerable=True`, así que no hereda sus efectos laterales (DoS, ownership
-        # bypass) y es comparable contra "full"/"baseline" en los cinco flags
+        # `vulnerable=False` que "full" y "baseline" — ningún perfil activa ya la rama
+        # `vulnerable=True`, así que ninguno hereda sus antiguos efectos laterales (DoS,
+        # ownership bypass) y todos son comparables entre sí en los cinco flags
         # declarados. "only-gatekeeper" coincide con el perfil histórico "gatekeeper";
         # se añade con el nombre de la matriz para que el diseño sea trazable.
         "only-input": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": False,
             "defensa_pii_shield": False,
             "defensa_input_sanitizer": True,
@@ -1469,6 +1487,7 @@ async def chat_proxy(
         },
         "only-pii": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": False,
             "defensa_pii_shield": True,
             "defensa_input_sanitizer": False,
@@ -1477,6 +1496,7 @@ async def chat_proxy(
         },
         "only-gatekeeper": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": True,
             "defensa_pii_shield": False,
             "defensa_input_sanitizer": False,
@@ -1485,6 +1505,7 @@ async def chat_proxy(
         },
         "only-auditor": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": False,
             "defensa_pii_shield": False,
             "defensa_input_sanitizer": False,
@@ -1497,6 +1518,7 @@ async def chat_proxy(
         # ADR-0017 en vez de fingir que mide el control aislado.
         "only-leak": {
             "vulnerable": False,
+            "documento_defendido": True,
             "defensa_tool_gatekeeper": True,
             "defensa_pii_shield": False,
             "defensa_input_sanitizer": False,
@@ -1519,12 +1541,20 @@ async def chat_proxy(
         request.vulnerable = settings["vulnerable"]
 
     principal = _principal(request, authorization)
-    # Documentos (PR7): las defensas documentales se gatean igual que el resto —
-    # `vulnerable=True` las apaga todas, exactamente como ya hace con Input
-    # Sanitizer/PII Shield/Output Auditor más abajo en `_process_chat`. No son parte
-    # de los cinco flags de PR5 (`DEFENSE_CONTROLS` ya las declara aparte:
-    # `document_sanitizer`/`document_structural_detector`/`separacion_semantica`).
-    documento_activo = not request.vulnerable
+    # Documentos (PR7): con perfil explícito, las defensas documentales las gatea el
+    # perfil, no `vulnerable` (ADR-0017) — `documento_defendido` es una clave declarada
+    # más de `profiles`, igual que los cinco `defensa_*`, así que "baseline" apaga el
+    # canal documental sin necesitar `vulnerable=True` y sigue siendo comparable contra
+    # "full". Sin perfil (contrato previo de /proxy, igual que la línea 1519 con
+    # `request.vulnerable`), se conserva `not request.vulnerable`: un llamador que pide
+    # `vulnerable=true` a mano espera apagar todas las capas, documentales incluidas, y
+    # no hay perfil que lo desacople. No son parte de los cinco flags de PR5
+    # (`DEFENSE_CONTROLS` ya las declara aparte: `document_sanitizer`/
+    # `document_structural_detector`/`separacion_semantica`).
+    documento_activo = (
+        bool(settings.get("documento_defendido", True)) if request.proxy_profile
+        else not request.vulnerable
+    )
     document_text: str | None = None
     document_meta: dict | None = None
     collector: SocCollector | None = None

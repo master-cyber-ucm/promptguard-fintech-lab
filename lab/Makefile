@@ -7,6 +7,10 @@
 #
 #   make eval-all-steps         → encadena los tres pasos anteriores
 #
+# `make evaluate` cierra automáticamente errores técnicos retryable y sesiones
+# inconclusas en rondas limitadas; `make report` lo invoca antes de publicar.
+# `RETRY_ROUNDS=3` controla el número de rondas y `FORCE=1` permite reevaluar todo.
+#
 # Evaluación por modelo:
 #   make eval MODEL=mistral:7b  → pull + suite (ollama Docker)
 #   make eval-all               → todos los modelos de models.txt
@@ -21,6 +25,7 @@ FRONTEND_PORT ?= 3000
 
 JUDGE_TIMEOUT ?= 300
 LEVEL         ?= evaluation
+RETRY_ROUNDS  ?= 3
 
 # Procedencia de git: el contenedor no monta el repositorio (solo `src`, `scripts` y
 # `audit`), así que el commit se inyecta desde el host. Sin esto, `provenance.json`
@@ -38,8 +43,16 @@ MODELS_FILE   ?= models.txt
 # endpoints existentes; ya no es una ruta propia) — sin `--document-profile`, once
 # fixtures (seis ataques de inyección indirecta y cinco legítimos sobre documentos
 # benignos) quedaban cargados y nunca ejecutados — ver P10 / PR10.
+#
+# `only-*`: matriz de ablaciones (PR5 / ADR-0017), un control externo a la vez. Antes
+# no se lanzaba en ninguna campaña — el diseño llevaba implementado desde antes del PR5
+# sin que ningún `run.md` tuviera datos para `defense_marginals`. Ahora es parte del
+# target por defecto de `make suite` porque, con `vulnerable` desacoplado de "baseline"
+# (ver `backend/src/api/routes/chat.py::chat_proxy`), "baseline" ya es comparable
+# causalmente contra "full" y contra cada perfil `only-*` — sin la matriz ejecutada esa
+# comparabilidad recién ganada no tiene con qué llenarse.
 SUITE_ENDPOINTS   ?= simple-prompt complex-prompt complex-with-context proxy
-PROXY_PROFILES    ?= baseline full
+PROXY_PROFILES    ?= baseline full only-input only-pii only-gatekeeper only-auditor only-leak
 DOCUMENT_PROFILES ?= document-baseline document-full
 
 .PHONY: up down restart restart-backend restart-front \
@@ -138,9 +151,12 @@ check-suite:
 # Evalúa los Session Files usando el bloque evaluation: de cada fixture.
 # Aplica DeterministicEvaluator o LLMEvaluator según el método definido.
 #
-#   make evaluate                             → todos los runs pendientes
-#   make evaluate FORCE=1                     → re-evalúa todos los runs
-#   make evaluate RUN=audit/runs/20260628_X/  → run específico (forzado)
+#   make evaluate                                          → todos los runs pendientes
+#   make evaluate FORCE=1                                  → re-evalúa todos los runs
+#   make evaluate RUN=audit/runs/20260628_X/                → pendientes e inconclusas del run
+#   make evaluate RUN=audit/runs/20260628_X/ FORCE=1 \
+#                 ONLY_INCONCLUSIVE=1                       → reintento acotado (ver nota
+#                                                              de cabecera del Makefile)
 evaluate:
 	$(COMPOSE) exec \
 		-e FIXTURES_DIR=$(FIXTURES) \
@@ -149,14 +165,24 @@ evaluate:
 		python scripts/evaluate.py \
 		$(if $(RUN),--run $(RUN),) \
 		$(if $(FORCE),--force,) \
+		$(if $(ONLY_INCONCLUSIVE),--only-inconclusive,) \
+		--retry-rounds $(RETRY_ROUNDS) \
+		$(if $(NO_TECHNICAL_RETRY),--no-technical-retry,) \
+		$(if $(NO_RETRY_INCONCLUSIVE),--no-retry-inconclusive,) \
 		$(ARGS)
 
 # Genera run.json + run.md a partir de las secciones ## Evaluación · de los Session Files.
 #
 #   make report                               → runs con evaluación y sin run.md
 #   make report FORCE=1                       → regenera todos los reports
-#   make report RUN=audit/runs/20260628_X/    → run específico (forzado)
+#   make report RUN=audit/runs/20260628_X/    → evalúa y reporta ese run
 report:
+	$(MAKE) --no-print-directory evaluate \
+		$(if $(RUN),RUN=$(RUN),) \
+		$(if $(FORCE),FORCE=$(FORCE),) \
+		RETRY_ROUNDS=$(RETRY_ROUNDS) \
+		$(if $(NO_TECHNICAL_RETRY),NO_TECHNICAL_RETRY=$(NO_TECHNICAL_RETRY),) \
+		$(if $(NO_RETRY_INCONCLUSIVE),NO_RETRY_INCONCLUSIVE=$(NO_RETRY_INCONCLUSIVE),)
 	$(COMPOSE) exec \
 		-e FIXTURES_DIR=$(FIXTURES) \
 		backend \

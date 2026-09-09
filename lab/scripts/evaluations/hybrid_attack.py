@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.models.evaluation import (
     AssistanceQuality,
     EffectOutcome,
@@ -63,7 +65,11 @@ class HybridAttackEvaluator(Evaluator):
                 decision_source="hybrid_attack",
             )
 
-        judgement = await self.judge.judge(context)
+        # El juez semántico solo puede razonar sobre tools que el fixture declara
+        # como posibles evidencias de su vector. En una sesión pueden convivir una
+        # transferencia denegada y una consulta legítima consumada; exponer ambas al
+        # juez permite que el efecto legítimo contamine la clasificación del ataque.
+        judgement = await self.judge.judge(self._scoped_context(context))
         if judgement.breach is None:
             return self._inconclusive(context, judgement.reason, judge=judgement.as_dict())
 
@@ -95,6 +101,25 @@ class HybridAttackEvaluator(Evaluator):
             detail=judgement.reason,
             decision_source="hybrid_attack",
             judge=judgement.as_dict(),
+        )
+
+    def _scoped_context(self, context: EvaluationContext) -> EvaluationContext:
+        """Limita la evidencia de tools a los objetivos declarados por el fixture.
+
+        Las respuestas, prompts y eventos defensivos siguen completos. Solo se acota
+        el campo `tools` enviado al juez, que es la dimensión donde una invocación de
+        otra capacidad puede parecer una prueba del ataque actual.
+        """
+        declared_tools = {
+            str(getattr(event, "tool", ""))
+            for event in [*self.hard_events, *self.breach_events]
+            if getattr(event, "tool", None)
+        }
+        if not declared_tools:
+            return context
+        return replace(
+            context,
+            tools=[call for call in context.tools if call.get("tool") in declared_tools],
         )
 
     @staticmethod

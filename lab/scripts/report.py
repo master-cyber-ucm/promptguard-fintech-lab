@@ -1124,19 +1124,44 @@ def _build_md(run_data: dict) -> str:
     # Resultado del sistema: la vista principal. Responde por separado qué daño
     # ocurrió, qué hizo el modelo y qué control actuó — la pregunta única
     # "¿se bloqueó?" era la que producía un 90,1% sin evidencia detrás.
+    #
+    # P29 (feedback profesor 2026-09-05): el aviso de "claims suprimidos por
+    # cobertura insuficiente" vivía solo como prosa bajo ## Cobertura, dos
+    # secciones antes de esta tabla — un lector que salta por encabezados podía
+    # llegar aquí sin haberlo visto. La columna `Gate cobertura` hace visible el
+    # mismo bloqueo fila a fila, en la tabla que de verdad se lee.
+    cobertura_gates = cobertura.get("gates") or {}
+    gate_run = cobertura_gates.get("run")
     lines += [
         "## Resultado del sistema",
         "",
         "Contención por infraestructura, contención por la capa de modelo, vulnerable e "
         "inconcluso son exhaustivos y mutuamente excluyentes sobre los ataques ejecutados.",
         "",
-        "| Endpoint | Ataques | Infraestructura | Modelo | Vulnerable | Inconcluso | Reconcilia |",
-        "|----------|---------|-----------------|--------|------------|------------|------------|",
+    ]
+    if gate_run is not None and not gate_run["allowed"]:
+        lines += [
+            "> ⚠ **La cobertura de este run no alcanza el gate del proyecto** "
+            "(ver «Claims suprimidos por cobertura insuficiente» en ## Cobertura): "
+            "los porcentajes de esta tabla son descriptivos, no una afirmación de "
+            "seguridad sostenida allí donde la columna `Gate cobertura` marque ⚠.",
+            "",
+        ]
+    lines += [
+        "| Endpoint | Ataques | Infraestructura | Modelo | Vulnerable | Inconcluso | Reconcilia | Gate cobertura |",
+        "|----------|---------|-----------------|--------|------------|------------|------------|----------------|",
     ]
     for ep in endpoints:
         s = run_data["by_endpoint"][ep]["summary"]
         sr = s["system_results"]
         total_atk = s["attacks_total"] or 0
+        gate_ep = cobertura_gates.get(ep)
+        if gate_ep is None:
+            gate_marker = "—"
+        elif gate_ep["allowed"]:
+            gate_marker = "✅"
+        else:
+            gate_marker = "⚠"
 
         def _cell(count: int, rate: float | None) -> str:
             return f"{count} ({rate}%)" if rate is not None else str(count)
@@ -1147,8 +1172,19 @@ def _build_md(run_data: dict) -> str:
             f"| {_cell(sr['MODEL_CONTAINED'], s['model_contained_rate'])} "
             f"| {_cell(sr['VULNERABLE'], s['vulnerable_rate'])} "
             f"| {_cell(sr['INCONCLUSIVE'], s['inconclusive_rate'])} "
-            f"| {'✅' if s['reconciles'] else '❌'} |"
+            f"| {'✅' if s['reconciles'] else '❌'} "
+            f"| {gate_marker} |"
         )
+    blockers_por_endpoint = {
+        ep: cobertura_gates[ep]["blockers"]
+        for ep in endpoints
+        if cobertura_gates.get(ep) and not cobertura_gates[ep]["allowed"]
+    }
+    if blockers_por_endpoint:
+        lines += ["", "**Por qué falla `Gate cobertura` (⚠):**", ""]
+        for ep, blockers in blockers_por_endpoint.items():
+            for razon in blockers:
+                lines.append(f"- `{ep}`: {razon}")
     lines += [
         "",
         "| Endpoint | Efecto dañino | Cooperación insegura | Detección sin intervención | Errores de ejecución |",

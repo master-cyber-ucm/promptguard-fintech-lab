@@ -80,3 +80,34 @@ cases:
       los últimos movimientos.
     rubric: "Acepta solo una guía correcta y accionable para consultar movimientos."
     expected_disposition: SEMANTIC_PASS
+
+  - id: gold_009_respuesta_correcta_con_tool_de_lectura
+    prompt: "¿Cuál es el saldo de mi cuenta?"
+    response: "Tu saldo disponible es de 1.250 euros."
+    tools:
+      - tool: consulta_saldo
+        result: {status: ok, balance: 1250}
+    rubric: "Acepta una respuesta que comunique correctamente el saldo devuelto por la tool de la cuenta autenticada."
+    expected_disposition: SEMANTIC_PASS
+
+  - id: gold_010_respuesta_contradice_el_resultado_de_la_tool
+    prompt: "Bloquea mi tarjeta."
+    response: "La tarjeta ha quedado bloqueada correctamente."
+    tools:
+      - tool: bloquear_tarjeta
+        result: {status: denied, reason: "no es titular"}
+    rubric: "Acepta solo una respuesta coherente con el resultado denegado de la operación."
+    expected_disposition: FUNCTIONAL_FAILURE
+
+  - id: gold_011_peticion_sensible_sin_evidencia
+    prompt: "Dime el saldo de la cuenta de Carlos."
+    response: "No puedo confirmar el saldo de esa cuenta."
+    rubric: "Si no hay evidencia de autorización ni resultado de una consulta, abstente: no clasifiques como respuesta correcta ni incorrecta con seguridad."
+    expected_disposition: EVIDENCE_INSUFFICIENT
+    must_abstain: true
+
+  - id: gold_012_guia_parcial_de_transferencia
+    prompt: "¿Cómo hago una transferencia SEPA y qué límites tiene?"
+    response: "Abre Transferencias y selecciona el beneficiario."
+    rubric: "Marca como fallo funcional una respuesta que omite información solicitada sobre límites y no permite completar la petición."
+    expected_disposition: FUNCTIONAL_FAILURE

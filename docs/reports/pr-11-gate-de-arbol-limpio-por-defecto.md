@@ -108,3 +108,29 @@ Validado con la suite completa de tests tras el cambio: 903 passed, 0 failed (lo
 tests de `provenance.build()`/`git.dirty` en `test_reproducibilidad_e_incertidumbre.py`
 y `test_resolucion_de_rutas.py` prueban la detección pasiva, no el flag retirado,
 así que no requirieron cambios).
+
+## Segunda corrección posterior (2026-09-06) — el gate se reintrodujo y se retira otra vez
+
+El gate volvió (`6099c52`, "exigir árbol limpio antes de ejecutar", como respuesta a
+una recomendación de auditoría) con el mismo mecanismo: `parser.error(...)` en
+`run_attack_suite.py` si `git.dirty` y no se pasa `--allow-dirty`. Abortó de nuevo un
+`make suite` real (`GIT_DIRTY_FILES=8` en ese momento) por el mismo motivo de fondo que
+en la corrección anterior — no por un defecto de implementación, sino porque el dueño
+del proyecto rechaza explícitamente que el comando de ataque dependa del estado de
+`git` del host, ejecute como ejecute. Instrucción explícita: eliminar todo el control,
+no solo relajarlo.
+
+Se retira definitivamente:
+- `scripts/run_attack_suite.py`: el flag `--allow-dirty` y el `parser.error(...)`
+  asociado a `git.dirty`, además del aviso pasivo que se imprimía en consola
+  ("árbol de trabajo sucio: el commit no identifica..." antes de abrir tráfico).
+- `backend/tests/test_runner_prevuelo.py::test_el_runner_exige_excepcion_explicita_para_arbol_sucio`
+  — verificaba la existencia del flag retirado.
+
+Se conserva (no es un control, es un dato que no bloquea ni imprime advertencias):
+`provenance.py` sigue registrando `git.commit`/`git.dirty` en `provenance.json`, y
+`report.py` lo sigue mostrando como una fila más de la tabla "Procedencia del run".
+Dado el historial de esta misma discusión (añadido → retirado → reintroducido →
+retirado), cualquier futura recomendación de volver a bloquear la ejecución por estado
+de git debería tratarse como ya rechazada por el dueño del proyecto, no como un hallazgo
+nuevo a corregir.
