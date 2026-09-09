@@ -453,6 +453,30 @@ def has_eval(path: Path) -> bool:
     return EVAL_COMMENT in path.read_text(encoding="utf-8")
 
 
+def existing_eval_inconclusive(path: Path) -> bool | None:
+    """Lee el bloque `<!-- eval: {...} -->` ya escrito sin re-evaluar nada.
+
+    Devuelve `None` si el fichero no tiene evaluación legible por máquina (debe
+    tratarse como pendiente, no como concluyente). P29 (feedback profesor
+    2026-09-05): reevaluar las 2415 ejecuciones de un run para cerrar el gap de
+    cobertura de las ~300 `INCONCLUSIVE` es correcto en el resultado pero
+    innecesariamente caro — recorre también las ~2100 que ya son concluyentes.
+    Esta función permite acotar el reintento a las que de verdad lo necesitan.
+    """
+    texto = path.read_text(encoding="utf-8")
+    inicio = texto.find(EVAL_COMMENT)
+    if inicio == -1:
+        return None
+    fin = texto.find("-->", inicio)
+    if fin == -1:
+        return None
+    try:
+        data = json.loads(texto[inicio + len("<!-- eval:"):fin].strip())
+    except json.JSONDecodeError:
+        return None
+    return bool(data.get("inconclusive"))
+
+
 def append_eval(
     path: Path,
     *,
@@ -565,6 +589,7 @@ async def process_run(
     force: bool,
     fixture_by_id: dict,
     client: httpx.AsyncClient,
+    only_inconclusive: bool = False,
 ) -> None:
     _flush(f"\n  📂 {run_folder.name}")
     _flush(SEP)
@@ -584,6 +609,12 @@ async def process_run(
             if not force and has_eval(sf):
                 _flush(f"  ↷  {sf.name} — ya evaluado, skip")
                 continue
+
+            if only_inconclusive:
+                inconcluso = existing_eval_inconclusive(sf)
+                if inconcluso is False:
+                    _flush(f"  ↷  {sf.name} — ya concluyente, skip (--only-inconclusive)")
+                    continue
 
             try:
                 parsed = parse_session_file(sf)
@@ -702,6 +733,15 @@ async def main() -> None:
                         help="Run Folder específico (implica --force)")
     parser.add_argument("--force", action="store_true",
                         help="Re-evalúa aunque ya exista sección de Evaluación")
+    parser.add_argument(
+        "--only-inconclusive", action="store_true",
+        help=(
+            "Combinado con --run/--force, solo reevalúa las sesiones cuya evaluación "
+            "actual es INCONCLUSIVE; las ya concluyentes (SUCCESS/BLOCKED) se dejan "
+            "intactas. Reduce drásticamente el coste de cerrar el gate de cobertura "
+            "sin necesidad de repetir toda la campaña."
+        ),
+    )
     args = parser.parse_args()
 
     _flush(SEP2)
@@ -735,7 +775,10 @@ async def main() -> None:
 
     async with httpx.AsyncClient() as client:
         for run_folder in run_folders:
-            await process_run(run_folder, force=force, fixture_by_id=fixture_by_id, client=client)
+            await process_run(
+                run_folder, force=force, fixture_by_id=fixture_by_id, client=client,
+                only_inconclusive=args.only_inconclusive,
+            )
 
     _flush("")
     _flush(SEP2)
