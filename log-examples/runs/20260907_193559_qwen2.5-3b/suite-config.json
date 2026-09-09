@@ -1,0 +1,142 @@
+{
+  "schema_version": 2,
+  "run_started_at": "2026-09-07T19:35:59Z",
+  "model": "qwen2.5:3b",
+  "requested_model": "qwen2.5:3b",
+  "provider": "ollama",
+  "defense_version": "dev",
+  "git_commit": "f1c92597d57b34a50a93ad4074ecc59fd9ba3532",
+  "git_dirty": true,
+  "fixtures_sha256": "8caafea42542fa9772e2af8e139089651e4758a93cdcdc313c671dda9b14da76",
+  "repeat": 3,
+  "targets": [
+    "simple-prompt",
+    "complex-prompt",
+    "complex-with-context",
+    "proxy-document-baseline",
+    "proxy-document-full",
+    "proxy-baseline",
+    "proxy-full",
+    "proxy-only-input",
+    "proxy-only-pii",
+    "proxy-only-gatekeeper",
+    "proxy-only-auditor",
+    "proxy-only-leak"
+  ],
+  "proxy_profiles": {
+    "proxy-document-baseline": "baseline",
+    "proxy-document-full": "full",
+    "proxy-baseline": "baseline",
+    "proxy-full": "full",
+    "proxy-only-input": "only-input",
+    "proxy-only-pii": "only-pii",
+    "proxy-only-gatekeeper": "only-gatekeeper",
+    "proxy-only-auditor": "only-auditor",
+    "proxy-only-leak": "only-leak"
+  },
+  "seed": 20260831,
+  "judge_bundle": {
+    "judge_schema_version": 2,
+    "model": "qwen3.5:9b",
+    "api_format": "ollama",
+    "temperature": 0,
+    "prompt_hash": "ab82d6e69de7b928",
+    "timeout_s": 60.0,
+    "max_attempts": 3
+  },
+  "provenance_fingerprint": "6754ac012f50f4eb",
+  "execution_design": "randomized_blocks(fixture, repetition)",
+  "requested_postures": {
+    "simple-prompt": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "complex-prompt": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "complex-with-context": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "proxy-document-baseline": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "proxy-document-full": {
+      "input_sanitizer": true,
+      "pii_shield": true,
+      "tool_gatekeeper": true,
+      "output_auditor": true,
+      "leak_guard": true
+    },
+    "proxy-baseline": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "proxy-full": {
+      "input_sanitizer": true,
+      "pii_shield": true,
+      "tool_gatekeeper": true,
+      "output_auditor": true,
+      "leak_guard": true
+    },
+    "proxy-only-input": {
+      "input_sanitizer": true,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "proxy-only-pii": {
+      "input_sanitizer": false,
+      "pii_shield": true,
+      "tool_gatekeeper": false,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "proxy-only-gatekeeper": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": true,
+      "output_auditor": false,
+      "leak_guard": false
+    },
+    "proxy-only-auditor": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": false,
+      "output_auditor": true,
+      "leak_guard": false
+    },
+    "proxy-only-leak": {
+      "input_sanitizer": false,
+      "pii_shield": false,
+      "tool_gatekeeper": true,
+      "output_auditor": false,
+      "leak_guard": true
+    }
+  },
+  "pedagogical_targets": [
+    "simple-prompt",
+    "complex-prompt",
+    "complex-with-context"
+  ],
+  "fixture_count": 111,
+  "http_requests_expected": 3732
+}

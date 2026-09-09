@@ -39,6 +39,7 @@ seguir el arranque manual de la guía de operación.
 2. [Guía visual](DEMO_BY_FRONT.md): banco, Playground y SOC.
 3. [Suite completa](DEMO_FULL_SUITE.md): matriz de ablaciones, evaluación e informes.
 4. [Evidencias entregadas](docs/evidencias/README.md): resultados históricos, procedencia e integridad.
+5. [Ejemplo de ejecución completa](log-examples/README.md): logs separados y un Run Folder navegable para revisar los resultados sin lanzar una campaña larga.
 
 ## Sistemas y metodología
 

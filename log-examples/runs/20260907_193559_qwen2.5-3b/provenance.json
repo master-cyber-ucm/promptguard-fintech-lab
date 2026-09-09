@@ -1,0 +1,54 @@
+{
+  "provenance_schema_version": 3,
+  "git": {
+    "commit": "f1c92597d57b34a50a93ad4074ecc59fd9ba3532",
+    "branch": "fix/p1-coverage-gate-visibility",
+    "dirty": true,
+    "dirty_files": 15,
+    "available": true,
+    "diff_sha256": null
+  },
+  "artifacts": {
+    "system_prompt": "be4c0c0b931397ec",
+    "simple_prompt": "b7feb80cfbe5fac0",
+    "tool_permissions": "61d34b809feab304",
+    "security_rubrics": "b11e0f03d95f1348",
+    "judge_gold_set": "5bb8edeb9f19072a",
+    "evaluation_schema": "bf2ec9939821e6ab",
+    "injection_rules": "bbe3eeb0a6a6f9c9",
+    "fixtures": "39a748e820db113b",
+    "evaluators": "df39bde75242338f",
+    "requirements": "7d3d855171db10a8"
+  },
+  "runtime": {
+    "python": "3.11.16",
+    "platform": "Linux-7.0.12-linuxkit-aarch64-with-glibc2.41",
+    "machine": "aarch64",
+    "container": true,
+    "cpu_count": 10
+  },
+  "target_model": {
+    "provider": "ollama",
+    "model": "qwen2.5:3b",
+    "digest": null,
+    "max_output_tokens": "1024",
+    "base_url": "http://ollama:11434/v1",
+    "seed_honored": false,
+    "seed_limitation": "el proveedor no garantiza determinismo por seed: la variabilidad se controla con repeticiones e intervalos, no con reproducción exacta"
+  },
+  "judge": {
+    "judge_schema_version": 2,
+    "model": "qwen3.5:9b",
+    "api_format": "ollama",
+    "temperature": 0,
+    "prompt_hash": "ab82d6e69de7b928",
+    "timeout_s": 60.0,
+    "max_attempts": 3
+  },
+  "execution_design": {
+    "design": "randomized_blocks(fixture, repetition)",
+    "seed": 20260831,
+    "repeat": 3,
+    "warmup_excluded": true
+  }
+}
