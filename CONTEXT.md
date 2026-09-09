@@ -268,6 +268,14 @@ _Avoid_: estrategia (a secas), algoritmo
 El modelo Ollama que razona y genera los payloads del Agente de red-team. Parámetro de Campaña independiente del modelo que sirve a Clara (`OLLAMA_MODEL` del lab) — por defecto uno de mayor capacidad, para que el "pensamiento lateral" no esté limitado por el mismo modelo pequeño que defiende el target.
 _Avoid_: attacker model (en inglés), juez (reservado al LLM-judge del Analyze Pass, que es un rol distinto)
 
+**Fuente de semillas**:
+Un origen de payloads de apertura ya escritos (no generados en el momento por el Modelo atacante), leído de `lab/redteam-agent/sources/data/*.json` y ofrecido al Motor de evolución configurado para cada Intento nuevo de un Ejercicio hasta agotar su catálogo — ver `sources/README.md`. Opcional (`--seed-source`, default `ninguna`) y aditivo: si la Técnica no tiene semillas de esa fuente, o ya se agotaron, el motor genera el payload igual que sin ella. Dos tipos: externas de solo lectura (`garak`, vendorizada una vez) y la propia experiencia acumulada entre Campañas (`memoria`, ver más abajo). El Informe de Campaña registra la procedencia (`fuente`) de cada Intento.
+_Avoid_: dataset (a secas — reservado al fichero vendorizado en sí, no al mecanismo), prompt library
+
+**Memoria persistente** (del Agente de red-team):
+Una Fuente de semillas (`--seed-source memoria`) que, a diferencia de una fuente externa como `garak`, es la propia experiencia del agente entre Campañas: cada `python cli.py`, al cerrar, guarda en `sources/data/memoria.json` los Intentos con veredicto `SUCCESS`/`CONTINUE` de esa Campaña (nunca `FAILED` — no aporta nada que reinyectar), con independencia de qué `--seed-source` se haya usado para lanzarla. Antes de esto, cada Campaña nueva empezaba en blanco sin importar cuántas se hubieran corrido antes — la memoria del agente estaba acotada a un Ejercicio de una sola Campaña. No se versiona en git: es estado local acumulado, no un dataset fijo.
+_Avoid_: caché (no expira ni se invalida), historial (no es solo un log — se reinyecta activamente)
+
 ### Entidades del sistema
 
 **Playground**:

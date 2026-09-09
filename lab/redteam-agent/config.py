@@ -11,6 +11,8 @@ import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sources import FUENTES as FUENTES_SEMILLA
+
 HERE = Path(__file__).resolve().parent
 
 # Relativos a `CampaignConfig.api_base` (que YA incluye /api/v1) — a diferencia de
@@ -29,6 +31,10 @@ CHAT_ENDPOINTS: dict[str, str] = {
 
 MOTORES = ("autorreflexivo", "genetico", "taxonomia")
 MODOS = ("caja-negra", "caja-gris")
+# FUENTES_SEMILLA importado de sources.FUENTES (arriba) — antes era una tupla
+# duplicada aquí, que se desincronizó de sources/__init__.py al añadir la fuente
+# `memoria` (2026-09-08): --help seguía anunciando solo {ninguna,garak}. Una sola
+# fuente de verdad ahora.
 
 
 @dataclass
@@ -37,6 +43,7 @@ class CampaignConfig:
     vulnerable: bool = False
     modo: str = "caja-negra"
     motor: str = "autorreflexivo"
+    fuente_semillas: str = "ninguna"
     attacker_model: str = "qwen3.5:9b"
     max_intentos_por_ejercicio: int = 20
     user_id: str = "usr_001"
@@ -74,6 +81,11 @@ def parse_args(argv: list[str] | None = None) -> CampaignConfig:
                     help="caja-negra (default): solo respuesta de Clara. caja-gris: lee también eventos SOC")
     p.add_argument("--engine", dest="motor", choices=MOTORES, default="autorreflexivo",
                     help="Motor de evolución: autorreflexivo (default) | genetico | taxonomia")
+    p.add_argument("--seed-source", dest="fuente_semillas", choices=FUENTES_SEMILLA, default="ninguna",
+                    help="Fuente de payloads de apertura para Intentos nuevos, hasta agotar su "
+                         "catálogo (aditiva, nunca bloqueante): ninguna (default) | garak "
+                         "(semillas vendorizadas de probes de Garak) | memoria (Intentos con "
+                         "SUCCESS/CONTINUE de Campañas anteriores) — ver sources/README.md")
     p.add_argument("--attacker-model", default="qwen3.5:9b",
                     help="Modelo Ollama que hace de cerebro atacante (default: qwen3.5:9b)")
     p.add_argument("--max-attempts", dest="max_intentos_por_ejercicio", type=int, default=20,
@@ -91,6 +103,7 @@ def parse_args(argv: list[str] | None = None) -> CampaignConfig:
     ns = p.parse_args(argv)
     return CampaignConfig(
         target=ns.target, vulnerable=ns.vulnerable, modo=ns.modo, motor=ns.motor,
+        fuente_semillas=ns.fuente_semillas,
         attacker_model=ns.attacker_model, max_intentos_por_ejercicio=ns.max_intentos_por_ejercicio,
         user_id=ns.user_id, tecnicas=ns.tecnicas, host=ns.host, port=ns.port,
         ollama_host=ns.ollama_host, ollama_port=ns.ollama_port, temperature=ns.temperature,

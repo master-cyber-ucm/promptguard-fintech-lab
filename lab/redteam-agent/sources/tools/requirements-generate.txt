@@ -1,0 +1,14 @@
+# Dependencias SOLO para regenerar los ficheros vendorizados de sources/data/*.json.
+# NO son dependencias del agente en ejecución (ver sources/README.md § por qué
+# vendorizado en vez de dependencia viva) — instalarlas es pesado (garak arrastra
+# torch+transformers, ~7 GB) y no hace falta para lanzar una Campaña, solo para
+# regenerar las semillas si se quiere ampliar el catálogo.
+#
+# Uso:
+#   python3 -m venv .venv-generate && source .venv-generate/bin/activate
+#   pip install -r sources/tools/requirements-generate.txt
+#   python sources/tools/generate_garak_seeds.py
+#   python sources/tools/generate_harmbench_seeds.py   # ver caveat de dominio en el propio script
+
+garak==0.16.0
+pyrit==0.8.1
