@@ -71,6 +71,12 @@ def normalize_prompt(data: dict, source_file: Path | None = None) -> dict:
             }
         ]
 
+    # Las fixtures documentales usan `message`, mientras el Playground carga
+    # `rendered_steps`. Sin esta adaptación, seleccionarlas conserva el prompt
+    # y los metadatos de la fixture anterior.
+    if not prompt.get("steps") and prompt.get("document") and prompt.get("message"):
+        prompt["steps"] = [{"step": 1, "role": "user", "content": prompt["message"]}]
+
     variables = prompt.get("variables", {})
     rendered_steps = []
     for step in prompt.get("steps", []):

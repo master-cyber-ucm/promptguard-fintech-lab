@@ -2,7 +2,6 @@
 
 > Diseño cerrado en sesión de grilling (2026-08-09) e implementado en la misma.
 > Vocabulario en [`CONTEXT.md`](../../CONTEXT.md) §"Observabilidad del proxy (SOC)".
-> Contexto de producto en [`PRODUCT.md`](../../PRODUCT.md).
 
 ## Qué es
 

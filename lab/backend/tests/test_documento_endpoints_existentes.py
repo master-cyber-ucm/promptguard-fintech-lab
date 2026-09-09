@@ -282,3 +282,67 @@ def test_session_id_ausente_en_multipart_nunca_se_serializa_como_null(client, fa
     body = resp.json()
     assert body["session_id"] != "null"
     assert body["session_id"]
+
+
+@pytest.mark.parametrize("profile", ["full", "only-input"])
+def test_bloqueo_documental_conserva_postura_y_contrafactual(tmp_path, client, fake_agent, profile):
+    from src.models.posture import TargetPosture
+    from scripts.run_attack_suite import requested_posture
+
+    audit_dir = tmp_path / 'audit'
+    blocked = client.post(
+        '/api/v1/chat/proxy',
+        data={'message': 'Adjunto mi nómina.', 'proxy_profile': profile,
+              'audit_subdir': str(audit_dir)},
+        files={'document': ('nomina.pdf', _pdf_with_hidden_payload(), 'application/pdf')},
+    ).json()
+    assert blocked['block_code'] == 'REQUEST_NOT_PROCESSED'
+    assert fake_agent.received_messages == []
+    effective = blocked['effective_posture']
+    assert effective['document_sanitizer'] is True
+    assert effective['document_structural_detector'] is True
+    posture = TargetPosture(target='proxy-document-'+profile,
+                            requested=requested_posture('proxy', profile), effective=effective)
+    assert posture.divergences() == []
+    assert 'document_sanitizer' in (audit_dir / blocked['audit_file']).read_text()
+
+    baseline = client.post(
+        '/api/v1/chat/proxy',
+        data={'message': 'Adjunto mi nómina.', 'proxy_profile': 'baseline'},
+        files={'document': ('nomina.pdf', _pdf_with_hidden_payload(), 'application/pdf')},
+    ).json()
+    assert baseline['block_code'] is None
+    baseline_effective = baseline['effective_posture']
+    assert baseline_effective['document_sanitizer'] is False
+    assert baseline_effective['document_structural_detector'] is False
+    assert posture.invariants == TargetPosture(effective=baseline_effective).invariants
+
+
+def test_adaptador_visual_registra_defensas_antes_de_bloquear(client, fake_agent):
+    body = client.post(
+        '/api/v1/chat/complex-with-document',
+        data={'user_id': 'usr_001', 'message': 'Adjunto mi nómina.'},
+        files={'document': ('nomina.pdf', _pdf_with_hidden_payload(), 'application/pdf')},
+    ).json()
+    assert body['block_code'] == 'REQUEST_NOT_PROCESSED'
+    assert body['effective_posture']['document_sanitizer'] is True
+    assert body['effective_posture']['document_structural_detector'] is True
+    assert fake_agent.received_messages == []
+
+
+@pytest.mark.parametrize('fixture_id', ['leg_030', 'atk_035'])
+def test_catalogo_visual_carga_el_mensaje_del_pdf(fixture_id, client, monkeypatch):
+    from pathlib import Path
+    from src.api.routes import fixtures as fixtures_route
+    from src.utils import fixture_loader
+
+    root = Path(__file__).parent / 'fixtures'
+    monkeypatch.setattr(fixtures_route, 'load_prompts',
+                        lambda **kwargs: fixture_loader.load_prompts(root=root, **kwargs))
+    catalog = client.get('/api/v1/fixtures').json()['fixtures']
+    fixture = next(f for f in catalog if f['id'] == fixture_id)
+    original = next(f for kind in ['attack-prompts', 'legitimate-prompts']
+                    for f in fixture_loader.load_prompts(root=root, kind=kind)
+                    if f['id'] == fixture_id)
+    assert fixture['type'] == 'document-upload'
+    assert fixture['rendered_steps'] == [{'step': 1, 'role': 'user', 'content': original['message']}]

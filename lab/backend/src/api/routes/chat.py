@@ -290,6 +290,46 @@ def _extract_tools_and_thinking(result) -> tuple[list[dict], str | None]:
     return tools, thinking
 
 
+def _effective_posture(
+    request, endpoint_name, principal, agent, *, inject_context, document_text,
+    defensa_separacion_semantica, defensa_tool_gatekeeper, defensa_pii_shield,
+    defensa_input_sanitizer, defensa_output_auditor, defensa_leak_guard, proxy_enabled,
+) -> dict:
+    """Configuración del pipeline, incluso cuando una etapa previa detiene el turno.
+
+    Los eventos indican qué etapas llegaron a ejecutarse; la postura conserva la
+    configuración experimental y los invariantes del agente que se habría invocado.
+    """
+    shadow_activo = bool(proxy_enabled and shadow_mode())
+    return {
+        "proxy": bool(proxy_enabled),
+        "vulnerable": bool(request.vulnerable),
+        "shadow": shadow_activo,
+        "input_sanitizer": bool(
+            proxy_enabled and defensa_input_sanitizer and not request.vulnerable
+        ),
+        "pii_shield": bool(defensa_pii_shield and not request.vulnerable),
+        "tool_gatekeeper": bool(
+            defensa_tool_gatekeeper and not request.vulnerable and not shadow_activo
+        ),
+        "output_auditor": bool(defensa_output_auditor and not request.vulnerable),
+        "leak_guard": bool(
+            defensa_leak_guard and defensa_tool_gatekeeper and not request.vulnerable
+        ),
+        "separacion_semantica": bool(document_text and defensa_separacion_semantica),
+        "endpoint": endpoint_name,
+        "proxy_profile": request.proxy_profile,
+        # Nivel de assurance de la identidad: una sesión sin credencial verificada no
+        # es una sesión autenticada, y la evidencia debe decirlo.
+        "assurance_level": principal.assurance_level,
+        # Invariantes del contrafactual (P02): definen el agente, no sus defensas. Dos
+        # posturas solo son comparables causalmente si estos hashes coinciden — es lo
+        # que impide presentar `simple-prompt` vs `proxy-full` como una medida de la
+        # eficacia del proxy cuando además cambian prompt, contexto y tools.
+        **agent_invariants(agent, inject_context=inject_context, document=document_text is not None),
+    }
+
+
 async def _process_chat(
     request: ChatRequest,
     endpoint_name: str,
@@ -346,34 +386,17 @@ async def _process_chat(
     # limitarse a copiar los flags solicitados — un endpoint "sin defensas" que
     # heredaba el Output Auditor activo era exactamente el defecto que P01 y P02
     # señalan. Se persiste con el turno y viaja de vuelta al runner.
-    shadow_activo = bool(proxy_enabled and shadow_mode())
-    effective_posture = {
-        "proxy": bool(proxy_enabled),
-        "vulnerable": bool(request.vulnerable),
-        "shadow": shadow_activo,
-        "input_sanitizer": bool(
-            proxy_enabled and defensa_input_sanitizer and not request.vulnerable
-        ),
-        "pii_shield": bool(defensa_pii_shield and not request.vulnerable),
-        "tool_gatekeeper": bool(
-            defensa_tool_gatekeeper and not request.vulnerable and not shadow_activo
-        ),
-        "output_auditor": bool(defensa_output_auditor and not request.vulnerable),
-        "leak_guard": bool(
-            defensa_leak_guard and defensa_tool_gatekeeper and not request.vulnerable
-        ),
-        "separacion_semantica": bool(document_text and defensa_separacion_semantica),
-        "endpoint": endpoint_name,
-        "proxy_profile": request.proxy_profile,
-        # Nivel de assurance de la identidad: una sesión sin credencial verificada no
-        # es una sesión autenticada, y la evidencia debe decirlo.
-        "assurance_level": principal.assurance_level,
-        # Invariantes del contrafactual (P02): definen el agente, no sus defensas. Dos
-        # posturas solo son comparables causalmente si estos hashes coinciden — es lo
-        # que impide presentar `simple-prompt` vs `proxy-full` como una medida de la
-        # eficacia del proxy cuando además cambian prompt, contexto y tools.
-        **agent_invariants(agent, inject_context=inject_context, document=document_text is not None),
-    }
+    effective_posture = _effective_posture(
+        request, endpoint_name, principal, agent,
+        inject_context=inject_context, document_text=document_text,
+        defensa_separacion_semantica=defensa_separacion_semantica,
+        defensa_tool_gatekeeper=defensa_tool_gatekeeper,
+        defensa_pii_shield=defensa_pii_shield,
+        defensa_input_sanitizer=defensa_input_sanitizer,
+        defensa_output_auditor=defensa_output_auditor,
+        defensa_leak_guard=defensa_leak_guard, proxy_enabled=proxy_enabled,
+    )
+    shadow_activo = effective_posture["shadow"]
 
     if collector is None:
         collector = SocCollector(
@@ -392,10 +415,8 @@ async def _process_chat(
     else:
         # El canal documental crea el collector un escalón antes; su postura ya
         # describe las capas del documento y aquí se completa con las del pipeline.
-        collector.set_postura(
-            collector.postura,
-            efectiva={**collector.postura_efectiva, **effective_posture},
-        )
+        effective_posture = {**collector.postura_efectiva, **effective_posture}
+        collector.set_postura(collector.postura, efectiva=effective_posture)
     collector.fixture_execution_id = request.fixture_execution_id
 
     user_context = ""
@@ -1247,6 +1268,7 @@ def _document_blocked_response(
         model="document-sanitizer", latency_ms=round(blocked.timings_ms["total_ms"], 2),
         session_id=session_id_final, tools_used=[], endpoint=endpoint_name,
         audit_file=audit_path.name, block_code="REQUEST_NOT_PROCESSED",
+        effective_posture=collector.postura_efectiva,
     )
 
 
@@ -1567,6 +1589,23 @@ async def chat_proxy(
             vulnerable=bool(request.vulnerable),
         )
         collector.fixture_execution_id = request.fixture_execution_id
+        collector.set_postura(
+            f"proxy_profile={profile} documento_defendido={documento_activo}",
+            efectiva={
+                **_effective_posture(
+                    request, "proxy", principal, get_clara_agent_complex(),
+                    inject_context=True, document_text="documento adjunto",
+                    defensa_separacion_semantica=documento_activo,
+                    defensa_tool_gatekeeper=settings["defensa_tool_gatekeeper"],
+                    defensa_pii_shield=settings["defensa_pii_shield"],
+                    defensa_input_sanitizer=settings["defensa_input_sanitizer"],
+                    defensa_output_auditor=settings["defensa_output_auditor"],
+                    defensa_leak_guard=settings["defensa_leak_guard"], proxy_enabled=True,
+                ),
+                "document_sanitizer": documento_activo,
+                "document_structural_detector": documento_activo,
+            },
+        )
         try:
             document_text, document_meta = await _document_text_protected(
                 document, collector,
@@ -1667,17 +1706,6 @@ async def chat_complex_with_document(
         fixture_expected_result=fixture_expected_result,
         fixture_execution_id=fixture_execution_id, audit_subdir=audit_subdir,
     )
-    try:
-        document_text, _meta = await _document_text_protected(
-            document, collector,
-            defensa_sanitizer=defensa_sanitizer, defensa_estructural=defensa_estructural,
-        )
-    except DocumentBlocked as blocked:
-        return _document_blocked_response(
-            endpoint_name="complex-with-document", principal=principal, request=request,
-            collector=collector, blocked=blocked, defensas_activas=defensas_activas,
-        )
-
     collector.set_postura(
         defensas_activas,
         efectiva={
@@ -1690,6 +1718,17 @@ async def chat_complex_with_document(
             "endpoint": "complex-with-document",
         },
     )
+    try:
+        document_text, _meta = await _document_text_protected(
+            document, collector,
+            defensa_sanitizer=defensa_sanitizer, defensa_estructural=defensa_estructural,
+        )
+    except DocumentBlocked as blocked:
+        return _document_blocked_response(
+            endpoint_name="complex-with-document", principal=principal, request=request,
+            collector=collector, blocked=blocked, defensas_activas=defensas_activas,
+        )
+
     return await _process_chat(
         request, "complex-with-document",
         principal,
