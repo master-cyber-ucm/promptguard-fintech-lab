@@ -1,9 +1,11 @@
 # Matriz de ablaciones y gate de reproducibilidad para baseline/full
 
-Estado: **aceptado** (perfiles); **gate retirado 2026-09-02** (ver
-[pr-11-gate-de-arbol-limpio-por-defecto.md § Corrección posterior](../reports/pr-11-gate-de-arbol-limpio-por-defecto.md#corrección-posterior-2026-09-02--el-gate-se-retira));
-**decisión diferida documentada** (desacoplar `vulnerable` de las comparaciones
-causales — ver Consequences).
+Estado: **aceptado** (perfiles); **gate de árbol limpio retirado definitivamente
+2026-09-06**, tras reintroducirse y volver a retirarse (ver
+[pr-11-gate-de-arbol-limpio-por-defecto.md § Segunda corrección posterior](../reports/pr-11-gate-de-arbol-limpio-por-defecto.md#segunda-corrección-posterior-2026-09-06--el-gate-se-reintrodujo-y-se-retira-otra-vez)
+— instrucción explícita del dueño del proyecto de no volver a proponerlo);
+**desacoplamiento de `vulnerable` implementado 2026-09-06** (ver Consequences — la
+matriz `only-*` pasa a target por defecto de `make suite` en el mismo cambio).
 
 ## Contexto
 
@@ -89,3 +91,32 @@ baseline/full — no hay ramas `only-*` que ejecutar.
 - El desacoplamiento de `vulnerable` queda como el primer ítem de trabajo del
   siguiente PR de esta serie, con el mapa de condicionales de `chat.py` ya
   identificado arriba en vez de tener que re-auditar el fichero desde cero.
+
+### Actualización 2026-09-06 — desacoplamiento implementado
+
+Se ejecutó la opción elegida en "Considered Options" de arriba: el perfil `"baseline"`
+de `chat_proxy` (`backend/src/api/routes/chat.py`) ya no fija `vulnerable=True`. Expresa
+la línea base causal únicamente con los cinco flags `defensa_*` declarados en `False`,
+igual que `"full"` y la matriz `only-*`. Del mapa de condicionales identificado en el
+Contexto (>15 puntos que leían `request.vulnerable`), solo uno tenía un efecto real e
+independiente de los cinco flags declarados fuera del propio `vulnerable`: el toggle de
+las defensas documentales (`documento_activo`, antes `not request.vulnerable`), que
+condiciona `document_sanitizer`/`document_structural_detector`/`separacion_semantica` —
+sí forman parte de `DEFENSE_CONTROLS`, pero se leían de una fuente distinta a los otros
+cinco. Se sustituyó por una clave declarada más del perfil (`documento_defendido`), con
+el mismo valor por endpoint que tenía implícitamente antes (`False` solo en `"baseline"`)
+pero ya no acoplada a `vulnerable`. El resto de condicionales (cap de tokens de LLM10, el
+registro del Budget Guard, el bypass de `enforce_gatekeeper`, la exención de logging del
+rate limiter) ya estaban doblemente guardados por un flag `defensa_*` que en `"baseline"`
+ya era `False` — dejar de mirar también `vulnerable` ahí no cambia ningún comportamiento
+observable, solo elimina la dependencia. Efecto medible: `TargetPosture.comparable_fingerprint`
+ya no difiere entre `proxy-baseline` y `proxy-full`/`only-*` únicamente por `vulnerable`
+(antes bloqueaba con `factores no defensivos distintos: ['vulnerable']` en cada
+`run.md`); test de contrato en `backend/tests/test_flag_vulnerable.py`. Se conserva el
+contrato previo de `/chat/proxy` sin perfil explícito: enviar `vulnerable=true` a mano
+sigue apagando también el canal documental, para no romper el uso ad-hoc/pedagógico
+del flag general.
+
+Con esto, `make suite` pasa a incluir la matriz `only-*` en su target por defecto — sin
+datos de esa matriz, la comparabilidad recién ganada de `proxy-baseline` no tenía nada
+que enfrentar salvo `proxy-full`.

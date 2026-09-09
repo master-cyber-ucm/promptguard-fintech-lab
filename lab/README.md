@@ -41,7 +41,7 @@ make run BACKEND_PORT=9000 FRONTEND_PORT=4000
 | `make restart` | Reinicia backend y frontend |
 | `make logs` | Sigue los logs de todos los servicios |
 | `make logs-backend` | Sigue solo los logs del backend |
-| `make suite` | Corre la suite completa de fixtures |
+| `make suite` | Corre la suite completa de fixtures (incluye la matriz de ablaciones `only-*`, ver ADR-0017) |
 | `make suite ARGS="--kind attack-prompts"` | Suite con filtros |
 | `make smoke` | Smoke test del stack |
 

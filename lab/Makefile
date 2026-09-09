@@ -38,8 +38,16 @@ MODELS_FILE   ?= models.txt
 # endpoints existentes; ya no es una ruta propia) — sin `--document-profile`, once
 # fixtures (seis ataques de inyección indirecta y cinco legítimos sobre documentos
 # benignos) quedaban cargados y nunca ejecutados — ver P10 / PR10.
+#
+# `only-*`: matriz de ablaciones (PR5 / ADR-0017), un control externo a la vez. Antes
+# no se lanzaba en ninguna campaña — el diseño llevaba implementado desde antes del PR5
+# sin que ningún `run.md` tuviera datos para `defense_marginals`. Ahora es parte del
+# target por defecto de `make suite` porque, con `vulnerable` desacoplado de "baseline"
+# (ver `backend/src/api/routes/chat.py::chat_proxy`), "baseline" ya es comparable
+# causalmente contra "full" y contra cada perfil `only-*` — sin la matriz ejecutada esa
+# comparabilidad recién ganada no tiene con qué llenarse.
 SUITE_ENDPOINTS   ?= simple-prompt complex-prompt complex-with-context proxy
-PROXY_PROFILES    ?= baseline full
+PROXY_PROFILES    ?= baseline full only-input only-pii only-gatekeeper only-auditor only-leak
 DOCUMENT_PROFILES ?= document-baseline document-full
 
 .PHONY: up down restart restart-backend restart-front \
