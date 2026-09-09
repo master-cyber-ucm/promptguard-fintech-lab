@@ -6,7 +6,7 @@ del fixture correspondiente (deterministic o llm) y añade ## Evaluación · al 
 
 Uso:
   python scripts/evaluate.py                               # runs pendientes
-  python scripts/evaluate.py --run audit/runs/20260628_X/  # run específico (--force implícito)
+  python scripts/evaluate.py --run audit/runs/20260628_X/  # pendientes e inconclusas del run
   python scripts/evaluate.py --force                        # re-evalúa todos
 
 Variables de entorno para el evaluador LLM:
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -590,6 +591,7 @@ async def process_run(
     fixture_by_id: dict,
     client: httpx.AsyncClient,
     only_inconclusive: bool = False,
+    retry_inconclusive: bool = True,
 ) -> None:
     _flush(f"\n  📂 {run_folder.name}")
     _flush(SEP)
@@ -607,8 +609,9 @@ async def process_run(
 
         for sf in session_files:
             if not force and has_eval(sf):
-                _flush(f"  ↷  {sf.name} — ya evaluado, skip")
-                continue
+                if not retry_inconclusive or existing_eval_inconclusive(sf) is not True:
+                    _flush(f"  ↷  {sf.name} — ya evaluado, skip")
+                    continue
 
             if only_inconclusive:
                 inconcluso = existing_eval_inconclusive(sf)
@@ -630,15 +633,48 @@ async def process_run(
                 _flush(f"  ⚠ {parsed['fixture_id']} — fixture no encontrado en librería")
                 continue
 
-            if not parsed["response"]:
-                _flush(f"  ⚠ {parsed['fixture_id']} — sin respuesta, skip")
-                continue
-
             # Strip old eval sections before appending new one
             text = sf.read_text(encoding="utf-8")
             cleaned = _strip_evals(text)
             if cleaned != text:
                 sf.write_text(cleaned, encoding="utf-8")
+
+            # Un Session File sin respuesta sigue siendo evidencia de una ejecución
+            # planificada. No evaluarlo deja al checker con un hueco permanente y
+            # hace que `make report` no pueda cerrar el denominador. Se marca como
+            # INCONCLUSIVE (nunca como bloqueo ni como éxito); los errores técnicos
+            # retryable ya se habrán intentado recuperar en la ronda anterior.
+            if not parsed["response"]:
+                execution_status = _execution_status(parsed["execution_status"])
+                detail = (
+                    "Sin respuesta evaluable; la ejecución queda inconclusa después "
+                    "de agotar los reintentos técnicos disponibles."
+                )
+                _flush(f"  ⚠️  {parsed['fixture_id']:<35} INCONCLUSIVE [sin respuesta]")
+                append_eval(
+                    sf,
+                    fixture_id=parsed["fixture_id"],
+                    fixture_kind=parsed["fixture_kind"],
+                    expected_result=parsed["expected_result"],
+                    method="execution-contract",
+                    verdict="INCONCLUSIVE",
+                    passed=False,
+                    detail=detail,
+                    model_attempted_leak=False,
+                    client_exposed_leak=False,
+                    tool_outcomes=tool_outcome_metrics(parsed["tools"]),
+                    inconclusive=True,
+                    status="INCONCLUSIVE",
+                    disposition="EVIDENCE_INSUFFICIENT",
+                    decision_source="execution_contract",
+                    deterministic_reason=detail,
+                    judge=None,
+                    execution_status=str(execution_status),
+                    leak_assessments=[],
+                    trace_findings=[],
+                    latency=parsed["latency"],
+                )
+                continue
 
             evaluation_block = fixture.get("evaluation") or {}
             method = evaluation_block.get("method", "deterministic")
@@ -717,10 +753,68 @@ def find_pending_runs(runs_dir: Path) -> list[Path]:
         for sf in d.rglob("*.md"):
             if sf.name == "run.md":
                 continue
-            if not has_eval(sf):
+            if not has_eval(sf) or existing_eval_inconclusive(sf) is True:
                 pending.append(d)
                 break
     return pending
+
+
+def pending_signature(run_folder: Path) -> tuple[int, int, int]:
+    """Cuenta evaluación pendiente, inconclusa y errores técnicos retryable."""
+    pendientes = 0
+    inconclusas = 0
+    for sf in run_folder.rglob("*.md"):
+        if sf.name == "run.md":
+            continue
+        if not has_eval(sf):
+            pendientes += 1
+        elif existing_eval_inconclusive(sf) is True:
+            inconclusas += 1
+
+    ultimos: dict[str, dict] = {}
+    ledger = run_folder / "execution-ledger.jsonl"
+    if ledger.is_file():
+        for linea in ledger.read_text(encoding="utf-8").splitlines():
+            try:
+                evento = json.loads(linea)
+            except json.JSONDecodeError:
+                continue
+            if evento.get("event") == "FINISHED" and evento.get("fixture_execution_id"):
+                ultimos[evento["fixture_execution_id"]] = evento
+    tecnicos = sum(
+        1 for evento in ultimos.values()
+        if evento.get("execution_status") == "TECHNICAL_ERROR"
+        and bool((evento.get("failure") or {}).get("retryable"))
+    )
+    return pendientes, inconclusas, tecnicos
+
+
+async def retry_technical_errors(run_folder: Path) -> int:
+    """Reejecuta errores técnicos del run reutilizando su plan sellado."""
+    config_path = run_folder / "suite-config.json"
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        _flush(f"  ⚠ {run_folder.name}: no hay suite-config.json para reintentar")
+        return 2
+    repeat = str(config.get("repeat", 1))
+    command = [
+        sys.executable, str(HERE / "run_attack_suite.py"),
+        "--resume-run", run_folder.name,
+        "--retry-errors-only", "--repeat", repeat,
+    ]
+    _flush("  🔁 Reintentando errores técnicos retryable...")
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        cwd=str(HERE.parent),
+        env=os.environ.copy(),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    output, _ = await process.communicate()
+    if output:
+        print(output.decode("utf-8", errors="replace"), end="", flush=True)
+    return process.returncode
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -730,7 +824,7 @@ def find_pending_runs(runs_dir: Path) -> list[Path]:
 async def main() -> None:
     parser = argparse.ArgumentParser(description="PromptGuard · evaluate")
     parser.add_argument("--run", dest="run_path", metavar="PATH",
-                        help="Run Folder específico (implica --force)")
+                        help="Run Folder específico; procesa pendientes e inconclusas")
     parser.add_argument("--force", action="store_true",
                         help="Re-evalúa aunque ya exista sección de Evaluación")
     parser.add_argument(
@@ -742,7 +836,22 @@ async def main() -> None:
             "sin necesidad de repetir toda la campaña."
         ),
     )
+    parser.add_argument(
+        "--retry-rounds", type=int, default=3,
+        help="Rondas de reintento técnico + reevaluación (default: 3)",
+    )
+    parser.add_argument(
+        "--no-technical-retry", action="store_true",
+        help="No reejecuta errores técnicos; solo evalúa Session Files existentes",
+    )
+    parser.add_argument(
+        "--no-retry-inconclusive", action="store_true",
+        help="No vuelve a invocar el juez sobre evaluaciones INCONCLUSIVE",
+    )
     args = parser.parse_args()
+
+    if args.retry_rounds < 1:
+        parser.error("--retry-rounds debe ser >= 1")
 
     _flush(SEP2)
     _flush("  🔍 PromptGuard · Evaluación")
@@ -757,7 +866,7 @@ async def main() -> None:
         if not run_folders[0].is_dir():
             print(f"Error: {args.run_path} no es un directorio válido", file=sys.stderr)
             sys.exit(1)
-        force = True
+        force = args.force
     else:
         force = args.force
         if force:
@@ -775,10 +884,27 @@ async def main() -> None:
 
     async with httpx.AsyncClient() as client:
         for run_folder in run_folders:
-            await process_run(
-                run_folder, force=force, fixture_by_id=fixture_by_id, client=client,
-                only_inconclusive=args.only_inconclusive,
-            )
+            for round_no in range(1, args.retry_rounds + 1):
+                before = pending_signature(run_folder)
+                _flush(f"\n  Ronda {round_no}/{args.retry_rounds} · estado pendiente={before}")
+
+                if not args.no_technical_retry:
+                    retry_code = await retry_technical_errors(run_folder)
+                    if retry_code != 0:
+                        _flush(
+                            f"  ⚠ reintento técnico terminó con código {retry_code}; "
+                            "se continúa con la evaluación disponible"
+                        )
+
+                await process_run(
+                    run_folder, force=force, fixture_by_id=fixture_by_id, client=client,
+                    only_inconclusive=args.only_inconclusive,
+                    retry_inconclusive=not args.no_retry_inconclusive,
+                )
+                after = pending_signature(run_folder)
+                _flush(f"  Estado posterior: pendiente={after}")
+                if after == (0, 0, 0) or after == before:
+                    break
 
     _flush("")
     _flush(SEP2)
