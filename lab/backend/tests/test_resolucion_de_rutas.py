@@ -19,8 +19,10 @@ import sys
 from pathlib import Path
 
 import pytest
+import lab_paths
 
-LAB = Path(__file__).resolve().parents[2]
+LAB = lab_paths.lab_root()
+BACKEND = lab_paths.backend_root()
 SCRIPTS = LAB / "scripts"
 
 #: Los ejecutables del pipeline: si uno no arranca, la corrida entera se cae.
@@ -42,9 +44,10 @@ def container_layout(tmp_path_factory) -> Path:
     """
     raiz = tmp_path_factory.mktemp("app")
     shutil.copytree(SCRIPTS, raiz / "scripts")
-    shutil.copytree(LAB / "backend" / "src", raiz / "src")
-    shutil.copytree(LAB / "backend" / "config", raiz / "config")
-    shutil.copytree(LAB / "backend" / "tests" / "fixtures", raiz / "tests" / "fixtures")
+    shutil.copytree(BACKEND / "src", raiz / "src")
+    shutil.copytree(BACKEND / "config", raiz / "config")
+    shutil.copytree(BACKEND / "tests" / "fixtures", raiz / "tests" / "fixtures")
+    shutil.copytree(LAB / "payloads", raiz / "payloads")
     (raiz / "audit" / "runs").mkdir(parents=True)
     assert not (raiz / "backend").exists(), "el contenedor no tiene /app/backend"
     return raiz
@@ -65,11 +68,22 @@ def test_cada_cli_arranca_en_el_layout_del_contenedor(container_layout, script):
     assert "ModuleNotFoundError" not in resultado.stderr
 
 
+@pytest.fixture(scope="module")
+def host_layout(tmp_path_factory) -> Path:
+    raiz = tmp_path_factory.mktemp("host") / "lab"
+    shutil.copytree(SCRIPTS, raiz / "scripts")
+    shutil.copytree(BACKEND / "src", raiz / "backend" / "src")
+    shutil.copytree(BACKEND / "config", raiz / "backend" / "config")
+    shutil.copytree(BACKEND / "tests" / "fixtures", raiz / "backend" / "tests" / "fixtures")
+    shutil.copytree(LAB / "payloads", raiz / "payloads")
+    return raiz
+
+
 @pytest.mark.parametrize("script", CLI_SCRIPTS)
-def test_cada_cli_arranca_en_el_layout_del_host(script):
+def test_cada_cli_arranca_en_el_layout_del_host(host_layout, script):
     resultado = subprocess.run(
-        [sys.executable, str(SCRIPTS / script), "--help"],
-        cwd=LAB, capture_output=True, text=True, timeout=120,
+        [sys.executable, str(host_layout / "scripts" / script), "--help"],
+        cwd=host_layout, capture_output=True, text=True, timeout=120,
     )
     assert resultado.returncode == 0, resultado.stderr
 
@@ -231,3 +245,28 @@ def test_el_makefile_inyecta_la_procedencia_de_git_en_la_suite():
     assert "GIT_COMMIT" in makefile and "GIT_DIRTY" in makefile
     bloque_suite = makefile.split("\nsuite:", 1)[1].split("\n\n", 1)[0]
     assert "$(GIT_ENV)" in bloque_suite
+
+
+@pytest.mark.parametrize('layout_fixture', ['host_layout', 'container_layout'])
+def test_todos_los_documentos_de_la_suite_viajan_con_el_lab(request, layout_fixture):
+    """Una instalación limpia debe incluir los adjuntos, no solo sus YAML."""
+    raiz = request.getfixturevalue(layout_fixture)
+    resultado = _ejecutar(raiz, '-c', (
+        "import sys; sys.path.insert(0, 'scripts'); "
+        "from run_attack_suite import PAYLOADS_DIR; "
+        "from fixture_loader import load_prompts; "
+        "docs = [f['document'] for f in load_prompts(kind=None) if f.get('document')]; "
+        "assert docs, 'catálogo documental vacío'; "
+        "assert all((PAYLOADS_DIR / name).is_file() for name in docs), docs"
+    ))
+    assert resultado.returncode == 0, resultado.stderr
+
+
+def test_el_directorio_documental_admite_override(container_layout, tmp_path):
+    resultado = _ejecutar(container_layout, '-c', (
+        "import os, sys; sys.path.insert(0, 'scripts'); "
+        f"os.environ['PAYLOADS_DIR'] = {str(tmp_path)!r}; "
+        "from run_attack_suite import PAYLOADS_DIR; "
+        f"assert str(PAYLOADS_DIR) == {str(tmp_path)!r}"
+    ))
+    assert resultado.returncode == 0, resultado.stderr

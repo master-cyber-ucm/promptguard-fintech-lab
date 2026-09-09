@@ -111,14 +111,6 @@ logs-backend:
 #   make suite ARGS="--kind attack-prompts"
 #   make suite ARGS="--id atk_001"
 #   make suite REPEAT=5
-# suite:
-# 	$(COMPOSE) exec \
-# 		-e FIXTURES_DIR=$(FIXTURES) \
-# 		$(GIT_ENV) \
-# 		backend \
-# 		python scripts/run_attack_suite.py --repeat $(REPEAT) \
-# 			$(foreach endpoint,$(SUITE_ENDPOINTS),--endpoint $(endpoint)) \
-# 			$(foreach profile,$(PROXY_PROFILES),--proxy-profile $(profile)) 
 
 suite:
 	$(COMPOSE) exec \

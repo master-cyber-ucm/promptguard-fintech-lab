@@ -1,5 +1,7 @@
 # Diseño: evaluador híbrido determinista y semántico
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 ## Estado
 
 **Implementado.** El modo híbrido, el juez estructurado, las disposiciones, los fixtures piloto y los informes descritos aquí se han incorporado y validado con una suite reducida.

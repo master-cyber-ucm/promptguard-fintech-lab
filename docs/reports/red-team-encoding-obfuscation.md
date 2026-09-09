@@ -1,5 +1,7 @@
 # Red Team Report — Ataques con Mensajes Cifrados y Enmascarados
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 **Objetivo:** Explorar qué formatos de codificación puede descifrar el modelo y, para cada uno,
 ejecutar un ataque de prompt injection mediante el payload codificado.  
 **Endpoint:** `POST /api/v1/chat/complex-with-context`  

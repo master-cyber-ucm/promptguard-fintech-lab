@@ -1,18 +1,10 @@
 # Agente de red-team
 
-> Primera sesión de campañas reales, con auditoría de cada hallazgo contra la
-> evidencia (no solo el juicio del agente): **[HALLAZGOS-SESION-20260816.md](HALLAZGOS-SESION-20260816.md)**.
-> Un hallazgo confirmado (Excessive Agency), tres bugs corregidos, y una limitación
-> central sin resolver (el juez local de 3B no es fiable para todas las técnicas).
->
-> Plan de excelencia derivado de esos hallazgos, con DoD y test por punto:
-> **[docs/reports/plan-excelencia-redteam-y-defensas.md](../../docs/reports/plan-excelencia-redteam-y-defensas.md)**.
-> Implementación P0/P1 y cierre del ciclo (`acciones-no-autorizadas` pasó de superada a
-> contenida): **[HALLAZGOS-SESION-20260817.md](HALLAZGOS-SESION-20260817.md)**.
+> Los experimentos previos de `Red Team_/` y los hallazgos de sesiones antiguas se conservan en el [anexo histórico](../../docs/evidencias/README.md); no son carpetas operativas de esta versión.
 
 Módulo de aprendizaje: un agente autónomo e iterativo que ataca el pipeline de
 defensa del lab (`/chat/proxy` por defecto) generando y mutando payloads en vivo,
-en vez de reproducir los 108 fixtures estáticos de `run_attack_suite.py`. Construido
+en vez de reproducir las fixtures estáticas de `run_attack_suite.py`. Construido
 desde cero sobre Ollama — ver `docs/adr/0008-redteam-agent-desde-cero.md` para el
 porqué, y `CONTEXT.md` § "Agente de red-team" para el vocabulario (Campaña, Ejercicio,
 Intento, Objetivo, Motor de evolución, Modo, Modelo atacante).
@@ -60,7 +52,7 @@ lab/audit/runs/{timestamp}_redteam-agent/
 
 - **6 de las 7 técnicas del catálogo.** `indirecta-documento` (ataque #7, LLM01) queda
   fuera: requiere generar documentos adversarios (PDF/DOCX/XLSX) en vivo, y el lab ya
-  tiene un motor de mutación de PDF dedicado en `henri-tfm/01-ataque/payloads/`.
+  tiene un motor de mutación de PDF dedicado en `lab/payloads/`.
   Combinarlo es trabajo futuro.
 - **Catálogo de tácticas del motor `taxonomia` es genérico**, no una lista por técnica
   (`evolution/taxonomy_guided.py::TACTICAS`) — autorar tácticas específicas por técnica
@@ -80,8 +72,8 @@ Técnica↔probe, y por qué HarmBench se evaluó y se descartó como Fuente (da
 generación de contenido dañino, no de manipulación interactiva del agente — mapeo
 forzado sin relación con lo que miden las Técnicas). Historial completo de la
 decisión y las pruebas realizadas:
-[`docs/reports/plan-fusion-redteam.md`](../../docs/reports/plan-fusion-redteam.md) y
-[`docs/reports/plan-fusion-redteam-validacion.md`](../../docs/reports/plan-fusion-redteam-validacion.md).
+[`docs/reports/plan-fusion-redteam.md`](../../docs/historial-desarrollo.md) y
+[`docs/reports/plan-fusion-redteam-validacion.md`](../../docs/historial-desarrollo.md).
 
 ## Diseño
 
@@ -105,4 +97,4 @@ decisión y las pruebas realizadas:
   igual que para cualquier otro Turn.
 - `orchestrator.py` / `reporting.py` — el bucle de Campaña y el Informe de Campaña
   (mismo formato `run.json`/`run.md` que un Run Report, generado por el agente en
-  vez de por `analyze.py` — no hay Fixture Indicators que cargar).
+  vez de por `evaluate.py` y `report.py` — no hay Fixture Indicators que cargar).

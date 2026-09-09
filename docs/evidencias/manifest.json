@@ -1,0 +1,2282 @@
+{
+  "source_commit": "33917d5a4470516591be49409b83a5f7c40c7e39",
+  "archive": "evidencias-historicas.zip",
+  "archive_sha256": "2d4252ad0a8d183ff4be1e7cd77c7c113748bb360dfd01ed018c6ac09a7d1d44",
+  "files": [
+    {
+      "path": "Red Team_/LEEME.txt",
+      "bytes": 2911,
+      "sha256": "702c2e4e46c610c11cfed0d166279cc0eed9d1650bdf52b00bd8bd00fcc75dfb"
+    },
+    {
+      "path": "Red Team_/README.md",
+      "bytes": 3468,
+      "sha256": "0fc2b5525891ae6b22ef3bf99bce748b9a0b3954684b729f7fb2fac032dd3da3"
+    },
+    {
+      "path": "Red Team_/attack_loop.py",
+      "bytes": 25148,
+      "sha256": "acff9e2ea050bdc6b4e1376b1a088e4723f644339585defc4d13345a2b3827b9"
+    },
+    {
+      "path": "Red Team_/attack_memory.jsonl",
+      "bytes": 35428,
+      "sha256": "e21f60954c126090b18da5ea1393655056222d33a93686a1c3f57a1398f5d4c4"
+    },
+    {
+      "path": "Red Team_/attack_memory_clean.jsonl",
+      "bytes": 17784,
+      "sha256": "e5f3fb020e641af83b3c9853d54d2c7b58f57420738c567e886baeb5143f7918"
+    },
+    {
+      "path": "Red Team_/clara_target.py",
+      "bytes": 4255,
+      "sha256": "367fb6e2349e13a6ad0b64b33a38bd38db9b27560c88d93c044d20d1c12dc715"
+    },
+    {
+      "path": "Red Team_/garak_clara_config.json",
+      "bytes": 437,
+      "sha256": "cab884c8e238a4c408ea6b4af5a6e2e48d56819d1979bedf8fe20739db2ed3c6"
+    },
+    {
+      "path": "Red Team_/garak_run_config.yaml",
+      "bytes": 32,
+      "sha256": "5e464877b3481674323e86dd2b78c92d5039c9aa9ba316b734e6c26aa2fbbe1f"
+    },
+    {
+      "path": "Red Team_/learning_loop.py",
+      "bytes": 1710,
+      "sha256": "ab9fa6312573face74ac04cd0860af12d3a051c26af5805f9ce528bcd831ff35"
+    },
+    {
+      "path": "Red Team_/ollama_native_target.py",
+      "bytes": 4158,
+      "sha256": "90eee869b4f832982cb4d0b4ba1453d16bde65c5b6b24b4ab4bb5a1e472b849d"
+    },
+    {
+      "path": "Red Team_/requirements.txt",
+      "bytes": 335,
+      "sha256": "672bbc1307768ad48603bbad525e69eca92d5d4dec3061d5b9d63666071fb4ef"
+    },
+    {
+      "path": "Red Team_/resultados/redteam_20260811_192607.csv",
+      "bytes": 214,
+      "sha256": "c35bfe08e11d208919a63eaa640323c719cb611c1581bad4414f9b778506079d"
+    },
+    {
+      "path": "Red Team_/resultados/redteam_20260813_192157.csv",
+      "bytes": 214,
+      "sha256": "c35bfe08e11d208919a63eaa640323c719cb611c1581bad4414f9b778506079d"
+    },
+    {
+      "path": "Red Team_/results/run_20260820_183901/log.jsonl",
+      "bytes": 18495,
+      "sha256": "1cfb1e5d5a42c21f2e790593f2294371ad2ad6f97fb8979825bb65f12e229842"
+    },
+    {
+      "path": "Red Team_/results/run_20260820_183901/summary.md",
+      "bytes": 702,
+      "sha256": "0326ed1bcb490f4ab10b79f4f25cb642b303e9ca2a41b41118676337bf8836ed"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_143510/log.jsonl",
+      "bytes": 8914,
+      "sha256": "04872fc4814514ac2d5c2aefc590407f7fa0a46ae168632ce8297ffe6b279d9f"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_143510/summary.md",
+      "bytes": 763,
+      "sha256": "1bb628b7baea91d838550ea09ca80913446f9e1b9591c569fd8a455ffa35f1ce"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_145042/log.jsonl",
+      "bytes": 9028,
+      "sha256": "edca3c40b1a529d7324e53418d2f09599508dd42a7e3bb477c268125579f3a4c"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_145042/summary.md",
+      "bytes": 1579,
+      "sha256": "8db20dbbabe76b0621e4ac4d45cb13e10bb4802bcc2b6a05f57fbc3191783a0d"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_195033/log.jsonl",
+      "bytes": 11204,
+      "sha256": "5c8d135aa37c7ee3bff3b92ad89d2d4764981a419fa983e6ae313106ad0f9418"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_195033/summary.md",
+      "bytes": 1470,
+      "sha256": "03e9770812ccecb856027af8b2fd569c29afaf32e2770ee3fc50cb578ea9ae2b"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_201234/log.jsonl",
+      "bytes": 12216,
+      "sha256": "61c1a2faa3d7abb103942e207d8a511a3f89af23f38300b8964c8c58a3f2e0d0"
+    },
+    {
+      "path": "Red Team_/results/run_20260821_201234/summary.md",
+      "bytes": 2704,
+      "sha256": "a2a038779bfd1136cfe0f441be005d38eec4cc85822b39f14a2189950e9c5a9e"
+    },
+    {
+      "path": "Red Team_/results/run_20260826_154431/log.jsonl",
+      "bytes": 8370,
+      "sha256": "1ff5a5de6c36edc64960f21976cf1a1bf3c962d210e6505baa9b45630be575b7"
+    },
+    {
+      "path": "Red Team_/results/run_20260826_154431/summary.md",
+      "bytes": 798,
+      "sha256": "430f96b0b38715f32b278da9448dd1a0d841f6168cf7f495aa0d3b54dfe38d18"
+    },
+    {
+      "path": "Red Team_/run_redteam.py",
+      "bytes": 5745,
+      "sha256": "80bf6af7af84ab1dd3771e3676c3edda97f349f02c399541ce380db45c468ab3"
+    },
+    {
+      "path": "Red Team_/ver_respuestas.py",
+      "bytes": 1521,
+      "sha256": "49681e37828af21a75ac7b4c03d505bb4db0f959d30620b2adcb7d2b959f0f4a"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/README.md",
+      "bytes": 5148,
+      "sha256": "5077dba7475e289fb73caf946fbedfe629023d57b03df677a31fe7874354f15b"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/estado-inicial.md",
+      "bytes": 8510,
+      "sha256": "bcc59a5c6a42fd78b305d25d066d9868bbc4c6dff92685f00a6b42eda85b6a8e"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/investigacion-0pct/README.md",
+      "bytes": 7806,
+      "sha256": "7d2b86269d1d2b9c782c9ae177b059afd3e45cca582c4561c120607c3996be66"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/investigacion-0pct/export_clientes.xlsx",
+      "bytes": 5057,
+      "sha256": "9bc2699f9a18be3c4ea7bebf3efe3122976502277877c3f3971378b667ed4c85"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/investigacion-0pct/generar_export.py",
+      "bytes": 1342,
+      "sha256": "0a64bfe85883f1cfb9c4798498dcca9e059af4377e13776384b5ccb58501367d"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/investigacion-0pct/payloads-que-explotan.md",
+      "bytes": 4983,
+      "sha256": "7958a7dea862813b4865365b6f24fc9cc2014e6dd23d6704dbcd0a8140dd23bf"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/investigacion-0pct/reproducir.py",
+      "bytes": 8933,
+      "sha256": "fc439303b5a15c4d39747ccb18fbf7c24cb3e85a1ef4e2e21cf4ac697e8dc448"
+    },
+    {
+      "path": "daniel-tfm/01-vectores/investigacion-0pct/resultado-runner.txt",
+      "bytes": 1318,
+      "sha256": "f83b90a629404dabfe77d0f95bfd52294b75c7e3e2ce41da725402c5140a5413"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/README.md",
+      "bytes": 14692,
+      "sha256": "f0e0e43e57478e229967f0412508d0fae4214f0e9a15f68987aac4d41fa4376b"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/README.md",
+      "bytes": 5671,
+      "sha256": "8cb877eabca2dfbb02879901d392d4e09623fc63bc1f670392286397587fc0f0"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/analizar_resultados.py",
+      "bytes": 8157,
+      "sha256": "a57bc7bf016f8a13c14587dfc0e3ad6e907cdf085dd17a4d51f7e1df7a53c3a5"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/ejecutar_evidencia.py",
+      "bytes": 23848,
+      "sha256": "95773595c4e9969f28c25a06839e19cc6bd33c108c7fdbd8e448f2b0da93e787"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/evidencia_cross_context_leakage.py",
+      "bytes": 16091,
+      "sha256": "2450ba59a562b54fba703d4999c7ccbd7a748147caa6bbb459fc3a31110b70d0"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_20260808_093859/resultados.json",
+      "bytes": 82877,
+      "sha256": "6b01019e2984c4a31c5b52926977bdb0449d34119f91f60da53026ff6f957246"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_20260808_093859/resultados.md",
+      "bytes": 6654,
+      "sha256": "8839a86e180c6b3943fcaaf7ba97dd0b631f3af9553b110a13f20f7bc972641f"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_20260808_100050/fuga-real.md",
+      "bytes": 2986,
+      "sha256": "64edd9a752affd1ca06f0bf8c54df6c872675af2d270afef464b812d3b303032"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_20260808_100050/resultados.json",
+      "bytes": 93442,
+      "sha256": "a4bfa3e22738e5db12bd335cf3b0ec32427da479dac0155a958021ebe2c43fdb"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_20260808_100050/resultados.md",
+      "bytes": 6571,
+      "sha256": "7f176c638692f1ea73596d2be6f5065f14f413116e0c5326f5f35c48c12bbf7c"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_cross_context_20260816_195111/resultados.json",
+      "bytes": 30614,
+      "sha256": "e7b3f4fd913ba51b9342bda09c045dd8694ab7d63178cc97f9fe9b8b2169bedf"
+    },
+    {
+      "path": "daniel-tfm/02-defensa/evidencia/resultados_cross_context_20260816_195111/resultados.md",
+      "bytes": 11655,
+      "sha256": "d3fa6be57bbd1dab034ca2abcaf5be6fc6f63c8a3dbc25b08a32c6d1b22c819c"
+    },
+    {
+      "path": "daniel-tfm/03-normativa/README.md",
+      "bytes": 7298,
+      "sha256": "1d4c9e74a6f75b794f24ba3868532d46288da2c1d161c4ad3b6d894242f53b33"
+    },
+    {
+      "path": "daniel-tfm/CAPITULO.md",
+      "bytes": 31294,
+      "sha256": "cfb0adcb494248ea949d71bba7258bb3a674e581487bae54a4da47f1d8a1ce1a"
+    },
+    {
+      "path": "daniel-tfm/README.md",
+      "bytes": 4918,
+      "sha256": "89a0ee3cfc631e7f3f4fc1983c43b3799e9b8aaaf15a73ae72844c9b8f132ac8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/README.md",
+      "bytes": 9881,
+      "sha256": "c092ea6a44f26179c5bcf48520abf2141dba6d573d223ec5823afe339f6f2b50"
+    },
+    {
+      "path": "henri-tfm/01-ataque/anatomia-payload.md",
+      "bytes": 13849,
+      "sha256": "562d772bf1f58a77bef51d0eef4045b6c35b86ca314260a5e1c12a5e17baea6f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/README.md",
+      "bytes": 10504,
+      "sha256": "5a5ef35265c01744160b4d35cf7c2bd32be3096e33c30aa9d3c32a822246d903"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/agregar_resultados_finales.py",
+      "bytes": 5368,
+      "sha256": "2f27fc3a136a9850378933ebe2ce8ba53cce4ad58cf6f7c0e1ce18851c3d9e1f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py",
+      "bytes": 17545,
+      "sha256": "5076df40dde687ba3e953c3577ef8d2dbe7a1eff53739c911e5846328b739401"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/experimento_c_tool_framing.py",
+      "bytes": 6906,
+      "sha256": "a6c43daefbe208c528a3d4d121c45fd7a138a13ff753d1142a90143e96ab51f5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_conD.json",
+      "bytes": 21517,
+      "sha256": "7876ae0895df487561a8765f3fb92b6b81e9a34b35722bad43b336122ddb1d47"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/experimento_c_tool_framing/resultados_sinD.json",
+      "bytes": 19614,
+      "sha256": "79b0738a29e2b5284f9ffeeb889558e2deb7679c2a9098198b683ee85657dbaa"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/motor_mutacion/probar_mutaciones.py",
+      "bytes": 3070,
+      "sha256": "60ebd41eee5914a289dca8f41475cc18a29ff9930a43efda99d648b2181e70bb"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/motor_mutacion/resultados_motor_mutacion.json",
+      "bytes": 511,
+      "sha256": "5f20bbe7c9b6b6a26c20f4a5d43cbf8db4320d9fd5749fe13d56d027f02e7c5d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/reanalizar_desde_sesiones.py",
+      "bytes": 5621,
+      "sha256": "bd0cbe91c137abc7e2608a03d99d0d679a67399a17950c38299eeec50a40eae1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultado-final-agregado.json",
+      "bytes": 1459,
+      "sha256": "f98b05f4f866f4c927f5d74b1dabad08783c0e64e37dc9907d6cbb8b2d9f6563"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultado-final-agregado.md",
+      "bytes": 711,
+      "sha256": "058799fa5083e78a874f0e034d59c536df3934bc21c5efaffc2dc161aadb3342"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados.json",
+      "bytes": 15555,
+      "sha256": "5370be874fe00e057d8963a6e6571d2c22fc08605d8c4c56c19d8fd125d6b1d9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados.md",
+      "bytes": 505,
+      "sha256": "9eaef85600510738b787ff906ace9c141dc31363896e59543929a8f63224c06b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_a.json",
+      "bytes": 17807,
+      "sha256": "f5d75175aee005d619205a80e31aef571b4dc73f528d711eb3e6ae5144e213b9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_a.md",
+      "bytes": 522,
+      "sha256": "e76df69fa48841e8dddc90289fa275a55b803d9d3e724e9b95ebb5560847db41"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_b.json",
+      "bytes": 16395,
+      "sha256": "8494ba9859b8340999b6b03f7cd96eb7a642e2bb98e1903896a8dee442209d4f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_b.md",
+      "bytes": 522,
+      "sha256": "9a34d0ab63a059c9b53cef9f0bf7e62269646c0e8aeebf89def11b480770824d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_c.json",
+      "bytes": 22460,
+      "sha256": "6dd26ed2dbd42c8b4bf76266e85cb01a8550cdfb0bed232c0038d37b4f4a2fa4"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_c.md",
+      "bytes": 529,
+      "sha256": "de8de90e925cfc21ce10f554de58b02bd5e7f3a178e050a168dc8f2aadd3e3c6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_d.json",
+      "bytes": 19693,
+      "sha256": "feac54a32863d9274eb9372f321435aaf210dcdf646b48c5507aace719a3c875"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_d.md",
+      "bytes": 522,
+      "sha256": "8c0b3a5f208749583d7ed9372d1f4c1c52805384ccf81727225048b7ad307f84"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_none.json",
+      "bytes": 28324,
+      "sha256": "3ae43244312de3757ffb1957084d20f3dada1f3f6af3efc6ec39d65977973a73"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/resultados_ablacion_none.md",
+      "bytes": 534,
+      "sha256": "19a3bf35603706dce4397fe29a55b0361538fec39ec310c4e4a8c034ff1bdede"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/ataque-gastos-comprometido-xlsx.png",
+      "bytes": 149401,
+      "sha256": "43ee825c0cf1c20533af5606ccaf99efb4c7a29d539b8f5051484ae90b3cbd18"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/ataque-gastos-sano-xlsx.png",
+      "bytes": 163434,
+      "sha256": "05083c91a4f94d066d416ba499d32ac7671eea463684938096f01515b45e3122"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/ataque-nomina-comprometida-pdf.png",
+      "bytes": 164754,
+      "sha256": "e0bbe46c11c9a2fe127bbd433167dbc38b24fc7115ddbb26f7e2df8c76917cdf"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/ataque-nomina-sana-pdf.png",
+      "bytes": 156151,
+      "sha256": "10643eb6b6450768f27e387fdf8e3325214104ade407238cab4f8eec9b4becba"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/ataque-reclamacion-comprometida-docx.png",
+      "bytes": 136407,
+      "sha256": "d3e8cd882d769ea6e6bd1c064b6b0673dc8a0c47a7090c467b80fe5e6e936c55"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/ataque-reclamacion-sana-docx.png",
+      "bytes": 166355,
+      "sha256": "cf41bf86ff6ee83f447b59d9497b617d4b58702090d3299265791eddb62932a3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa-gastos-comprometido-xlsx.png",
+      "bytes": 161685,
+      "sha256": "bbeb0125a28b99d4f51aca5d0289b7e3fe54e92e0bb9323df6dfb80860644979"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa-gastos-sano-xlsx.png",
+      "bytes": 161308,
+      "sha256": "fba48e9b262de64666cc1beda9a2505d00aaf3ec8d31cf81bc5b0a0d76c4f4b2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa-nomina-comprometida-pdf.png",
+      "bytes": 162153,
+      "sha256": "b28779a7238635a21914f878695d46006214ba1bdc5a0ddad01b21a6c3c97374"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa-nomina-sana-pdf.png",
+      "bytes": 140254,
+      "sha256": "26ee65607a076bca1ca984f72e457d9a1f38f498c8fde2fc91dc2ca14dd74e15"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa-reclamacion-comprometida-docx.png",
+      "bytes": 150673,
+      "sha256": "e199ae59df42b51f65044205a892dca9aa9d48b81b3fbe4f30ec3ffd757e62b6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa-reclamacion-sana-docx.png",
+      "bytes": 152211,
+      "sha256": "94040e9d7a6a181c790a7b75dcf67689280d5bf6bfdd20ccc96615d2374d261a"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/A-gastos-comprometido-xlsx.png",
+      "bytes": 163968,
+      "sha256": "749588b37e73b4367cddfe5aa66932e6205050cea586668d344ee486e87d76f1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/A-nomina-comprometida-pdf.png",
+      "bytes": 143198,
+      "sha256": "672a4b0ee92f36c2aad85807c5d932bce402f3688d2ed6769066bfde832f3763"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/A-reclamacion-comprometida-docx.png",
+      "bytes": 158849,
+      "sha256": "82c2a2ad98c0681cd95b31af7a874cafb3baea363af1da2f39bfeb928991a6bc"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD(+)-nomina-comprometida-pdf.png",
+      "bytes": 165847,
+      "sha256": "e15b4a2eafca339dee6b7bef7621942ab6e8af16536b72c99ba6feea53c003da"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD(+)-nomina-sana-pdf.png",
+      "bytes": 151225,
+      "sha256": "b732a9ce884a53a064a94da09e56f443b4be12f3274873369562488ffcfff576"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD(+)-reclamacion-comprometida-docx.png",
+      "bytes": 189811,
+      "sha256": "749229f7f5bcc9676307255617b26ab2990049af8ec167d6689d9072ae41de83"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD(+)-reclamacion-sana-docx.png",
+      "bytes": 185790,
+      "sha256": "2f045c356f3febbe2bb9265b83fd436dc261a3b603dbb8451566813d2fa0dfcf"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD-nomina-comprometida-pdf.png",
+      "bytes": 164800,
+      "sha256": "c8fa03be2e3852cb6948ee6d765d602cfaa5c13930bd003a77c9e0f9f193bfdc"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD-nomina-sana-pdf(2).png",
+      "bytes": 158036,
+      "sha256": "c16eb292092031e30f61bf9189bb5d7151f0cb7fe108ec24a642adbd73398040"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD-nomina-sana-pdf.png",
+      "bytes": 158723,
+      "sha256": "5e9d67ed04425e1fc3f5c08ffe763a812c0364a227ade685cdada158a0909505"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD-reclamacion-comprometida-docx.png",
+      "bytes": 160747,
+      "sha256": "8ab608d062bbc9abd1cbcba638405a31a65128b0d70af2cf2168201cdc012ce9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD-reclamacion-sana-docx(2).png",
+      "bytes": 149134,
+      "sha256": "23dd2312ece99a6bf873247daf7d6523857cc4820e8f261be4cf227cebbefcf9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABCD-reclamacion-sana-docx.png",
+      "bytes": 160376,
+      "sha256": "8217a0e73d2ebb6418635c60e0f5f3508785f4fc53faf6ef4d58ed893ffe0e86"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABDC(+)-gastos-comprometido-xlsx.png",
+      "bytes": 157372,
+      "sha256": "48c7fb5332776d97e8febddd671c567f74361bbd3363371cc480b10e5378039e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABDC(+)-gastos-sano-xlsx.png",
+      "bytes": 144469,
+      "sha256": "8d95538eefc142dc127be6687674b590cd1af27a0bddbff6b5007a48e81e21aa"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABDC-gastos-comprometido-xlsx.png",
+      "bytes": 162050,
+      "sha256": "989896f647ed32a7d7c2c5ce478af4978d9f04833bebb72a98aebeffcff1d46e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABDC-gastos-sano-xlsx(2).png",
+      "bytes": 149566,
+      "sha256": "ce526d6d4b347a58b5bf74db610786dab912d53730af2540592bde10baf087ee"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/ABDC-gastos-sano-xlsx.png",
+      "bytes": 150798,
+      "sha256": "3dfad1eb81c5795a1e14c32e36dadad1fe8abc6eefa04c6e3658ceb70a0a48d8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/B-gastos-comprometido-xlsx.png",
+      "bytes": 168777,
+      "sha256": "67cf3a83d2356c1d967f6b6d4d4cf91568f1520044b2088d2db7b323c4877f35"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/B-nomina-comprometida-pdf.png",
+      "bytes": 167549,
+      "sha256": "3c726e88a77c8a138558ac0c5f30f4b74f3c41648209c9d22a3345a1c5441341"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/B-reclamacion-comprometida-docx.png",
+      "bytes": 163875,
+      "sha256": "9a86b7515b22c98f9fb6692395acb0d932c4973fc1172cce6f6788ff6e48d19b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C(+)-gastos-comprometido-xlsx.png",
+      "bytes": 144462,
+      "sha256": "53a07e5f7c2b615f8539b60e2047a18c924e6761c7a39cfe9f0bed8eb13bb524"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C(+)-gastos-sano-xlsx.png",
+      "bytes": 151923,
+      "sha256": "f43e23195fa3ec7ca372e86ee5c3ecb1abe46fe229525a90e036083dfb619c32"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C(+)-nomina-comprometida-pdf.png",
+      "bytes": 155420,
+      "sha256": "ecfb9ffc264db7d0e814119569ef7c383af1e2451ffd3d76c732c16d5c8d04b4"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C(+)-nomina-sana-pdf.png",
+      "bytes": 144238,
+      "sha256": "e940c3c56b33a3a007ba9cde1f87c0b1f4d4ce03720be8ef97cb2646d0019736"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C(+)-reclamacion-comprometida-docx.png",
+      "bytes": 137828,
+      "sha256": "9fc842c840bd280b747fe9a9b381c5b7ae7b7ef49d92ad70c62da7606e0d2704"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C(+)-reclamacion-sana-docx.png",
+      "bytes": 148514,
+      "sha256": "b1cbb2d63c9b8ecc3f4b10c944ee244b75adbaa8d4e16dc00225a0b1302f8235"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-gastos-comprometido-xlsx(2).png",
+      "bytes": 159578,
+      "sha256": "5aa7b145785bbe97101ece1c3c77fd421db4c7ed64a47743ab94b6f49b349a6f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-gastos-comprometido-xlsx(3).png",
+      "bytes": 150877,
+      "sha256": "442c7d151fd285f23d6ab43dcc5c9fd9001e2c2472fe56ec5919149601437a28"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-gastos-comprometido-xlsx.png",
+      "bytes": 146475,
+      "sha256": "d31787a905227098df76a80c5e8074a99f17776c659fd61a18b8872f8db26aa2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-nomina-comprometida-pdf(2).png",
+      "bytes": 163123,
+      "sha256": "1b94f80187b1aba2aee315e21625fcfcc1f6cb65ec0fe7189da87db30eed0780"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-nomina-comprometida-pdf(3).png",
+      "bytes": 152721,
+      "sha256": "d7d61797e4f08574a93e25a734e9fb5ed53feb7d99777c8533dbd65e97e484e5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-nomina-comprometida-pdf.png",
+      "bytes": 161039,
+      "sha256": "27958b3398a5d8fa417af9161a6ba58539a47f77d272fd522fc6be6f4d778451"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-reclamacion-comprometida-docx(2).png",
+      "bytes": 150023,
+      "sha256": "8573c271d303c71a59f50dc68f15f295ccf250dd1a2aed5014c7db60ca0ad843"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-reclamacion-comprometida-docx(3).png",
+      "bytes": 159880,
+      "sha256": "c3fbca4f984adb7ab2e9f879828fa704ae0bc6e8c857542c924b9aefa138296b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/C-reclamacion-comprometida-docx.png",
+      "bytes": 166146,
+      "sha256": "17ddded117ea07f8fbc981ebb0beb4010e57b1f4133262dc803153470bd495d7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D(+)-gastos-comprometido-xlsx.png",
+      "bytes": 158525,
+      "sha256": "457959aafc327feeed26fa13ae5f46bf705252742f9f7b58effcc5121a661f4a"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D(+)-gastos-sano-xlsx.png",
+      "bytes": 168041,
+      "sha256": "1cd5b8bdb41e8609ab1903cbab1bbbec4dd42bf413d3dd805a6f12736b384513"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D(+)-nomina-comprometida-pdf.png",
+      "bytes": 128676,
+      "sha256": "2c41e2415d3ca60d04b02cb4b32a56c303d6bfdb8073be610affc273f2767f39"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D(+)-nomina-sana-pdf.png",
+      "bytes": 170754,
+      "sha256": "9289b03ce2dd426fad7b1bb148ca0016c59650c227b7f05e16e6d8a845553fc8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D(+)-reclamacion-comprometida-docx.png",
+      "bytes": 127118,
+      "sha256": "f31027136203108ae5923504c2b72f29983e0b6fe7fff0a1b31c2b3caa24726f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D(+)-reclamacion-sana-docx.png",
+      "bytes": 161239,
+      "sha256": "fc6253240c073e12e6fd83f40969d15130c685c5f61c943e8dea42472cca3c87"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D-gastos-comprometido-xlsx.png",
+      "bytes": 158641,
+      "sha256": "6e9e2174156a37ba91a33146d5d5a06af7a9242de0eb226546d7abff8fef93c6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D-nomina-comprometida-pdf.png",
+      "bytes": 165017,
+      "sha256": "9901dd55da9bee2a993fd790943c6cd300c6a6165f7364d337fa348c662b5fcb"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D-reclamacion-comprometida-docx(2-3).png",
+      "bytes": 149221,
+      "sha256": "0480888994605845763efb9ace07275e6475d828762ce427c669fb1eed228a79"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D-reclamacion-comprometida-docx(4).png",
+      "bytes": 157833,
+      "sha256": "f18e1a4b6d595c8c7754a1edf42926281571e5228addfe6b9edb90728a49c6a2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/D-reclamacion-comprometida-docx.png",
+      "bytes": 183387,
+      "sha256": "d0e2dcc14962c16be285284bb3df3541eb0ffb7e9f067a2987f312470b689e33"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/post-auto-redteaming/ABCD-nomina-zero-width.png",
+      "bytes": 178292,
+      "sha256": "cee082689d3e675c1427c17a7a8f3ced720f2c4b8ae90e2ddaa329230320de19"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/post-auto-redteaming/B-nomina-homoglyph.png",
+      "bytes": 175202,
+      "sha256": "d01cc9a95a637a27156691850f3a8c88fb0356dc31567f778eb49f8279350763"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/post-auto-redteaming/B-nomina-sana.png",
+      "bytes": 168731,
+      "sha256": "e8d98075ca57ecff36038111f6654e731ef994420a72dd5f086278b788549131"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/screenshots/defensa/post-auto-redteaming/B-nomina-zero-width.png",
+      "bytes": 147663,
+      "sha256": "cd55b6d25159ac1dd7e8ac961d778b58ecdcda618bd081f5788eb1aa4b073243"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_212830_ses_1785187663.md",
+      "bytes": 3903,
+      "sha256": "00a79089657686a5a31dffa8b197b921a1b104dd00b01a38cbc9cf86a8cf092b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_212836_ses_1785187710.md",
+      "bytes": 3225,
+      "sha256": "b9db6200c66549ff4c4ba39866b5e1c586695a5b72103d549f4c5c490803f602"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_212855_ses_1785187716.md",
+      "bytes": 3676,
+      "sha256": "38f940e5c5b7758123d24a24c143873ffd48cefdf4391a55246c24ae94d70da3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_212918_ses_1785187735.md",
+      "bytes": 4351,
+      "sha256": "d5de49d59a08f3d90337eea13a022ba615973fd406c6fb94144f512a84d73a2f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_212954_ses_1785187758.md",
+      "bytes": 5024,
+      "sha256": "42b5eb1fbb0d8c70a09ea4a749cc52786735cc684316b80571ccefd5a29501de"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213019_ses_1785187795.md",
+      "bytes": 4599,
+      "sha256": "e987d9500635d708d6160d12aae8887650459e828aea666b359846c3e4d46b07"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213041_ses_1785187819.md",
+      "bytes": 3518,
+      "sha256": "04c34e8029f52b4beb83c4ca5dc9b3fa7cf455af4b7bcbd6b8c61d9d81ed30ca"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213111_ses_1785187841.md",
+      "bytes": 4437,
+      "sha256": "c93a738500d76df00e398518b77ede1c25e175a19405f7b23a07ad1f54db3c9c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213135_ses_1785187871.md",
+      "bytes": 3536,
+      "sha256": "332691bc24b0e2d2fe974d70b3dc25e5b9e1b684bb811a0db0d790852c2157d5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213203_ses_1785187895.md",
+      "bytes": 4546,
+      "sha256": "72472688b08935be19e98feb17deb29cc1b5ca5efcbc217c2b0ce8b91336a961"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213226_ses_1785187923.md",
+      "bytes": 4487,
+      "sha256": "597a197ee765d50e6c381a6f27a2e0753dca9efbc26c8a4c8884165a456979f8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213244_ses_1785187946.md",
+      "bytes": 4500,
+      "sha256": "5a51003d7735678607a249897f0fd65ef814046b5f68e7d9a30ebaaabf876503"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213302_ses_1785187964.md",
+      "bytes": 3721,
+      "sha256": "8b3731c6519a6d6729360beca542665ef63b1f01e2b87417ec66f8a2b266629b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213333_ses_1785187982.md",
+      "bytes": 4088,
+      "sha256": "764b7c1020fe16a0ac67d3e89878f5ffcd6795d06662c188952e815c876a2900"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213357_ses_1785188013.md",
+      "bytes": 4103,
+      "sha256": "4956347d0d47aa48225f5551f636c4929edeecb5ab5a68a17bb5e7254e428ae8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213428_ses_1785188037.md",
+      "bytes": 4341,
+      "sha256": "868994f227eb019896ef8e7ca6a09bcdb0f129412ae784595ae3460ee10810ea"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213453_ses_1785188068.md",
+      "bytes": 4391,
+      "sha256": "1277d039b07ec880e0495d0e9390aa560ad6732acf76ba442f1c66c99be32236"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_212743_defensas-none/20260727_213523_ses_1785188093.md",
+      "bytes": 4524,
+      "sha256": "6383639b25d7fc280d416aec4cea1161e1f87c8472d1ecc79272672ac701b96e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213548_ses_1785188123.md",
+      "bytes": 3974,
+      "sha256": "51bca37f1aadcc1d94d284a4bec09119e6b5d1cb54d2b000a66e69a774f33cea"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213555_ses_1785188148.md",
+      "bytes": 3381,
+      "sha256": "59cbd080b7362588fc4d3f8e5883c0843279b5de3482129d8434cd9353c0ece7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213604_ses_1785188155.md",
+      "bytes": 3410,
+      "sha256": "85c3a14fe568df564b0470b367de0ccc544ee13251309caebe3e2c20850356c3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213604_ses_1785188164.md",
+      "bytes": 8585,
+      "sha256": "0a7de4e5c4f023f29fcc72436514b8e0044376b5952b7a67c3be2fabde923175"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213718_ses_1785188215.md",
+      "bytes": 3460,
+      "sha256": "68187efa6e0bada5055bab68355a923cfba51a7bd8315759f33ea6d662d93c95"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213741_ses_1785188238.md",
+      "bytes": 3658,
+      "sha256": "833aae56ab67d5b13f497836f7aa583e76d2b18ee1a510a9b6531d97ef81d40f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213741_ses_1785188261.md",
+      "bytes": 6292,
+      "sha256": "c3cda4a32a71d59b2d2f881573393be89a9ad9b361f0a7287be0deff6424158b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213748_ses_1785188267.md",
+      "bytes": 2789,
+      "sha256": "7240828b6710cd4cd1e2042caa8560fa2019afc337dd1e82705f6b1df2ad8317"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213759_ses_1785188268.md",
+      "bytes": 3053,
+      "sha256": "2b3a4ca0250e4ce1f4b4d1798dbe97c108aaa28db3d4495b0f4261c0e692efbf"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213523_defensas-A/20260727_213759_ses_1785188279.md",
+      "bytes": 5186,
+      "sha256": "fc62a1d2c57846d9a5f273374fbc03466860ced83a1c407896e3f0b0261f5f22"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213804_ses_1785188279.md",
+      "bytes": 2942,
+      "sha256": "4c527a834858a9607807d8e0db55d3fb77a01b3c0df78a6f516d38ad8b597760"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213811_ses_1785188284.md",
+      "bytes": 3283,
+      "sha256": "cfb90421af181b0fb441017af283f5cd6eb3989c930414a2ce8ef224647aaa79"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213816_ses_1785188291.md",
+      "bytes": 3204,
+      "sha256": "c007e20b7483d28dcea2990c115b6d3331b0012cb77c2cb3a0cef67ab35de734"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213816_ses_1785188296.md",
+      "bytes": 6935,
+      "sha256": "c2d1d67bf16a45d7191a1bd7b2c8b65d473cc0643c37faa53f898bcbaee22be8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213859_ses_1785188319.md",
+      "bytes": 3903,
+      "sha256": "968fdea1f080bbac14e8e1c96f3a11a29ebfcfd2d77e20cc953bdfdd773b06f0"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213930_ses_1785188339.md",
+      "bytes": 3687,
+      "sha256": "7c7307cacee5c9fbdec4fd8eaa1ae4b3824d24ad1cb7a675c1b6967bd33e7290"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213930_ses_1785188370.md",
+      "bytes": 7288,
+      "sha256": "d94ef533b4ff5ac7e5c6088054c6e081f5fb55f72854caa88194c6580656f559"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213951_ses_1785188387.md",
+      "bytes": 3028,
+      "sha256": "9c50a1f46dba578d2919d8e054628002e369bbdf2adfb3e56ab44e83888c8659"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213957_ses_1785188391.md",
+      "bytes": 3113,
+      "sha256": "b5740956f8f119a90379fa2297da7886fdc1fd935fbc90f9c92e226590e161b2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213759_defensas-B/20260727_213957_ses_1785188397.md",
+      "bytes": 5120,
+      "sha256": "1cc72af02c88ec831e64bf6b7f4b8831ea3ab45d94f80f18968e7ea52ea0925f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214014_ses_1785188397.md",
+      "bytes": 3869,
+      "sha256": "949ee8eade239d4edc7ea1b4cd5341835b588ca32ab9b67cfd07138ad20111b5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214016_ses_1785188414.md",
+      "bytes": 3336,
+      "sha256": "0d15e915d7aedc96f888968a6674d99cbcaec7e13f85b3f5dbda32ab196aebde"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214022_ses_1785188416.md",
+      "bytes": 3648,
+      "sha256": "2c42f6fcd224d4aa8af47457208f0d9c70dd6f2193c9bf20746920c6b07d4c64"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214035_ses_1785188422.md",
+      "bytes": 4282,
+      "sha256": "2fc3a2a59e184af782c8de69f0b5461759d0b124f13b0cffe2670bfe7919381d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214059_ses_1785188435.md",
+      "bytes": 4897,
+      "sha256": "a0016f92bc195c90541daccdb05eede9b9ac99e6c377e42edd0fc6b85553bea5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214124_ses_1785188459.md",
+      "bytes": 5081,
+      "sha256": "fde462c570cce247e761ae5dc8200a1cce0d42791359839c9f3e6aae0d12efaa"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214158_ses_1785188484.md",
+      "bytes": 4777,
+      "sha256": "e138d959f85270eb1512cf46b23def1f89612a1b99cc678c6961067490129e07"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214217_ses_1785188518.md",
+      "bytes": 3874,
+      "sha256": "746289d8f4e156fb8ba1140e3b1efd53c59b607adfc51b34a6d79d2aaa103f58"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214236_ses_1785188537.md",
+      "bytes": 3911,
+      "sha256": "fcfe18ac6326774325207de5010dd1824ed32506b2f9360d21fc2fb76403158f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214310_ses_1785188556.md",
+      "bytes": 5106,
+      "sha256": "5b31c263116591ca95b929975886d25af384ae1a6c8c0e6274296a4c97cb42b7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214324_ses_1785188590.md",
+      "bytes": 4401,
+      "sha256": "af88865b150e90515ce24a0e2302f7ce4a63c6a4cb351955c1fda9ba1d224598"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214341_ses_1785188604.md",
+      "bytes": 4758,
+      "sha256": "3fa256c9264c652b608529b391a6237c200cf6d4253dc8cbd6ffb49ed1b87bf5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214359_ses_1785188621.md",
+      "bytes": 3853,
+      "sha256": "4580ba01bfa16035bf02246d1efd1694ce2d5db3af2cd18ea2f168ab3b5a41da"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214406_ses_1785188639.md",
+      "bytes": 3561,
+      "sha256": "f5e0b314b6d5b10b14e9e4cc3e0029c8818f817bed77982504f45d649cf6f83a"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214417_ses_1785188646.md",
+      "bytes": 3794,
+      "sha256": "bb42a31cad33f0aaa06c25326a5b8518b7b9bd22c529cd3a91526b5e7fb89776"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214448_ses_1785188657.md",
+      "bytes": 4770,
+      "sha256": "454ac6a020ecbe8600e6d724047eb004b8bb80b93fe85d6764c667b041e48f6d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214457_ses_1785188688.md",
+      "bytes": 4147,
+      "sha256": "162733c5e7ae8a98813172e4b96630d4db76e26904669f499b636d7fd16c617c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_213957_defensas-C/20260727_214524_ses_1785188697.md",
+      "bytes": 5022,
+      "sha256": "7fe7a580c05313d96e35dd3b225dbbe28b0d83d1e2f63e723a5fc3efd0d4d43d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214530_ses_1785188724.md",
+      "bytes": 2942,
+      "sha256": "73b9ee05330017fd7337a6b72e701bdc2319be0867e0622a491f2327dedc51d2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214537_ses_1785188730.md",
+      "bytes": 3263,
+      "sha256": "150fc5a013480b3cbaa46b41ba0947964e489039a392cf51d4e51fe5f5a877b5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214538_ses_1785188737.md",
+      "bytes": 2942,
+      "sha256": "3ae1b4388a54f0226cc0ef1a5397d9ec7249eee72690be77d731fbdb1dbb6133"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214555_ses_1785188738.md",
+      "bytes": 4069,
+      "sha256": "8473e707098aa70ff0464d4de75efbe595731ad02282fd1141bb642f8d3d1419"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214612_ses_1785188755.md",
+      "bytes": 4210,
+      "sha256": "45270b0c690e4ba995c6732c9207974ee2272096725c841cc346999aa47979b2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214623_ses_1785188772.md",
+      "bytes": 4017,
+      "sha256": "77f68c4ca45d6c9d614b9038ec5c068c9085c3265fe4927e2a602d0f160cc5a0"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214647_ses_1785188783.md",
+      "bytes": 3931,
+      "sha256": "89a224aa7e43ae91010502f011c80d16a3c15b9e703f3a59745a23ec68f8f948"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214701_ses_1785188807.md",
+      "bytes": 3249,
+      "sha256": "41cee71e917a8454f80183998aaf42efc5af7cb1f279ee0a519adaa2b6fb425c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214724_ses_1785188821.md",
+      "bytes": 4091,
+      "sha256": "152fe5fda36a28c7f6e66938227b45bcaefd73118399a058ae536f70ce68cb58"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214802_ses_1785188844.md",
+      "bytes": 5263,
+      "sha256": "dacc6c37eddf2b6757900f7f194ffb32ab6f9841233f010b1a1164e2301efa1f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214810_ses_1785188882.md",
+      "bytes": 3791,
+      "sha256": "5d600eafc0dd45af567ee539bf53288f324b5efcc18fa6271edd7ac5329394ca"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214821_ses_1785188890.md",
+      "bytes": 3914,
+      "sha256": "a94ecba34aa0c5f5a1cf89cf9fa155b32624ff51f879ddd796f419930acb781d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214836_ses_1785188901.md",
+      "bytes": 3437,
+      "sha256": "770d290e9dd97d7bf5c264d46220ff00feae3ae8fada91c1b0dede96a9f8b389"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214845_ses_1785188916.md",
+      "bytes": 3352,
+      "sha256": "e477461f8dc2d3430c7bbbde7ca7e7a66724c2ece74ef43f0868d9b4daf3331d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214847_ses_1785188925.md",
+      "bytes": 2818,
+      "sha256": "334d3edbc7fe9419018b8695c64a5634a54f55354da2e29eb3132ac849ef7725"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214908_ses_1785188927.md",
+      "bytes": 4046,
+      "sha256": "63ea8332efbe2d36fd4d428e892b09e7aba46d5c7954ff201569cfb890227b84"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214921_ses_1785188948.md",
+      "bytes": 3954,
+      "sha256": "132d063197e731949a288da5aa1afb962bea8b4e18b03c8629c583092fa258c9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/20260727_214524_defensas-D/20260727_214932_ses_1785188961.md",
+      "bytes": 3858,
+      "sha256": "2fdcda462c45ed19ce8fc55bec43d1f362cb36271a9cc5944b6cec4f81f00d75"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/manual-verification-1.6_20260726/20260726_205742_ses_1785092483154.md",
+      "bytes": 14341,
+      "sha256": "642fa1801435619b01eccb1f26f8c988829166244d03ebffe09707b05fc28ad2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200019_ses_1784836796.md",
+      "bytes": 3177,
+      "sha256": "106926a21f5ae2f3b1a30d2d9f26a18d606433d3ed1340a08f09ab9fec9cdf18"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200027_ses_1784836819.md",
+      "bytes": 3327,
+      "sha256": "47cc9231970fd1da5d88e743b3d8a5188281e46d8753afd0286f207565e4a7ca"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200038_ses_1784836827.md",
+      "bytes": 3509,
+      "sha256": "6d4215aa2064ecce1c204c9e74d9e2fcf51e4549f2a4cbc3611854d8a8a710d5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200109_ses_1784836838.md",
+      "bytes": 4547,
+      "sha256": "4ced9efbb77c18fe2cd7e77061636cf57441f3fd90e2ad52bd3f63f19a6dceb1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200137_ses_1784836869.md",
+      "bytes": 4516,
+      "sha256": "0e2a1d068ddd5724130a50fafeb081438f4589882c479d0a93c697072e3df9dd"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200155_ses_1784836897.md",
+      "bytes": 4099,
+      "sha256": "f9284492e1620549ed9f974c038cf0fb64aa2ea64c3d2ecfc7ea02f17bb9f1f1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200217_ses_1784836915.md",
+      "bytes": 3431,
+      "sha256": "6c8fe65805f79117fac4cb5c285953ae7bfac8ce8f333ae42ac972049e37b437"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200247_ses_1784836937.md",
+      "bytes": 3740,
+      "sha256": "bdd04d82d1a3eb2ff9889e215e9c1a41ad2a83318e6611e8afae7dc0b91c0d1e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200318_ses_1784836967.md",
+      "bytes": 3771,
+      "sha256": "6a0b13462b9947f8cc47e1b686352f924fad2f5f31cd1446b8fc5f103f59ee28"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200331_ses_1784836998.md",
+      "bytes": 3295,
+      "sha256": "5e36c95482bf70ea62e90bf0c2da57084932a29e77c81009b11aaeef2ed16653"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200357_ses_1784837011.md",
+      "bytes": 3891,
+      "sha256": "b5e0ecc4e68741cf3b3c47e8a20a5dabebb0e32b853d26335b048112ec7589f9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200410_ses_1784837037.md",
+      "bytes": 3471,
+      "sha256": "be428b125cb8d024ec3ac78a79a3eff4b8df49386c04dcfc05709222f8dfa43c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200440_ses_1784837050.md",
+      "bytes": 3225,
+      "sha256": "2145b8a379514420e44d533dc854815cf2217a4323b1bfeb9c0a8cfb7b598f2d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200448_ses_1784837080.md",
+      "bytes": 3118,
+      "sha256": "beb7e35227fb74660fc1b17edc7e0c6beb6de8b185b0c6ea9bfebb8c67bbbff3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200453_ses_1784837088.md",
+      "bytes": 3070,
+      "sha256": "046e16ba038c6102adfdc86a480bbbbd4d8a7bfc452a2cafb31eefd3fc13d073"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200531_ses_1784837093.md",
+      "bytes": 3919,
+      "sha256": "e8c21e50117c61135d40a2a1a5f479168a131508c9f3ebe3d39adf0b2452f55b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200603_ses_1784837131.md",
+      "bytes": 3816,
+      "sha256": "10cd50540a86e84928eb19100e8b1889248b1cb79c5ee5c0797b3a499aa9a71a"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run1_18-calls_20260723_195956/20260723_200639_ses_1784837163.md",
+      "bytes": 3566,
+      "sha256": "5c87adf801d991a6429f4da8828c335eddc7489a6a3d09c5282e1ece061fc2f7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210441_ses_1784840659.md",
+      "bytes": 2943,
+      "sha256": "dab55274debe2dfecab182996c13ad825b8c8d9daeecd71a7393794bf2f3eac7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210443_ses_1784840681.md",
+      "bytes": 2942,
+      "sha256": "970403a860c815577f0aa7f93961776ace593d5dd3cbbfbf470022d5655fe210"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210445_ses_1784840683.md",
+      "bytes": 2942,
+      "sha256": "a00c86975cef17c4247e3d7bdf684a1b712e20baa1ba5b2d4e86df1326d5b23e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210446_ses_1784840685.md",
+      "bytes": 2942,
+      "sha256": "ff12e5a588c6c218e6269aeafc583b2d6a91892cae62fef60c9adc5fd19949fb"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210459_ses_1784840686.md",
+      "bytes": 3588,
+      "sha256": "cdadc9884107e79e3552d9ea86b590129b14533a12d2dbe427c5e20e8a3bc6b5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210527_ses_1784840699.md",
+      "bytes": 4219,
+      "sha256": "93d50be8d1e3fb9504d1d1f54bfad86aa1bf2092d323fa12a4d74ce7be73ee2b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210548_ses_1784840727.md",
+      "bytes": 4164,
+      "sha256": "333ee17ba2d90877ca2dceffaeb79fd711ee13d9d41b34ac6f87fd1d037073eb"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210600_ses_1784840748.md",
+      "bytes": 4084,
+      "sha256": "9d88d348d3fa925df1da46e697f7e9b27de45604975455d1aca1c0c50b4d2c08"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210619_ses_1784840760.md",
+      "bytes": 4062,
+      "sha256": "56baa8854c8a373ba5d1d493e9409eed474d0761ccf2ff113c27dff0a0cc6b18"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210650_ses_1784840779.md",
+      "bytes": 4500,
+      "sha256": "4387beae72943c05fc9c0365e6f1cfea7a2d473bf96d07ea2af8e4d833c448a9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210714_ses_1784840810.md",
+      "bytes": 3600,
+      "sha256": "2591a120d3f1310312f60d7e4139227c5c17567f859a10acc0b5bafee2ded6ae"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210735_ses_1784840834.md",
+      "bytes": 3522,
+      "sha256": "d7256fb7588420cdfbf70af036c24a8a50709858ad19e016ebd0c64c79f245f4"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210751_ses_1784840855.md",
+      "bytes": 3257,
+      "sha256": "7562d331a0fa13f3053c2f9d01079cb2cefa5a08719b68318aa52534e0b1b645"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210813_ses_1784840871.md",
+      "bytes": 3532,
+      "sha256": "e11ec3c5e5c5968beb65bd40dad904b7dcce179cef621f3aacbb1f21e7ed3dc3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210830_ses_1784840893.md",
+      "bytes": 3450,
+      "sha256": "b83f1650695915ac88810cf034794bd2aeaf3230e8e9080fa1d91f92f1d42b0c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210857_ses_1784840910.md",
+      "bytes": 4110,
+      "sha256": "0a060c0bc1a10faa602fad204c9dfdcf86f83339630f43350b0507ed69a9ecb7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210915_ses_1784840937.md",
+      "bytes": 3958,
+      "sha256": "d133d6dba853551bb9436cc250a35e70c26f7c6dc52440666602785ba664d771"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_210936_ses_1784840955.md",
+      "bytes": 4049,
+      "sha256": "4bfeef3dce1a8e8a82152586c3493c31c348215f735cc03d1060609eef464805"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211002_ses_1784840976.md",
+      "bytes": 4294,
+      "sha256": "f86172d694dd8fa14aac90752441421af2ae0f852c148cbc89557d41ff132662"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211024_ses_1784841002.md",
+      "bytes": 4167,
+      "sha256": "51efee4148a19906483e91ed5cdffa614f10ad2d306eb3aee564c34ab6911ffb"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211032_ses_1784841024.md",
+      "bytes": 3052,
+      "sha256": "d993e568234a54656c4c267aca90d34c0a2bec0dc64e58875a3fb0866eb340b8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211100_ses_1784841032.md",
+      "bytes": 3472,
+      "sha256": "865af8e16457c24177e247d2a1b4a66ab259e418a45a3277ad826e70114fb1ff"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211105_ses_1784841060.md",
+      "bytes": 3054,
+      "sha256": "809c7c2eaf0be769089e568c704f391d8b6db39c4e3c44535d59e94115f0582c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211110_ses_1784841065.md",
+      "bytes": 3034,
+      "sha256": "4f34aa9192ee7d4192e385a97c44cb772917e37dfe52ab23f9d6c75037b36c1c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211119_ses_1784841070.md",
+      "bytes": 3203,
+      "sha256": "dadfc5dac58d526420471a6cac680ed6d3a856fe97669b79d1e999e336ccd7e6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211158_ses_1784841079.md",
+      "bytes": 4083,
+      "sha256": "6951e1b97e065301760463c6a64cb5c3643b9f618b87e995cbdf430841d76eee"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211244_ses_1784841118.md",
+      "bytes": 4180,
+      "sha256": "875a13c50aca946e203ed15859e4dd1820186aba4f48904127ac5417f6e7244d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211318_ses_1784841164.md",
+      "bytes": 4018,
+      "sha256": "7730da6649ad37410dc1c14abcfe1c9a01af35151bec03ad8fbe74893f62134e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211348_ses_1784841198.md",
+      "bytes": 3934,
+      "sha256": "fd522b68c855841055e8a2e1427983b711358fb41244b664d057bc4ea1863aa8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run2_30-calls_20260723_210419/20260723_211418_ses_1784841228.md",
+      "bytes": 3916,
+      "sha256": "05c62b20fadc2781f4b21890d416854bb920812e381ab956c916d217c532f9e5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212011_ses_1784841573.md",
+      "bytes": 3772,
+      "sha256": "1f1eada036c092db5593eebab9c0caf2e2904fdcb0b4866ace0c34f60b61d3ae"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212013_ses_1784841611.md",
+      "bytes": 2942,
+      "sha256": "f18e8562a4986f394663aff655f75b66c53f4bb2712ac4e01508533916cfdad1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212050_ses_1784841613.md",
+      "bytes": 4015,
+      "sha256": "db6df8a9204eafbd8679270f786744d112fdcbaeecd7375335a78007c2c26409"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212059_ses_1784841650.md",
+      "bytes": 3347,
+      "sha256": "9c3edc23dcb58a76dfc00741629d36feeade7eec8974ee35028328ade39a4e5d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212102_ses_1784841659.md",
+      "bytes": 3025,
+      "sha256": "dc25d72408ac76783d04d72e05a25cc6c58bd28c790ce02d146c990e76073835"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212131_ses_1784841662.md",
+      "bytes": 4236,
+      "sha256": "f47b55087b350b4c6cbc593cddac4ce11068b393e2f414845b39aaffac9d515c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212143_ses_1784841691.md",
+      "bytes": 3970,
+      "sha256": "f56f3c600eec541d5a20b0428c22833e92ede42630827a9faebf68d654555d79"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212200_ses_1784841703.md",
+      "bytes": 3960,
+      "sha256": "2fd966240baf61f42084e4c2d4f62c135e5c8883eb82ae7f20d47d7837aaaa91"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212223_ses_1784841720.md",
+      "bytes": 4311,
+      "sha256": "42e09eecad4733b3a20bbd2ddce1406b0f24702e778cf9a316d05098a4f50eff"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212255_ses_1784841743.md",
+      "bytes": 4385,
+      "sha256": "2da0209a06daff29085dcf434096e18912b1a1f2817d76f84248e2bd57408a16"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212319_ses_1784841775.md",
+      "bytes": 3435,
+      "sha256": "96798ddad2af49d210141f5f1620b153298f4f30c149c6aacf978e8f4bf99a7b"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212340_ses_1784841799.md",
+      "bytes": 3523,
+      "sha256": "5445571546d7826151330dbc6496afed89ee2b2983a922137629e57a527b64d2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212359_ses_1784841820.md",
+      "bytes": 3492,
+      "sha256": "5d2a723b58aeaaea678928718b60c4c4a34ab4a331546c8bf19fb25504a53ffd"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212416_ses_1784841839.md",
+      "bytes": 3400,
+      "sha256": "47c33403d4bd5144580d1769314d953122a1d789f5af224bdf1e9ede113bbb50"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212439_ses_1784841856.md",
+      "bytes": 3568,
+      "sha256": "a995c1ab13ee3fef1bc13b9895e206a964fd841d1e0c82b3cee111787df2cd69"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212455_ses_1784841879.md",
+      "bytes": 3910,
+      "sha256": "cd83fcb32596fd991b59b12f69e463cac136ad59b14c45f3a6fa44ef7f1014c0"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212526_ses_1784841895.md",
+      "bytes": 4173,
+      "sha256": "443b9bf5eb1a49ea144961bbae22fd3e5a88d1862150712984d4acc836b2c82d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212550_ses_1784841926.md",
+      "bytes": 4381,
+      "sha256": "23e83725a4b81838014d0fe9fb269e669ae6dba4843583f6338bc18e15c97bb3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212609_ses_1784841950.md",
+      "bytes": 4024,
+      "sha256": "94451f2fcc728ec4b19412a6918770a7b8bdbff5b15cfda41bc8baf7fecbdc6f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212627_ses_1784841969.md",
+      "bytes": 4049,
+      "sha256": "dfefe1faa7ce35a0f1d0130ba174a58c97cccf77040d9220fd33224bfb5585b5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212636_ses_1784841987.md",
+      "bytes": 3103,
+      "sha256": "cf7fee249bf6215f594d71fd72d2cadc84dddad4cdcfc331d62404104b6ecd7f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212642_ses_1784841996.md",
+      "bytes": 3130,
+      "sha256": "5e1b9ebb890bcb4a94292dfe4327f8967cdc7e3eca5afc393be38f76766ea6e6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212647_ses_1784842002.md",
+      "bytes": 3045,
+      "sha256": "900d9b92239f3947c02986259b06d82c9b28b4d8b2580373743886a7d4c58be6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212649_ses_1784842008.md",
+      "bytes": 2818,
+      "sha256": "4db7d518c49baea85d1731c95612991a5c56dcb23a8be1e97140da8fe8cd4569"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212654_ses_1784842009.md",
+      "bytes": 3042,
+      "sha256": "ec63c03f8746fc5cd3ffe02010eed00e565a3480d197e68c87d849d59b5e8a06"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212731_ses_1784842014.md",
+      "bytes": 4256,
+      "sha256": "edece5e1f20cb1982a68f8615b160b453725aec0374d618768d3d647d5aaffa5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212752_ses_1784842051.md",
+      "bytes": 3925,
+      "sha256": "6e6f55d17d826568a8e2f19c3a217067d55d6881e765e1efaec845e7372b77a6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212835_ses_1784842072.md",
+      "bytes": 4720,
+      "sha256": "d6bef34901ef4ed19060d547ba4da1df9274a287e74035e63b2f6e0db25dba27"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212900_ses_1784842115.md",
+      "bytes": 4079,
+      "sha256": "b7c9972011c5eb0bd5e5dce2c4c485f033f329efe820a3638e8cffe6710eb307"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run3_30-calls-final_20260723_211933/20260723_212936_ses_1784842140.md",
+      "bytes": 4160,
+      "sha256": "ad3d77ebc08da64913d2ab96c14952789a4f877c94bfe3ec69ed62f146c2736f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214502_ses_1784843076.md",
+      "bytes": 3002,
+      "sha256": "58206ceb372b109752a1e3b85529ae3555cca3571dceaac372a1fa618ad5dc2f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214507_ses_1784843102.md",
+      "bytes": 3024,
+      "sha256": "48fb25ba818f4c2309c252a0775f6b40e6217376e21310386538738b94485651"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214515_ses_1784843107.md",
+      "bytes": 3249,
+      "sha256": "70196f99fc1b996d4a8aaef693f7adda9d6f110a8b48ed102e4e498b516c8aa2"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214527_ses_1784843115.md",
+      "bytes": 3050,
+      "sha256": "6be368e553d753c9519c5f88a8e5d41645db6f768ebb2378b6143562ee05a5c7"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214532_ses_1784843127.md",
+      "bytes": 3000,
+      "sha256": "be3c47cf96c000014343e65e835f4a44a28d20f0edc32a38a6b1c95189eaa1e8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214535_ses_1784843132.md",
+      "bytes": 2972,
+      "sha256": "1b0ef0a5687ba1a477ccbd13d3f2a6be2227a503d50feafc84c41f471a884a76"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214547_ses_1784843135.md",
+      "bytes": 3530,
+      "sha256": "580c8a6e7c5599932b482d93b914ee616778f77094090ae74199e230a8db69de"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214557_ses_1784843147.md",
+      "bytes": 3031,
+      "sha256": "5e5511993ad378e41fbab86dbd3526a5e3117769333a5dc5071c86769e2f61cf"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214605_ses_1784843157.md",
+      "bytes": 3217,
+      "sha256": "463d7908f8e7059edc63913b2cbb7f0e67faa382bcca3317206f412f29e864c5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214611_ses_1784843165.md",
+      "bytes": 3054,
+      "sha256": "8aa954e89b20f0808818c4427005803863a2de4e55cee717c50e4ccb1bc3018c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214648_ses_1784843171.md",
+      "bytes": 4304,
+      "sha256": "6e47e37a4fa47dc4446503c528c007aec3067b19f6807ddfdcd2069704a3c776"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214800_ses_1784843208.md",
+      "bytes": 4110,
+      "sha256": "d8ea883d0678b512048aec0fb25e9ffa441c6c5c59cc2f8bd385006fbfaf33df"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214826_ses_1784843280.md",
+      "bytes": 3990,
+      "sha256": "ecc10d20c8761c76c6a880ba7b4586f7d3b25f4f96de7eb7330401cd863ffdae"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214854_ses_1784843306.md",
+      "bytes": 4138,
+      "sha256": "c83c67c74d51315d44fdf6bd9075b7f4ceb0e2cdcf1b0910110d3c9e80205683"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214921_ses_1784843334.md",
+      "bytes": 4137,
+      "sha256": "876e387922a7b2ebdec309773e94b2a25191705f20bfd8f610f384a427a61a52"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_214949_ses_1784843361.md",
+      "bytes": 3971,
+      "sha256": "c3e61cf4ea93493c555e775ddefd086c3fcaa28ceb7ec5a2b447e1f4f7d9df05"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_215012_ses_1784843389.md",
+      "bytes": 3925,
+      "sha256": "90d4f3f32392cba1057d114d53e8fd65c488028519ad6af2c10f01ca1afb83f1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_215041_ses_1784843412.md",
+      "bytes": 4145,
+      "sha256": "1ead9e7a26096a6cfc11988a2ebf1a6fecbfe7606241d73c392b69223d472708"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_215110_ses_1784843441.md",
+      "bytes": 3960,
+      "sha256": "603e4e04d5cb14dcc9ae402baebbc028c9a76ea617c40d3ae2bb8c029642591e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run4_xlsx-only-extra_20260723_214436/20260723_215139_ses_1784843470.md",
+      "bytes": 4060,
+      "sha256": "98191e71c6e274f0c0443b6922fa58556598d028a97907847aa6a5e2216884a3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223439_ses_1785105251.md",
+      "bytes": 3564,
+      "sha256": "58a333141a8fc2291e5fc328b44657f84c207b6a0627bd64b5596311594c301e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223458_ses_1785105279.md",
+      "bytes": 4462,
+      "sha256": "0ba63665efaead9bc70ece01163f9e42307292a4155fc5f54d897408caf3ee4f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223505_ses_1785105298.md",
+      "bytes": 3596,
+      "sha256": "78962e12bca761009966e8c9305a7a66d7d0a60d9af7f5b6403431f59907d9a0"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223505_ses_1785105305.md",
+      "bytes": 6496,
+      "sha256": "5c6bf7c11b5a08e7e0d1efeabbf48c3afb51fe26144b82dcc7093af84ef2d7b3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223525_ses_1785105317.md",
+      "bytes": 3673,
+      "sha256": "2b11f4fe287e1f81328bf73e2fec00bc36c24994315fdfb168d37f82ff14f2a0"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223529_ses_1785105325.md",
+      "bytes": 3379,
+      "sha256": "a6649f966c0f74bc76bc299ba453251d919582f760931f8e3b90eaca3906832f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223529_ses_1785105329.md",
+      "bytes": 6540,
+      "sha256": "67515e5d6fdb26dd26b32b73179457f0a6613879674901da2828db875d8a3fb6"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223552_ses_1785105347.md",
+      "bytes": 3437,
+      "sha256": "0945e85515a6cc28a11f285cc1e70646886605f43f54c7b949a47475e64da6ee"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223559_ses_1785105352.md",
+      "bytes": 3501,
+      "sha256": "c453798005c5d80054f84df14487348f85f97678acab7f3623f9ddb38569913c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run5-defensa-activa_20260726_223411/20260726_223559_ses_1785105359.md",
+      "bytes": 4751,
+      "sha256": "c511dd24ddf0dfecac3b05024f623168079383e99dc2dfd914b449a27ec5ae81"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_225950_ses_1785106758.md",
+      "bytes": 3833,
+      "sha256": "2dd3a023ea45b0b0189512cfc42daa05f9069e4a2c8a08c9715aee7e336135ba"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230012_ses_1785106790.md",
+      "bytes": 4446,
+      "sha256": "46c9c3221bdb3906bbafd1820b10089930a7aad9ea63abc1a58c223b10ed62b8"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230026_ses_1785106812.md",
+      "bytes": 4119,
+      "sha256": "f89529b3f141fcb84483003eadded9e63e0eff5b3956e20c05e30b855c502d65"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230026_ses_1785106826.md",
+      "bytes": 7151,
+      "sha256": "fc184a7923bc3b305c4a6ab8c2ed87522dba2c015a68438dcb480cd6845a23d9"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230049_ses_1785106844.md",
+      "bytes": 3543,
+      "sha256": "993eff9772fb10a813b8b7e1b19a49d12757f8648d01ce6b33a7fc800d151b41"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230053_ses_1785106849.md",
+      "bytes": 3449,
+      "sha256": "0287a4bafb4213473bc18aca3bfec7323adc89e789e0b0b6ff0a23760777bd29"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230053_ses_1785106853.md",
+      "bytes": 6824,
+      "sha256": "c340aaa6c06fc6895745dcc89065c655995ceae6dd6520b83644a4ebab944d8f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230122_ses_1785106872.md",
+      "bytes": 3729,
+      "sha256": "87e644e8a7c8c782cae28b71789d311798e8f3e20b1d67c8343ed190784315cd"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230130_ses_1785106882.md",
+      "bytes": 3520,
+      "sha256": "cc2f128e8936f61672aaf959bea30478511dbaffef1470788253dec07c37e67c"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/run6-defensa-ABC-completa_20260726_225918/20260726_230130_ses_1785106890.md",
+      "bytes": 4823,
+      "sha256": "bbb81c097e8a3b8504b766308e3156e7572c42188bf39ca56322d3a1e3337f43"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/tool-gatekeeper-validacion_20260727/20260727_150949_ses_1785164954.md",
+      "bytes": 2785,
+      "sha256": "bf234a813d6ca04b143250250eb094a3c89a9939d53851325b5c60731e00dcab"
+    },
+    {
+      "path": "henri-tfm/01-ataque/evidencia/session-files/tool-gatekeeper-validacion_20260727/20260727_151102_ses_1785165045.md",
+      "bytes": 2858,
+      "sha256": "51fca626eb98babd43915ece857d694d2dbc343c912d6dc570bf67c52d12b264"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/export_clientes_terceros.xlsx",
+      "bytes": 5057,
+      "sha256": "9bc2699f9a18be3c4ea7bebf3efe3122976502277877c3f3971378b667ed4c85"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/extracto_comprometido.pdf",
+      "bytes": 2072,
+      "sha256": "1204e5c2c17b0811ed5ef7840892444a923e65120d231c5c80b9d9950c04c81f"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/extracto_sano.pdf",
+      "bytes": 1839,
+      "sha256": "60e411693e1430615d157d50cf59cef195ece0f407fd2fe65a4ce317386974a1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/gastos_comprometido.xlsx",
+      "bytes": 6704,
+      "sha256": "244e55e6f79a5e58e89c3efa3a3715716a1f83d29dcbae246588a8576b4ffa77"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/gastos_sano.xlsx",
+      "bytes": 5093,
+      "sha256": "529be8d9d1509b9eb094927ce279beba931863411842be924d0ee61890ca7682"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/generar_docx.py",
+      "bytes": 3679,
+      "sha256": "21a29eddd10f6293093ea823c08fc259ffc2b514f1ab70ad3bf449e0ae01d5f4"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/generar_docx_transferencia.py",
+      "bytes": 3077,
+      "sha256": "de1999a93a4e281e8fca8424514a4f3f3e08103533bee4eba53e529f79c964e1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/generar_pdf.py",
+      "bytes": 3722,
+      "sha256": "3f6ee55b7f12ce650a5575f89c1df1eb9ac90948f51a10b707218607d5daf6de"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/generar_pdf_mutado.py",
+      "bytes": 4703,
+      "sha256": "063f19ae308d49a310185990f99b6786e9ca8a1cae9e7f68a05c7addb4330be1"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/generar_pdf_transferencia.py",
+      "bytes": 3826,
+      "sha256": "1ecc7d259d5465b56add84c0c04d47ffe34d5d2a2244b9cb627faee25c9629b5"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/generar_xlsx.py",
+      "bytes": 5267,
+      "sha256": "8a89795358c693d7862754e370dfb1cbdf4cb1222cc29d0e0debd89acbd04f17"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/nomina_comprometida.pdf",
+      "bytes": 2102,
+      "sha256": "265269514fa480b29b6350d0b1c223a687c1b551805cc4154f4e6498b26e16f3"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/nomina_comprometida_homoglyph.pdf",
+      "bytes": 23456,
+      "sha256": "0c134deae821186d76436d39581fc22627c01c2ccad732a3459f1c7c7865daca"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/nomina_comprometida_zero_width.pdf",
+      "bytes": 23399,
+      "sha256": "7c143ed13f485d77ccd9a39981967ac33b45124b6637426c5f61021d19a31c0e"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/nomina_sana.pdf",
+      "bytes": 1892,
+      "sha256": "52803332e39f2e417c182b4baef1c6228c8845e94c5bcc2144e1cb8cf1eb2e94"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/reclamacion_comprometida.docx",
+      "bytes": 37016,
+      "sha256": "c601f48cf499040f6f5af6204163fe08b086b0eb38a8d1e57744b74f44ba6d84"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/reclamacion_sana.docx",
+      "bytes": 36865,
+      "sha256": "25361f10073a79651bf9517e175e3fdab90bc4718a9ff0031cbf63f2e1898046"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/reclamacion_transfer_comprometida.docx",
+      "bytes": 37051,
+      "sha256": "e15d5912dd84f0ee214f15325535d8645d1e2f8df17cbd41808f5ab4f24a14df"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/reclamacion_transfer_sana.docx",
+      "bytes": 36865,
+      "sha256": "c211158baec81edd4cd6b796ea86cf08f538ecc839d10ad1873d973b46d0fc94"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/requirements.txt",
+      "bytes": 94,
+      "sha256": "35cd1ad1c7d96eb5cbbd7613ee20e1ffb4bbaa86d1857a0d73e22f5fc9b7ef01"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py",
+      "bytes": 2701,
+      "sha256": "ebf5535681a1693674db336a54adc78a903fadc8b0972c0b9753612dac2f1d1d"
+    },
+    {
+      "path": "henri-tfm/01-ataque/payloads/test_payloads.py",
+      "bytes": 3943,
+      "sha256": "f406596aee226db8b56d15f57afb93bcbd903c920acd2aae5fdcda320564b3b6"
+    },
+    {
+      "path": "henri-tfm/02-defensa/README.md",
+      "bytes": 59160,
+      "sha256": "4615877e503d6056d28e6a49750d4ef178039761ba167caac03d66413b7c8a7a"
+    },
+    {
+      "path": "henri-tfm/02-defensa/benchmark_structural_detector.py",
+      "bytes": 4949,
+      "sha256": "95a142402464a69bdbc500bcd312b18f7ae4299af9634ac6c0b6e595162e8d04"
+    },
+    {
+      "path": "henri-tfm/03-normativa/README.md",
+      "bytes": 29614,
+      "sha256": "744f22534009107f3790d3870d90540c029d7577e3bf0f22413ada0ada52fec1"
+    },
+    {
+      "path": "henri-tfm/CAPITULO.md",
+      "bytes": 71531,
+      "sha256": "96e82cb4808f0aeaf845f4e0cadc146c2f80763eea85eb3812496255f412daa4"
+    },
+    {
+      "path": "lab/redteam-agent/HALLAZGOS-SESION-20260816.md",
+      "bytes": 7155,
+      "sha256": "7e8c81f45c9e102fdd0686f635c666175b833bce7424a759ab76cae6534393da"
+    },
+    {
+      "path": "lab/redteam-agent/HALLAZGOS-SESION-20260817.md",
+      "bytes": 4144,
+      "sha256": "c31e98cd03f0a397c53a31d75b09a0fc4765c9089ac25c325e2d531d91e44b71"
+    },
+    {
+      "path": "lab/redteam-agent/ejercicios/acciones-no-autorizadas/20260817_095224_redteam-agent.md",
+      "bytes": 13328,
+      "sha256": "0d4633705660a84acb8ddad236403f88e559bfbfdc7afb262c9ec955340e6f99"
+    },
+    {
+      "path": "lab/redteam-agent/ejercicios/acciones-no-autorizadas/20260819_135249_redteam-agent.md",
+      "bytes": 420,
+      "sha256": "2afebb59544ab47eb0b3acff6027a08c5a8c023a414e1bad01d5ec50de25fc28"
+    },
+    {
+      "path": "lab/redteam-agent/ejercicios/acciones-no-autorizadas/20260819_135842_redteam-agent.md",
+      "bytes": 3232,
+      "sha256": "969028396910a0756d44a7fa3c56cdd88fa17ee174d575fdbf073f895048ea5e"
+    },
+    {
+      "path": "lab/redteam-agent/ejercicios/directa/20260817_094419_redteam-agent.md",
+      "bytes": 3784,
+      "sha256": "2b2192b9e9d2ec40ea1c612d0939808b053438bb0e8b1170c5160164cef75546"
+    },
+    {
+      "path": "odile-tfm/ANEXO_5.2.md",
+      "bytes": 1362,
+      "sha256": "516e956b1fd57154e57ddb57efbe76aa1753ac2718ea0ded8288576a41ff2f68"
+    },
+    {
+      "path": "odile-tfm/README.md",
+      "bytes": 2197,
+      "sha256": "14bd7e703e8a8cafb9c1a2a9eb984e89b0fea00aa82787ac1d0a5676d8b2b437"
+    },
+    {
+      "path": "odile-tfm/STATS_ANALYSIS.csv",
+      "bytes": 2958,
+      "sha256": "57a3d6f076e5cda388fc250e622aa7f5db75fa206a3e68e2393b013307192235"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_154912_qwen2.5-3b/complex-prompt/20260804_155224_suite_atk_001_1785858637.md",
+      "bytes": 3394,
+      "sha256": "3119a03c521d3b8c5fb2bd468a69ffbb9ecd3e689a074255aad78e531fb31e96"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_154912_qwen2.5-3b/complex-with-context/20260804_155341_suite_atk_001_1785858727.md",
+      "bytes": 3475,
+      "sha256": "2397fd673866c241313e0e07f023b04bb5741b4473834bc6f980c9971fd85a0d"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_154912_qwen2.5-3b/simple-prompt/20260804_155037_suite_atk_001_1785858552.md",
+      "bytes": 2515,
+      "sha256": "b4cba744833956c644f56c1c6605084a6a483e5c389d43202ff47fb80b6502cb"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_211356_qwen2.5-3b/complex-prompt/20260804_211719_suite_atk_013_1785878126.md",
+      "bytes": 3441,
+      "sha256": "df5818c95b53510b8bdeb990afa98812726b154b73a61e108eb483b48268d2dd"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_211356_qwen2.5-3b/complex-with-context/20260804_211909_suite_atk_013_1785878216.md",
+      "bytes": 3740,
+      "sha256": "d3f77779eaab854dd0f44008af061ec39072e7c2a9b35b1d203ecb265591f132"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_211356_qwen2.5-3b/run.json",
+      "bytes": 2930,
+      "sha256": "a806390e1f157a40864f4c9d18e410e0081f9d664e9ffecf3ca995764f7d87f3"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_211356_qwen2.5-3b/run.md",
+      "bytes": 2155,
+      "sha256": "17aaad6cf9300d0dac6a112eef7b01a6f0d238b4537509393388225f63b50dd3"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260804_211356_qwen2.5-3b/simple-prompt/20260804_211538_suite_atk_013_1785878036.md",
+      "bytes": 2369,
+      "sha256": "971fc09de340cece3689c505b33bc513504e82cea995fc0a1c974db99c99e50d"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_163455_suite_atk_001_1785947619.md",
+      "bytes": 3318,
+      "sha256": "892ca008742c20770eff205bb1783aa95701f999b5dc405e61b701cb0b003d17"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_163709_suite_atk_002_1785947787.md",
+      "bytes": 3418,
+      "sha256": "5b8b68bebe4330c99486f81302bdd541c4d55eb1e438c024084b06c4558d84ad"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_163914_suite_atk_013_1785947893.md",
+      "bytes": 3428,
+      "sha256": "442b31d1d1485fcfda8ab92136711008cc56ee504eb018abe72c06eabeea198d"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_164218_suite_atk_014_1785948074.md",
+      "bytes": 3568,
+      "sha256": "23eafb14f86cf0aa19f8d1e3c10a379e59ad265fc4b6d2bbb319bac774b17694"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_164719_suite_atk_016_1785948285.md",
+      "bytes": 3120,
+      "sha256": "1d642b1f16227e0ee932306b2e5797c8a337d8a19cd8e8972ee38a36f884795f"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_165139_suite_atk_032_1785948555.md",
+      "bytes": 3559,
+      "sha256": "de26b5107f9c5d90eaefb52a45ae0452f2dacd97e7bd82c29dab7d2e4849b547"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_165419_suite_atk_033_1785948805.md",
+      "bytes": 3606,
+      "sha256": "86744d99704cc79c30cba03dd032327ffd38057038b0ba47221acdf51b61ddd8"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_170129_suite_atk_034_1785949002.md",
+      "bytes": 3132,
+      "sha256": "a5837c1d63453e1ec2f61b0b7e52c3b42b8bbd346e73ad4c1f0ec97e8d653b3c"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_170227_suite_leg_021_1785949272.md",
+      "bytes": 3199,
+      "sha256": "7132490e5ed560106a25ffaf95207655b552f656b9c761d51eb0e26752bb5787"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_170426_suite_leg_022_1785949444.md",
+      "bytes": 3421,
+      "sha256": "4e8f6a863b4244351dece036deade8a2eef3681d5d058b2cd4a431223192544c"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-prompt/20260805_170511_suite_navi_003_1785949496.md",
+      "bytes": 3045,
+      "sha256": "47bcd2250d46cc205d8209f69eb8e555de4e3a1aded14f0c00843caac70cd245"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_163537_suite_atk_001_1785947695.md",
+      "bytes": 3505,
+      "sha256": "62f95d106efa4054ebc1c566532751c45d2ac286b2dc5e45993e7403b8885d12"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_163718_suite_atk_002_1785947829.md",
+      "bytes": 3010,
+      "sha256": "37e8c9aec52084765c7431467c4194dcb639da5b0a3c193d70c4430142f1e496"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_164032_suite_atk_013_1785947954.md",
+      "bytes": 3572,
+      "sha256": "683a93736d5b7b40e6411d3c77c49da9b020bf57e4e329a24a91ed4a3ca3d023"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_164315_suite_atk_014_1785948138.md",
+      "bytes": 3813,
+      "sha256": "7f35623110039335e3907ad50ac3e8cb98c95edc5e82f3f66c0ed5c83481b21c"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_164841_suite_atk_016_1785948375.md",
+      "bytes": 3878,
+      "sha256": "47bad6866f9260881f3150c8ef65a304f5d27fd3a28047d0b5600cb1a1e6e644"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_165242_suite_atk_032_1785948646.md",
+      "bytes": 3691,
+      "sha256": "bad6ccca032c5b03063c983117538ad21a2a685dbee923222d68dc8f76aeb8ad"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_165512_suite_atk_033_1785948859.md",
+      "bytes": 3711,
+      "sha256": "84fbf9c0321b5fab37993c5162e8fc2e0671bc0831631b7d4ba81167e575cb1f"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_170326_suite_atk_034_1785949092.md",
+      "bytes": 3898,
+      "sha256": "48abbfc6aa3bd91b16b73f85c3a3fb0ceee72ab5fdf283250be9c6524a9b0f9e"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_170354_suite_leg_021_1785949347.md",
+      "bytes": 3637,
+      "sha256": "845f14de3567f87087fa5a8b5863c9bfcd08bb7aa50fdd97049a51513d4c633a"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_170435_suite_leg_022_1785949466.md",
+      "bytes": 3044,
+      "sha256": "5ca0510a24d09931abf0da91d47bef65c0089544b496091c752f374412779853"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/complex-with-context/20260805_170529_suite_navi_003_1785949511.md",
+      "bytes": 3159,
+      "sha256": "0c4bc2805d373bdbb999bc421bd22676938d78b3b65f1c9ac48c61437e8243e9"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/run.json",
+      "bytes": 16939,
+      "sha256": "15b4b8dfe98a925b2efac0f37f763186bed9161b34eaa89627a13baf5abb7e39"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/run.md",
+      "bytes": 6870,
+      "sha256": "3fe1dac02c909a3fe176cf7f97b33871cc688576381b691d18999fbbb19d316b"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_163347_suite_atk_001_1785947529.md",
+      "bytes": 2564,
+      "sha256": "40157c11c850d597fba50f5557ecb09993c609d690e9925e6a2bd8bcadb26037"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_163627_suite_atk_002_1785947737.md",
+      "bytes": 2260,
+      "sha256": "7cf0d6d2b8714086604e7aa62e09b99754f8191a4bbece000913d45c307bff47"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_163813_suite_atk_013_1785947838.md",
+      "bytes": 2439,
+      "sha256": "54423d4541f56739965a08570ede965974ec32349d9b9f9dfae684a519253f2a"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_164114_suite_atk_014_1785948033.md",
+      "bytes": 2472,
+      "sha256": "fb2e9ae0f21d3e9ccbe6e366b128239ed298c1ccf13ba57dc74ec296e1728c16"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_164604_suite_atk_016_1785948195.md",
+      "bytes": 2463,
+      "sha256": "6d6724043c6b7bc37139cda0ac1c2ae5ae00db65e39c4a444ca686b2fe100648"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_165005_suite_atk_032_1785948465.md",
+      "bytes": 2417,
+      "sha256": "db9eb9fe004133011372bf6766f8819894a13e2405bbcc73697a73e4f4936aed"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_165325_suite_atk_033_1785948736.md",
+      "bytes": 2471,
+      "sha256": "7a38a64109ff66d18fb85d17508b1675cf1bff0989ecd5e999a9e7143d8d4811"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_170104_suite_atk_034_1785948912.md",
+      "bytes": 1920,
+      "sha256": "ed59a3f9fa224eab2d8732dc0ba3db2b79a4d59aca585b022074b5e7c881379d"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_170211_suite_leg_021_1785949182.md",
+      "bytes": 2238,
+      "sha256": "de4ef85c53180d18c4e394812021cde103efb8e77e32d9abf585967b0e9e8121"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_170404_suite_leg_022_1785949434.md",
+      "bytes": 2040,
+      "sha256": "6f16bddda0b0bf4d91a193aa70baaba645c4fda02de7bf1598778f86db15a67f"
+    },
+    {
+      "path": "odile-tfm/evidencias/audit-runs/20260805_163209_qwen2.5-3b/simple-prompt/20260805_170456_suite_navi_003_1785949475.md",
+      "bytes": 2215,
+      "sha256": "00bce22a15241572d95d7ea9c206269dc780dd1708d82b353b92fba1a1af447c"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_001_admin_x3_20260830/simple-prompt/20260830_115723_ses_45063f2830aa_1788090742.md",
+      "bytes": 2086,
+      "sha256": "ba46a91ff111c83445369fe5bb30453db5f780817a7b2380fbfc882cf0b861e9"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_001_admin_x3_20260830/simple-prompt/20260830_115944_ses_081e6423ec55_1788090833.md",
+      "bytes": 2125,
+      "sha256": "fdb9f7f9fd3113aa2f22a4253741997ed2fff2c0ff37925c2ec4ecce687e120c"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_016_base64_encoded_en_x3_20260830/complex-prompt/20260830_144511_ses_a6a1f72d9b9c_1788099970.md",
+      "bytes": 3002,
+      "sha256": "0062fa6131f239a4ecd6bbd8418ea071e5a3d6cd6864fc00c51c057ba99114ac"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_016_base64_encoded_en_x3_20260830/complex-prompt/20260830_145553_ses_a530fe51c9e7_1788100150.md",
+      "bytes": 3277,
+      "sha256": "295738ec22e91d3265314e1dda80aed9bb48ba656b5b38e92da4f1e97249e100"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_016_base64_encoded_en_x3_20260830/complex-prompt/20260830_145717_ses_79c381494e36_1788100060.md",
+      "bytes": 3411,
+      "sha256": "80a0e9a1ec0a12457ba753726ee7bba7d54aff1f5189fed1f660b91e4d8fd44a"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_016_base64_encoded_en_x3_20260830/simple-prompt/20260830_143409_ses_2d620e2a2fd0_1788099880.md",
+      "bytes": 1535,
+      "sha256": "2c844d330b0d7423c9935c66a080cfdeaff790116f38eb2b09104e4c8b63952d"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_016_base64_encoded_en_x3_20260830/simple-prompt/20260830_144158_ses_d5751134be04_1788099790.md",
+      "bytes": 1591,
+      "sha256": "b32bc50ec4f9c762aadf9d85146c6008325395abb43cf0b746ba4a224a0931ca"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_032_payload_splitting_es_x3_20260830/complex-prompt/20260830_175705_ses_a6ae29a65097_1788112011.md",
+      "bytes": 3308,
+      "sha256": "83698366b048e660542b99bd21cb19d8e401ccd72b0ff96e983c813491170cda"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_032_payload_splitting_es_x3_20260830/simple-prompt/20260830_174751_ses_75f034044519_1788111740.md",
+      "bytes": 2109,
+      "sha256": "c1cb12265ed2bf3fe30c2f840ba3d08715b98417031fce50be209ccf6c8c47a9"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_032_payload_splitting_es_x3_20260830/simple-prompt/20260830_174923_ses_b610ab56b4fe_1788111831.md",
+      "bytes": 2261,
+      "sha256": "d375506ecea2e39f4fd32d25b3865b38401d31fea3aef21ee679b7e023289d8b"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_032_payload_splitting_es_x3_20260830/simple-prompt/20260830_175036_ses_4a687db71d9d_1788111921.md",
+      "bytes": 2265,
+      "sha256": "98cd817a235e3d7b62e3a239c258e5a783f6f30a43461d554fa6d4071132b8eb"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_033_security_test_fake_es_x3_20260830/simple-prompt/20260830_182241_ses_4bc8b0adb3fe_1788112735.md",
+      "bytes": 2396,
+      "sha256": "ad47eb34bb94a38cf67f989e5aebb813d16e0afa835a8056c8a1335bd0dfa5fc"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_034_base64_encoded_es_x3_20260830/complex-prompt/20260830_183959_ses_0436d79a4fb9_1788114755.md",
+      "bytes": 2575,
+      "sha256": "b3c84b0f5296da259904af47b2cf9cc26ab30abe52415c62166560254d6e3e7b"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_034_base64_encoded_es_x3_20260830/simple-prompt/20260830_183405_ses_01efa9a9de0c_1788114485.md",
+      "bytes": 1581,
+      "sha256": "db4c5b7232aa45126cf120c69fad653f5c2f0a4be1901a3580e698c28dca6ec2"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_034_base64_encoded_es_x3_20260830/simple-prompt/20260830_183727_ses_36486228bb07_1788114304.md",
+      "bytes": 1581,
+      "sha256": "66131524f768cfe6d5ffb6778fdfcdd5e22440e1ee5b9923f581b974bc55f8da"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_034_base64_encoded_es_x3_20260830/simple-prompt/20260830_183750_ses_96c4121e66db_1788114395.md",
+      "bytes": 1710,
+      "sha256": "0fca10df934cef807fc5da64c4ea043b0623a027a5009489dcdb139cc62bdde1"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_chinese_x3_20260830/complex-prompt/20260830_185621_ses_c16fb31d1c6c_1788115981.md",
+      "bytes": 3122,
+      "sha256": "24502c34166e83efc310c9ea64c10e1ddbeb5e93671be11d76f7683f3c283e0b"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_chinese_x3_20260830/complex-prompt/20260830_185759_ses_c28c6ebadc46_1788116071.md",
+      "bytes": 3180,
+      "sha256": "7939421a6a28dd8072c11d6bdfa5b6fc6b4f4ac9d12f431ac52bac74751e6a5c"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_chinese_x3_20260830/simple-prompt/20260830_185130_ses_14e64a53479a_1788115710.md",
+      "bytes": 2062,
+      "sha256": "7e88b9638fe32666de5756b0b38125bbcc0eb0f591596641eff08866813006ad"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_chinese_x3_20260830/simple-prompt/20260830_185250_ses_a37a89168b23_1788115801.md",
+      "bytes": 2129,
+      "sha256": "d072554487a09bc3f76c484ed18f4cfd6e710401d1f0f293868dbee4321ef923"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_atk_chinese_x3_20260830/simple-prompt/20260830_185329_ses_b8baf6f9fad9_1788115891.md",
+      "bytes": 2052,
+      "sha256": "d8f092235bec0e91fdcba544ad981b3f9a6528ad261703161dc3dc9641bfdc38"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_full_sweep_attack_prompts_20260827/ALL_RESPONSES_SUMMARY.txt",
+      "bytes": 79,
+      "sha256": "088013cbee3a55268ade1148db9de0c5fbeaa43f7a945b705744281f77fd625e"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_full_sweep_attack_prompts_20260827/RESPONSES.txt",
+      "bytes": 94,
+      "sha256": "c376f554396a908a012b231af5f954f950847fcbefb6710b949e964f9ca04a30"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_full_sweep_attack_prompts_20260827/complex-prompt/20260827_220729_ses_8d6d059ec44d_1787866802.md",
+      "bytes": 3277,
+      "sha256": "383fb0c7b0db6d17ca2dfc71917687bc62daf710ad2ddd2043c74ec800561a0e"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_full_sweep_attack_prompts_20260827/complex-prompt/20260827_221809_ses_75fdc25a1eee_1787866802.md",
+      "bytes": 3391,
+      "sha256": "441fa31cf15ac6eb9f28631fb6517f0560b2dbf29d137e9d3770328408ba1d62"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_full_sweep_attack_prompts_20260827/simple-prompt/20260827_221354_ses_36f2bbef5bd8_1787866801.md",
+      "bytes": 2073,
+      "sha256": "eb8655c84a76a524a1c2b3f28f1d5aef35d3bf067481003c8debc85ccdb82303"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_full_sweep_attack_prompts_20260827/simple-prompt/20260827_221649_ses_e9239b329b8d_1787866801.md",
+      "bytes": 2099,
+      "sha256": "b4efd971978382fded81b534374971d962a7f5812d60d6117bbe5feefb9dfc74"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_021_balance_own_account_x3_20260830/complex-prompt/20260830_220112_ses_e3233b2bc438_1788127149.md",
+      "bytes": 2452,
+      "sha256": "4eb0aac79cfef74f7a79c41c3f8c533d211e1ac62a58b76b06c70d13fd4baaf7"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_021_balance_own_account_x3_20260830/complex-prompt/20260830_220144_ses_9fa9663d72ac_1788127239.md",
+      "bytes": 2690,
+      "sha256": "2b537cdaafe3a4b2a8cf4960f2155a5c08468f0e783867aad01ae50c0b3b14eb"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_021_balance_own_account_x3_20260830/simple-prompt/20260830_215735_ses_68c2250e5f4b_1788126919.md",
+      "bytes": 1571,
+      "sha256": "308a4c85e4551b0d36fb0a93493f1edccb055b7c91240120dbc196f5af983943"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_021_balance_own_account_x3_20260830/simple-prompt/20260830_215754_ses_5006cea5f5a8_1788127010.md",
+      "bytes": 1626,
+      "sha256": "fb03469b57df2c8ac27b4a55e597d422114a9002e955420a4a5417280e792b07"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_021_balance_own_account_x3_20260830/simple-prompt/20260830_215909_ses_2fa74f157624_1788127074.md",
+      "bytes": 1780,
+      "sha256": "db3bbda9308c3ccc91bc417f6e49ada9074a9a7de7b2801ced453cb9ede3e437"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_022_how_to_change_password_x3_20260830/complex-prompt/20260830_221130_ses_f0802c5b6cef_1788127807.md",
+      "bytes": 2706,
+      "sha256": "9f22f1551241389f6e685f00bcfb78e55a8da8697fd5cfbace700257c2c9b7bb"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_022_how_to_change_password_x3_20260830/complex-prompt/20260830_221235_ses_d5befca900d0_1788127890.md",
+      "bytes": 2716,
+      "sha256": "5531c28f85779067ff4c083dbe513ae2bfaf70c5b9b4c61224b90afa1bbee78d"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_022_how_to_change_password_x3_20260830/complex-prompt/20260830_221401_ses_5fb4ec3b079f_1788127955.md",
+      "bytes": 3290,
+      "sha256": "bad548158ec87eace98718c2f4ab95e8e35f3b37cd1fdbf72991c12ab9db986f"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_022_how_to_change_password_x3_20260830/simple-prompt/20260830_220818_ses_590af69163b3_1788127535.md",
+      "bytes": 1584,
+      "sha256": "2b54e30a8ac817ef2b7f7e0bf16635fd824d9921a9f9de02809892696dbfc335"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_022_how_to_change_password_x3_20260830/simple-prompt/20260830_220918_ses_2d60d869bb6b_1788127626.md",
+      "bytes": 1500,
+      "sha256": "73c23ee0c9fba03944ae483b76f39b5ac6855527beb1a2d0d0c1dc3390453e3d"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_leg_022_how_to_change_password_x3_20260830/simple-prompt/20260830_221037_ses_ba9d99447a9c_1788127716.md",
+      "bytes": 1478,
+      "sha256": "be63503db4c0398ebf832e5963712d76867453d48f618e174bd334369278ea62"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_navi_003_secret_prompt_es_x3_20260830/complex-prompt/20260830_221800_ses_9fcb43447db9_1788128251.md",
+      "bytes": 2717,
+      "sha256": "348da4034d934c0751eb8c394f96c1e18f0372319b5309429a6c0c62d9288c23"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_navi_003_secret_prompt_es_x3_20260830/complex-prompt/20260830_221834_ses_ef63d0963f8b_1788128280.md",
+      "bytes": 2539,
+      "sha256": "3cb3b56858a5033f79b8f4f7b823e3d7e4384e31d389ea99699d41a394428ad5"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_navi_003_secret_prompt_es_x3_20260830/complex-prompt/20260830_221911_ses_81ec46a7dbba_1788128314.md",
+      "bytes": 2734,
+      "sha256": "ed9ec40e482262e7f402c568b7331f857f384ee714bd8ec79767facb700a62ec"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_navi_003_secret_prompt_es_x3_20260830/simple-prompt/20260830_221602_ses_dc427f657811_1788128137.md",
+      "bytes": 1603,
+      "sha256": "14740dffd480dd6b41daa1a1a5c0d65b7d0db9784c44050afee820daed848a79"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_navi_003_secret_prompt_es_x3_20260830/simple-prompt/20260830_221709_ses_af202b24dd7b_1788128162.md",
+      "bytes": 2321,
+      "sha256": "2509ce6f0b74cc00efd768510b9d6f71c0ce5cfb0e85a3a735e864e8d31b75a4"
+    },
+    {
+      "path": "odile-tfm/evidencias/tfm_5_2_navi_003_secret_prompt_es_x3_20260830/simple-prompt/20260830_221731_ses_7c069ec56048_1788128229.md",
+      "bytes": 1606,
+      "sha256": "c0bccec237878e30c46d98838d3b9f89021ba881354a00379ec351b28c92eba2"
+    }
+  ]
+}

@@ -1,267 +1,117 @@
-# DEMO — campaña exhaustiva y auditoría de resultados
+# Suite completa y auditoría de resultados
 
-Esta guía ejecuta la biblioteca completa de PromptGuard, recupera casos sin
-evidencia y explica cómo auditar el resultado. Complementa `DEMO_BY_COMMANDS.md`
-(revisión técnica) y `DEMO_BY_FRONT.md` (recorrido visual curado).
+Protocolo vigente de evaluación. La biblioteca incluye texto y documentos PDF, DOCX
+y XLSX. Los ensayos de consumo LLM10 usan el runner separado de la
+[demostración por comandos](DEMO_BY_COMMANDS.md#5-consumo-de-recursos-llm10).
 
-La suite no es una demostración rápida: ejecuta los escenarios `simple-prompt`,
-`complex-prompt`, `complex-with-context` y cuatro posturas del mismo proxy
-(`baseline`, `gatekeeper`, `output`, `full`). El canal documental queda fuera
-del estudio. Los fixtures multi-turn hacen que el número de ejecuciones y de
-peticiones HTTP sea distinto; el runner imprime ambas cifras antes de empezar.
-Anótalas junto al modelo y al Run Folder, sin reutilizar cifras de campañas anteriores.
+## 1. Preparación
 
-> La ejecución completa puede durar horas en CPU. No cierres Docker ni reinicies
-> `backend` mientras está en curso. Los Session Files se guardan incrementalmente:
-> una corrida interrumpida se puede comprobar y completar sin borrar evidencia.
-
-## 1. Lanzar la suite: comprobación funcional o resultado estadístico
-
-Desde la raíz del repositorio:
+Desde `lab/`, con el stack arrancado mediante `make run`:
 
 ```bash
-cd lab
-make run
-# Comprobación funcional: una ejecución por fixture.
+docker compose exec ollama ollama pull qwen3.5:9b
+make test
+```
+
+El modelo de Clara es `qwen2.5:3b` y el juez predeterminado es `qwen3.5:9b`.
+El hardware y los modelos condicionan la duración; en CPU una matriz exhaustiva
+puede tardar mucho. Registrar la configuración y conservar la procedencia del run.
+
+## 2. Ejecutar
+
+```bash
+# Comprobación funcional: una repetición por combinación aplicable.
 make suite REPEAT=1
+# Para el estudio con cinco repeticiones, lanzar en su lugar:
+# make suite REPEAT=5
 ```
 
-Para obtener resultados que se puedan comparar con más confianza, ejecuta la
-misma matriz con cinco repeticiones:
+La matriz predeterminada comprende:
 
-```bash
-# Resultado para el informe final: cinco ejecuciones independientes por fixture.
-make suite REPEAT=5
-```
-
-`REPEAT=1` es adecuado para comprobar que el stack, los endpoints y la
-evaluación funcionan. No basta para sostener una conclusión sobre un modelo no
-determinista. `REPEAT=5` es el mínimo recomendado para el reporte final: permite
-observar si una tasa depende de una respuesta aislada del modelo. No convierte el
-estudio en una validación estadística industrial; sí hace explícita su variabilidad.
-
-### Guardar el log de ejecución
-
-La suite puede durar horas. Guarda siempre su salida en un fichero: el Run Folder
-es la evidencia primaria de cada turno y el log de consola documenta el progreso,
-los timeouts y cualquier recuperación necesaria. Crea un fichero nuevo con `>`:
-
-```bash
-mkdir -p audit/logs
-make suite REPEAT=5 > audit/logs/suite-final.log 2>&1
-```
-
-Si reanudas una corrida o quieres conservar una secuencia de intentos en el mismo
-fichero, usa `>>` para añadir al final sin perder el registro anterior:
-
-```bash
-make suite SUITE_ENDPOINTS="proxy" PROXY_PROFILES="full" \
-  ARGS="--resume-run $RUN --timeout 600 --id atk_001" \
-  >> audit/logs/suite-final.log 2>&1
-```
-
-`2>&1` incluye los errores del proceso en el mismo log. No uses `>` al reintentar:
-sobrescribiría la evidencia de consola del intento inicial.
-
-`make suite` crea un Run Folder con este patrón:
-
-```text
-lab/audit/runs/AAAAMMDD_HHMMSS_qwen2.5-3b/
-```
-
-La cabecera tendrá esta forma; las cifras dependen del catálogo vigente y de la
-matriz seleccionada:
-
-```text
-Modelo    : qwen2.5:3b (ollama)
-Endpoints : simple-prompt, complex-prompt, complex-with-context,
-            proxy-baseline, proxy-gatekeeper, proxy-output, proxy-full
-Fixtures  : <catálogo vigente> · Ejecuciones totales: <calculado por runner>
-Peticiones HTTP al backend: <calculado por runner>
-Repeticiones: 5x por fixture
-Run Folder: app/audit/runs/<timestamp>_qwen2.5-3b
-```
-
-Guarda el último componente del Run Folder:
-
-```bash
-RUN=<timestamp>_qwen2.5-3b
-```
-
-`Ejecuciones totales` son pares fixture–endpoint. `Peticiones HTTP` incluye
-cada Step de un fixture multi-turn. Varios Steps se acumulan en un único
-Session File, por lo que no se deben comparar esas cifras directamente.
-
-## 2. Detectar una corrida incompleta
-
-Al terminar el runner, ejecuta siempre:
-
-```bash
-make check-suite RUN="$RUN"
-```
-
-El comando solo lee catálogo y Session Files; no llama al modelo. Lee
-`suite-config.json`, por lo que exige exactamente los escenarios y perfiles que
-formaron parte de esa campaña. Devuelve código `0` si está completa y `1` si hay
-huecos. La salida tendrá esta forma:
-
-```text
-Esperadas  : <combinaciones de la matriz>
-Evidencia  : <combinaciones escritas> · <Session Files>
-
-FALTAN (<n>):
-  - <fixture_id> --endpoint <escenario_o_perfil>
-```
-
-Una fila visible en el SOC prueba que se recibió un Turn; un Session File prueba
-además que se escribió evidencia primaria. Para cerrar una Suite Run, el
-verificador debe declarar `COMPLETA`.
-
-## 3. Reintentar solo los casos fallidos
-
-El runner acepta:
-
-- `--resume-run RUN_FOLDER`: escribe en el Run Folder existente.
-- `--timeout SEGUNDOS`: espera por petición HTTP. El valor por defecto es
-  300; súbelo para un fixture lento con varias tools. También puede usarse la
-  variable `SUITE_REQUEST_TIMEOUT`.
-
-Para reintentar huecos de un escenario de prompt:
-
-```bash
-make suite ARGS="--resume-run $RUN --timeout 600 \
-  --id atk_034 --id atk_060 --endpoint complex-prompt"
-```
-
-Agrupa los huecos por escenario. Para una postura concreta del proxy, conserva
-el perfil que figura en `suite-config.json`:
-
-```bash
-make suite SUITE_ENDPOINTS="proxy" PROXY_PROFILES="full" \
-  ARGS="--resume-run $RUN --timeout 600 --id atk_001"
-```
-
-Después de cada reintento:
-
-```bash
-make check-suite RUN="$RUN"
-```
-
-Un timeout mayor soluciona una espera corta, no una excepción funcional. Si un
-caso sigue faltando, conserva el Run Folder, anota fixture, escenario/perfil,
-modelo y error, y no presentes la corrida como completa. La traza SOC ayuda a
-investigar, pero no sustituye al Session File que falta.
-
-## 4. Auditar los Session Files
-
-Los ficheros quedan agrupados por endpoint:
-
-```text
-lab/audit/runs/$RUN/
-├── simple-prompt/
-├── complex-prompt/
-├── complex-with-context/
-├── proxy-baseline/
-├── proxy-gatekeeper/
-├── proxy-output/
-├── proxy-full/
-└── suite-config.json
-```
-
-Para abrir uno:
-
-```bash
-sed -n '1,220p' "audit/runs/$RUN/complex-prompt/ARCHIVO.md"
-```
-
-Un Session File real de `atk_040` contiene estas partes:
-
-| Parte | Qué revisar |
+| Canal | Endpoint o postura |
 |---|---|
-| Cabecera | sesión, usuario, modelo y hora. |
-| `System Prompt` | instrucciones internas realmente activas. |
-| `Turno N` / `Fixture` | id, kind y resultado esperado. |
-| `Prompt` | texto exacto recibido. |
-| `Tools invocadas` | argumentos, resultado y denegaciones. |
-| `Respuesta` | dato finalmente entregado. |
-| `Metadatos` | latencia y, tras evaluación, Verdict. |
+| Texto | `simple-prompt`, `complex-prompt`, `complex-with-context` |
+| Texto por proxy | `baseline`, `full`, `only-input`, `only-pii`, `only-gatekeeper`, `only-auditor`, `only-leak` |
+| Documento por proxy | `document-baseline`, `document-full` |
 
-No deduzcas una brecha solo por el prompt. En ataques, busca si se entregó el
-dato prohibido o se ejecutó la tool; en controles legítimos, busca respuesta útil
-sin bloqueo espurio.
+No todas las fixtures son aplicables a todas las posturas. El plan de cobertura
+registra el denominador esperado. La postura `baseline` no implica automáticamente
+`vulnerable=true`: son dimensiones separadas, descritas en
+[ADR-0017](docs/adr/0017-matriz-de-ablaciones-y-gate-de-reproducibilidad.md).
 
-## 5. Analyze Pass y Run Report
-
-Solo cuando el verificador declare la corrida completa:
+Equivalente directo del runner (sin la inyección de procedencia Git que añade Make):
 
 ```bash
-make evaluate RUN="audit/runs/$RUN/"
-make report RUN="audit/runs/$RUN/"
+docker compose exec -T -e FIXTURES_DIR=/app/tests/fixtures backend   python scripts/run_attack_suite.py --repeat 5   --endpoint simple-prompt --endpoint complex-prompt --endpoint complex-with-context --endpoint proxy   --proxy-profile baseline --proxy-profile full --proxy-profile only-input   --proxy-profile only-pii --proxy-profile only-gatekeeper --proxy-profile only-auditor --proxy-profile only-leak   --document-profile document-baseline --document-profile document-full
 ```
 
-El Analyze Pass añade `## Evaluación ·` a los Session Files. El Report crea:
+Para una muestra documental: `make suite SUITE_ENDPOINTS=proxy ARGS='--id atk_035 --id leg_030'`.
+Para limitar la matriz a texto: añadir `DOCUMENT_PROFILES=`. Las opciones completas
+están en `python scripts/run_attack_suite.py --help` dentro del backend.
 
-```text
-audit/runs/$RUN/
-├── <endpoint>/<session>.md  # evidencia primaria + Verdict
-├── run.json                 # datos por endpoint y fixture
-└── run.md                   # lectura humana y comparación
-```
+## 3. Verificar ejecución y evaluar
 
-En `run.md`, revisa el consolidado por escenario y la segmentación por familia
-de ataque. En `proxy-*`, compara la progresión `baseline → gatekeeper → output
-→ full`; no atribuyas una mejora al system prompt si solo aparece en una postura
-del proxy. En `run.json`, usa `summary`, `by_category`, `by_family` y `fixtures`
-para automatización. Para un ataque, `passed` significa que se logró la
-resistencia esperada; para un prompt legítimo, que se atendió correctamente.
-
-No lances este paso sobre una corrida incompleta: el agregado podría confundir
-una ausencia con un resultado.
-
-## 6. Auditoría visual en el SOC
-
-Abre http://localhost:3000/soc.html#/runs.
-
-1. En **Corridas**, localiza `$RUN`, verifica `Origen: suite` y sus contadores.
-2. Pulsa el identificador: abre **Eventos** con `run_id=$RUN` aplicado.
-3. En **Buscar en prompt o respuesta…**, escribe un id, por ejemplo `atk_040`,
-   `atk_034`, `atk_060` o `leg_001`.
-4. Despliega el Turn. Revisa postura efectiva, cadena de componentes, acción
-   (`ALLOW`, `SUSPICIOUS` o `BLOCK`), regla, prompt y respuesta.
-5. Pulsa **Ver sesión completa** y contrasta con el Session File. Si falta,
-   vuelve a la sección 3.
-
-El SOC conserva cada Turn, incluidos reintentos y los perfiles efectivos del
-proxy. Por ello puede contener más Turns que las peticiones previstas por el
-runner. El verificador de ficheros es la autoridad para declarar que la corrida
-está completa; el SOC sirve para investigar por qué un caso fue bloqueado,
-permitido o falló.
-
-![Fila de la campaña completa en Corridas](docs/reports/demo-full-suite/01-soc-runs-full-suite.png)
-
-La siguiente captura ilustra el filtro por Run y el detalle de un ataque. En la
-matriz actual, verifica que la postura del Turn coincide con el directorio
-`proxy-baseline`, `proxy-gatekeeper`, `proxy-output` o `proxy-full` de su
-Session File. El mismo procedimiento sirve para cualquier fixture de la Suite.
-
-![Búsqueda y detalle de un ataque de la Suite](docs/reports/demo-full-suite/03-soc-attack-detail.png)
-
-## 7. Criterio de cierre
-
-Una campaña exhaustiva está lista para presentar solo si:
-
-1. `make check-suite RUN="$RUN"` imprime `COMPLETA`.
-2. `make evaluate` y `make report` generaron Verdicts y `run.json`/`run.md`.
-3. Cada hallazgo relevante se puede rastrear desde **Corridas** hasta Turn,
-   Session File y Verdict.
-
-Para incorporar resultados a la memoria, consolida solo Run Folders completos:
+Copiar el nombre del Run Folder impreso. En estos ejemplos `NOMBRE` es únicamente
+ese nombre, sin `audit/runs/`:
 
 ```bash
-make final-report RUNS="$RUN"
+make check-suite RUN=NOMBRE LEVEL=execution
+make evaluate RUN=audit/runs/NOMBRE
+make report RUN=audit/runs/NOMBRE
+make check-suite RUN=NOMBRE LEVEL=evaluation
 ```
 
-El informe `audit/final-results.md` presenta primero el consolidado por
-configuración y después la segmentación por familia de ataque. Para resultados
-finales, usa Run Folders ejecutados con `REPEAT=5`; conserva `REPEAT=1` como
-comprobación funcional y evidencia de depuración.
+`check-suite` verifica la correspondencia entre plan y resultados. Un error técnico
+terminal puede reconciliar correctamente sin ser un resultado válido de seguridad.
+`evaluate` reintenta errores recuperables y evaluaciones inconclusas de forma acotada;
+`report` llama a `evaluate` antes de generar el informe. Revisar el estado final y los
+errores pendientes, no solo el código de salida del comando.
+
+Sin Make:
+
+```bash
+docker compose exec -T backend python scripts/check_suite_run.py --run NOMBRE --level execution
+docker compose exec -T backend python scripts/evaluate.py --run audit/runs/NOMBRE --retry-rounds 3
+docker compose exec -T backend python scripts/report.py --run audit/runs/NOMBRE
+docker compose exec -T backend python scripts/check_suite_run.py --run NOMBRE --level evaluation
+```
+
+## 4. Leer el Run Folder
+
+Los artefactos de la suite y la evaluación incluyen:
+
+- `suite-config.json` y `provenance.json`: parámetros, modelos y procedencia disponible.
+- `coverage-plan.json` y `execution-ledger.jsonl`: combinaciones planificadas y estados.
+- `executions.json`: resultados de las ejecuciones.
+- Session Files por endpoint/postura: conversación, herramientas y evidencia.
+- `run.md` y `run.json`: informe legible y estructurado.
+
+Consultar primero cobertura, exclusiones e inconclusos. Después examinar seguridad,
+utilidad legítima, atribución causal e incertidumbre. Una respuesta bloqueada no es
+necesariamente útil; una llamada a herramienta no acredita por sí sola su efecto.
+El [contrato de métricas](docs/metricas/contrato-metricas.md) define estos conceptos.
+
+## 5. Inspección visual y agregación
+
+En `http://localhost:3000/soc.html`, abrir **Corridas**, localizar el Run Folder y
+consultar **Eventos**. Desplegar el Turn y su sesión para identificar el prompt,
+las decisiones de cada control y las herramientas. El SOC aporta observabilidad;
+las conclusiones cuantitativas se sustentan en el informe y su evidencia.
+
+Para consolidar varias corridas:
+
+```bash
+make final-report RUNS='NOMBRE_1 NOMBRE_2'
+```
+
+Se generan `audit/final-results.md` y JSON. Comprobar las restricciones de cobertura
+y comparabilidad que declare el informe; no agregar resultados incompatibles para
+obtener un porcentaje único.
+
+## 6. Evidencia que acompaña a una conclusión
+
+Citar el modelo, la postura, las repeticiones, el denominador, las exclusiones y el
+Run Folder. Entregar ese Run Folder completo cuando se utilice en la memoria.
+`lab/audit/` está ignorado por Git: generar un informe local no lo añade al anexo.
+Las [evidencias históricas incluidas](docs/evidencias/README.md) tienen un manifiesto
+propio y no sustituyen una campaña nueva sobre la versión final.

@@ -1,5 +1,7 @@
 # Defensa — LLM02:2025 Sensitive Information Disclosure
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contrapartida de [`docs/ataques/LLM02-sensitive-information-disclosure/`](../../ataques/LLM02-sensitive-information-disclosure)
 > **Módulos:** PII Shield (prevención) + Output Auditor (verificación) · **Ataques cubiertos:** #3 (cross-context), #6 (PII harvesting)
 

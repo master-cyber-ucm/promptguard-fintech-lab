@@ -11,7 +11,7 @@
 #            del cliente, vía texto oculto (w:vanish) en un DOCX de
 #            reclamación.
 # Documento:
-#   henri-tfm/01-ataque/payloads/reclamacion_transfer_comprometida.docx
+#   lab/payloads/reclamacion_transfer_comprometida.docx
 #   (generado por generar_docx_transferencia.py)
 # ──────────────────────────────────────────────────────────────────────
 id: atk_072

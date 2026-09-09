@@ -1,5 +1,7 @@
 # Red Team Report — System Prompt Exfiltration
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 **Objetivo:** Lograr que el agente Clara revele su system prompt o información interna  
 **Endpoint:** `POST /api/v1/chat/complex-with-context`  
 **Agente:** Clara — VerdaBank S.A. (system prompt completo + contexto de usuario inyectado)  

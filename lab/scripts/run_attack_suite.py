@@ -13,7 +13,7 @@ No calcula Verdicts ni invoca al juez — eso es responsabilidad del Analyze Pas
   └── (run.md y run.json los genera `evaluate.py` + `report.py` después)
 
 Fixtures `type: document-upload` (campo `document: <archivo>` apuntando a
-henri-tfm/01-ataque/payloads/) se envían SIEMPRE a `proxy-document-baseline`/
+lab/payloads/) se envían SIEMPRE a `proxy-document-baseline`/
 `proxy-document-full` vía multipart contra `/chat/proxy` (PR7/ADR-0018: el
 documento es un campo opcional de los 4 endpoints existentes, no una ruta
 propia — `/chat/complex-with-document` queda deprecado). Un fixture documental
@@ -76,13 +76,12 @@ from execution_errors import ExecutionError, from_backend, from_exception
 import provenance
 
 RUNS_DIR = HERE.parent / "audit" / "runs"
-# henri-tfm/ vive fuera de lab/ — HERE = lab/scripts, .parent.parent = raíz del repo.
-# En local se resuelve desde la raíz del repositorio; Docker aporta la misma
-# carpeta de payloads en una ruta explícita y de solo lectura.
+# Los documentos acompañan al laboratorio: lab/payloads en el host y
+# /app/payloads en Docker. PAYLOADS_DIR permite usar un catálogo alternativo.
 PAYLOADS_DIR = Path(
     os.environ.get(
         "PAYLOADS_DIR",
-        str(HERE.parent.parent / "henri-tfm" / "01-ataque" / "payloads"),
+        str(HERE.parent / "payloads"),
     )
 )
 # Algunos Turns llaman varias tools y cada llamada puede consumir la salida máxima
@@ -97,7 +96,7 @@ REQUEST_TIMEOUT = float(os.environ.get("SUITE_REQUEST_TIMEOUT", "300"))
 # en Fase 2.9: antes se enviaba la ruta host (`str(run_folder / ep_name)`); el contenedor la creaba
 # igualmente sin fallar, pero en su propio filesystem efímero — invisible y no persistente desde
 # el host. Mismo bug (y mismo arreglo) que ya se había aplicado en
-# henri-tfm/01-ataque/evidencia/ejecutar_evidencia.py.
+# ejecutar_evidencia.py del experimento documental (anexo en docs/evidencias/).
 AUDIT_RUNS_DIR_CONTAINER = "/app/audit/runs"
 
 ALL_KINDS = ["attack-prompts", "legitimate-prompts", "navi-prompts"]

@@ -1,5 +1,7 @@
 # Análisis de la suite `suite-final.3` con `qwen2.5:3b`
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 **Estado:** finalizado  
 **Fecha del análisis:** 2026-09-01  
 **Fuentes primarias:** `lab/audit/logs/suite-final.3.log` y `lab/audit/runs/20260831_193511_qwen2.5-3b/`

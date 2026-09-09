@@ -1,5 +1,7 @@
 # Defensa — LLM06:2025 Excessive Agency
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contrapartida de [`docs/ataques/LLM06-excessive-agency/`](../../ataques/LLM06-excessive-agency)
 > **Módulo:** Tool Gatekeeper · **Ataques cubiertos:** #1 (acciones no autorizadas), #4 (confused deputy)
 

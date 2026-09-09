@@ -1,5 +1,7 @@
 # Defensa — Amplificación vía Documentos Adjuntos
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#11** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/amplificacion-documentos-adjuntos)
 > **Sin *technique ID* de MITRE ATLAS** (honestidad metodológica — ver ficha del ataque) · **CWE-409** (decompression bomb)
 > **Módulo principal:** Document Size Guard · **Posición:** antes de `document_extractor.py`, antes incluso del `document_sanitizer` del ataque #7
@@ -64,6 +66,6 @@ de invocar `python-docx`/`openpyxl`/`pypdf` sobre el contenido completo.
 - [ ] Implementación — nada de esto existe en `lab/backend/src/` todavía
 - [ ] Valores de umbral concretos (tamaño máximo, ratio máximo, nº de páginas/filas) —
   sin decidir, requieren calibrarse contra los documentos legítimos reales del lab
-  (`henri-tfm/01-ataque/payloads/`) para no romper el flujo del ataque #7
+  (`lab/payloads/`) para no romper el flujo del ataque #7
 - [ ] Fixtures de prueba (zip bomb / PDF patológico) — no existen, generarlas con
   cuidado en un entorno aislado

@@ -1,5 +1,7 @@
 # Evidencia — LLM10:2025 Unbounded Consumption (#8 Denegación de Servicio, #9 Denial of Wallet)
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 > **Generado:** 2026-08-17 · **Rama:** `feat/llm10-unbounded-consumption-defenses` · **Modelo:** `qwen2.5:3b` (Ollama local, sin GPU)
 > **Escenarios:** `lab/backend/tests/fixtures/llm10_scenarios.yaml` (`llm10_001` flood, `llm10_002` token_burn, `llm10_003` budget_burn, `llm10_navi_001` control legítimo)
 > **Runner:** `lab/scripts/run_llm10_suite.py` · **Fuentes:** `lab/audit/runs/20260817_*_llm10-{vulnerable,defendido}/run.json`

@@ -19,8 +19,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+import lab_paths
 
-LAB = Path(__file__).resolve().parents[2]
+LAB = lab_paths.lab_root()
+BACKEND = lab_paths.backend_root()
 
 
 class _BackendFalso(BaseHTTPRequestHandler):
@@ -78,9 +80,9 @@ def app_layout(tmp_path_factory) -> Path:
     """Árbol como lo monta el contenedor: `src` y `scripts` hermanos, sin `backend/`."""
     raiz = tmp_path_factory.mktemp("app")
     shutil.copytree(LAB / "scripts", raiz / "scripts")
-    shutil.copytree(LAB / "backend" / "src", raiz / "src")
-    shutil.copytree(LAB / "backend" / "config", raiz / "config")
-    shutil.copytree(LAB / "backend" / "tests" / "fixtures", raiz / "tests" / "fixtures")
+    shutil.copytree(BACKEND / "src", raiz / "src")
+    shutil.copytree(BACKEND / "config", raiz / "config")
+    shutil.copytree(BACKEND / "tests" / "fixtures", raiz / "tests" / "fixtures")
     (raiz / "audit" / "runs").mkdir(parents=True)
     return raiz
 

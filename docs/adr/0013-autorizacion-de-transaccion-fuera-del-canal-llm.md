@@ -3,7 +3,7 @@
 Estado: **aceptado**. Implementado en PR 2: `transferencia_nacional` deja de ejecutar
 directamente en `Effect.ALLOW` — toda escritura financiera pasa por
 `transaction_authorization.propose()`/`authorize()` (ver
-[PR 2](../reports/pr-02-autorizacion-operaciones-financieras.md)).
+[PR 2](../historial-desarrollo.md)).
 
 Una operación financiera sensible solo podrá autorizarse en una superficie autenticada separada del canal conversacional, mostrando y vinculando la operación, origen, beneficiario, importe, moneda y caducidad exactos. El LLM no verá ni transportará el challenge o la credencial de aprobación.
 

@@ -1,5 +1,7 @@
 # Diseño técnico — contrato de resultados de tools y evaluación de flujos legítimos
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 Estado: **implementado**  
 Alcance: problema 1 de la revisión de falsos positivos: el contrato entre las tools bancarias, la evidencia persistida en los Session Files y el evaluador determinista. No cubre aún el enrutamiento de intención ni la política de autorización de operaciones.
 

@@ -1,1 +1,0 @@
-log=audit/logs/suite-final.5.log; : > "$log"; make suite REPEAT=5 >>"$log" 2>&1; run="$(awk '/Run Folder/ {sub(/^.*Run Folder[[:space:]]*:[[:space:]]*/, ""); print}' "$log" | tail -n 1)"; make check-suite RUN="${run##*/}" >>"$log" 2>&1; make evaluate RUN="$run" >>"$log" 2>&1; make report RUN="$run" >>"$log" 2>&1

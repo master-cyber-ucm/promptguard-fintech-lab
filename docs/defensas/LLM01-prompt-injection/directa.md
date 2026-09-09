@@ -1,5 +1,7 @@
 # Defensa — Prompt Injection Directa
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#2** del catálogo · [ficha del ataque](../../ataques/LLM01-prompt-injection/directa)
 > **OWASP LLM01:2025 · MITRE ATLAS AML.T0051.000**
 > **Módulo principal:** Input Sanitizer · **Apoyo:** Tool Gatekeeper, Output Auditor, Compliance Logger

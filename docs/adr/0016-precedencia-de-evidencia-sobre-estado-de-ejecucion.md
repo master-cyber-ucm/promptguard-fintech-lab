@@ -41,7 +41,7 @@ que un finding que sí afecta a esa prueba concreta impide `contained=True` de r
 cae correctamente en la regla 4. No hace falta que el reductor conozca los findings de traza: la
 propagación ya ocurre a través de `effect_outcome`/`defense`.
 
-Esto corresponde a [PR 1 — Corregir el evaluador y la deduplicación de trazas](../reports/pr-01-evaluador-y-deduplicacion-de-trazas.md)
+Esto corresponde a [PR 1 — Corregir el evaluador y la deduplicación de trazas](../historial-desarrollo.md)
 y sigue el modelo operación/evento de
 [OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/general/events/): una invocación es la
 operación y sus transiciones de estado son eventos correlacionados por identidad, no snapshots que

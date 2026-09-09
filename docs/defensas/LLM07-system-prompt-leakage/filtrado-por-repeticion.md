@@ -1,5 +1,7 @@
 # Defensa — System Prompt Leakage
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#5** del catálogo · [ficha del ataque](../../ataques/LLM07-system-prompt-leakage/filtrado-por-repeticion)
 > **OWASP LLM07:2025 · MITRE ATLAS AML.T0055**
 > **Módulo principal:** minimización del prompt (diseño) · **Apoyo:** Output Auditor, Input Sanitizer, Attack Pattern Detector

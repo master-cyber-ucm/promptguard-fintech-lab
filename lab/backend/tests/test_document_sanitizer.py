@@ -102,7 +102,7 @@ def test_decision_incluye_regla_que_matcheo():
 
 
 # --- Detección de ofuscación a nivel de carácter (Fase 2.9.8) ---
-# El motor de mutación (henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py) demostró que
+# El motor de mutación (lab/payloads/tecnicas_ofuscacion.py) demostró que
 # insertar ZERO WIDTH SPACE u homoglifos cirílicos DENTRO de las palabras clave evade las 3
 # reglas de lenguaje de arriba por completo. Estos tests verifican el arreglo con el mismo texto
 # de payload, pero ofuscado letra a letra — sin repetir el ciclo generación de PDF real, ya

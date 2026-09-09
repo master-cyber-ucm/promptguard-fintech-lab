@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import pytest
 
 from src.models.uncertainty import (
     MIN_INFORMATIVE_N,
@@ -25,6 +26,13 @@ from report import _build_md, _compute_stats, family_uncertainty  # noqa: E402
 
 
 # ── Procedencia ──────────────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def procedencia_controlada(monkeypatch):
+    """La prueba no depende de que el contenedor monte el Git del host."""
+    monkeypatch.setenv("GIT_COMMIT", "commit-de-prueba")
+    monkeypatch.setenv("GIT_BRANCH", "main")
+    monkeypatch.setenv("GIT_DIRTY", "false")
 
 def _manifiesto(**overrides):
     base = provenance.build(

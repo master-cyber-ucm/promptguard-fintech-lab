@@ -1,5 +1,7 @@
 # Comparativa antes / después — implementación del backlog de `mejoras-suite-ataques.md`
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 > Rama de trabajo: `feat/suite-improvements` (9 commits sobre `main`, sin mergear todavía).
 > Verificación: backend + Ollama levantados localmente (`docker compose`), pruebas contra el
 > modelo real `qwen2.5:3b`, no simuladas.

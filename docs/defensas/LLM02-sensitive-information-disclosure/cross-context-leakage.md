@@ -1,5 +1,7 @@
 # Defensa — Cross-Context Data Leakage
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#3** del catálogo · [ficha del ataque](../../ataques/LLM02-sensitive-information-disclosure/cross-context-leakage)
 > **OWASP LLM02:2025 · MITRE ATLAS AML.T0024** · Incidente motivador **INC-2025-0089**
 > **Módulos principales:** Leak Guard (`core/leak_guard.py`, IBANs) + PII Shield (`core/pii_shield.py`, resto de entidades) · **Apoyo:** Tool Gatekeeper, aislamiento de sesión

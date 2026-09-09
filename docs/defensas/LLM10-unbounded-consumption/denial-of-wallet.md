@@ -1,5 +1,7 @@
 # Defensa — Denial of Wallet
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#9** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/denial-of-wallet)
 > **OWASP LLM10:2025** · **MITRE ATLAS AML.T0034**
 > **Módulo principal:** Budget Guard · **Apoyo:** cap de tokens de salida (compartido con `denegacion-de-servicio.md`)

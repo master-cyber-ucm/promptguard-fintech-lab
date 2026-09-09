@@ -6,7 +6,7 @@
 # Resultado: expected=ALLOW
 # Usuario:   usr_001 · María García López · ES9121000418450200051332
 # Documento:
-#   henri-tfm/01-ataque/payloads/reclamacion_transfer_sana.docx
+#   lab/payloads/reclamacion_transfer_sana.docx
 # ──────────────────────────────────────────────────────────────────────
 id: leg_034
 name: document_upload_docx_transfer_sano

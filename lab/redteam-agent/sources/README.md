@@ -1,6 +1,8 @@
 # Fuentes de semillas — fusión con `Red Team_/` (Norma)
 
-Origen: [`plan-fusion-redteam.md`](../../../docs/reports/plan-fusion-redteam.md)
+> Los experimentos previos de `Red Team_/` y los hallazgos de sesiones antiguas se conservan en el [anexo histórico](../../../docs/evidencias/README.md); no son carpetas operativas de esta versión.
+
+Origen: [`plan-fusion-redteam.md`](../../../docs/historial-desarrollo.md)
 evaluó si tenía sentido combinar el Agente de red-team (Daniel) con las fuentes
 externas que usaba `Red Team_/` (Norma) — PyRIT/HarmBench y Garak. Este módulo es
 esa fusión: **no** se migró el harness de `Red Team_/` (más débil: sin multi-turno

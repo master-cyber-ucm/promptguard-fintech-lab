@@ -1,5 +1,7 @@
 # Defensa — Denegación de Servicio
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#8** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/denegacion-de-servicio)
 > **OWASP LLM10:2025** · **MITRE ATLAS AML.T0029**
 > **Módulo principal:** Rate Limiter · **Apoyo:** cap de tokens de salida, cota de sesiones

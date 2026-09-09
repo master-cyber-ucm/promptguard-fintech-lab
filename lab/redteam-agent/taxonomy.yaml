@@ -7,7 +7,7 @@
 #
 # indirecta-documento (LLM01, ataque #7) queda fuera de esta versión: requiere generar
 # documentos adversarios (PDF/DOCX/XLSX) dinámicamente, ya cubierto por el motor de
-# mutación de PDF de henri-tfm/01-ataque/payloads/ — combinarlo es trabajo futuro
+# mutación de PDF de lab/payloads/ — combinarlo es trabajo futuro
 # declarado, no un recorte silencioso.
 
 tecnicas:

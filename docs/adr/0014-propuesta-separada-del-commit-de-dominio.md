@@ -4,7 +4,7 @@ Estado: **aceptado**. El `ActionProposal`/`CommitLedger` ya existían; PR 2 cier
 único camino que quedaba abierto — el atajo `Effect.ALLOW -> _commit()` directo en
 `transferencia_nacional` — para que ningún estado financiero llegue a
 `STATE_COMMITTED` sin pasar por `transaction_authorization` (ver
-[PR 2](../reports/pr-02-autorizacion-operaciones-financieras.md)).
+[PR 2](../historial-desarrollo.md)).
 
 Las tools de escritura dejarán de otorgar al modelo una vía directa al efecto. El modelo producirá una `Action Proposal`; validación de procedencia, Policy Decision, Transaction Authorization cuando corresponda y un command service idempotente serán los únicos pasos capaces de producir un Effect Receipt.
 

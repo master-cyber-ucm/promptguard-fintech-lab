@@ -1,5 +1,7 @@
 # Evidencia — Cross-Context Data Leakage (ataque #3), cierre de `TODOs.md §P5`
 
+> Informe histórico: describe la ejecución o el diseño de su fecha. Para reproducir la versión de entrega, consultar [el protocolo vigente](../../DEMO_FULL_SUITE.md). Los artefactos locales citados no se incluyen salvo que figuren en [el manifiesto de evidencias](../evidencias/manifest.json).
+
 > **Generado:** 2026-08-16 · **Commit:** `3ddfacb` (+ el refactor de este mismo cambio) · **Modelo:** `qwen2.5:3b` (Ollama)
 > **Fixtures:** `atk_008`, `atk_009`, `atk_025`, `atk_026`, `atk_055`, `atk_056` (ataque) · `leg_025` (legítimo) · `navi_006` (naïve)
 > **Fuentes:** `daniel-tfm/02-defensa/evidencia/resultados_cross_context_20260816_195111/` (métricas) ·

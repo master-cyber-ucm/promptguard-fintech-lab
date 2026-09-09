@@ -2,7 +2,7 @@
 
 Estado: **aceptado** (perfiles); **gate de árbol limpio retirado definitivamente
 2026-09-06**, tras reintroducirse y volver a retirarse (ver
-[pr-11-gate-de-arbol-limpio-por-defecto.md § Segunda corrección posterior](../reports/pr-11-gate-de-arbol-limpio-por-defecto.md#segunda-corrección-posterior-2026-09-06--el-gate-se-reintrodujo-y-se-retira-otra-vez)
+[pr-11-gate-de-arbol-limpio-por-defecto.md § Segunda corrección posterior](../historial-desarrollo.md)
 — instrucción explícita del dueño del proyecto de no volver a proponerlo);
 **desacoplamiento de `vulnerable` implementado 2026-09-06** (ver Consequences — la
 matriz `only-*` pasa a target por defecto de `make suite` en el mismo cambio).
@@ -15,7 +15,7 @@ cada postura defendida, y `TargetPosture.comparable_fingerprint`
 difieren en algo que no sea uno de los `DEFENSE_CONTROLS` declarados — el validador
 existe y funciona: es precisamente el que marcó `causal_comparison.proxy-full.comparable
 =false` en la ejecución `20260831_193511_qwen2.5-3b`, citada en
-[PR 5](../reports/pr-05-baseline-full-y-ablaciones.md), porque `vulnerable` difiere
+[PR 5](../historial-desarrollo.md), porque `vulnerable` difiere
 entre baseline (`true`) y full (`false`) y ese campo no está en `DEFENSE_CONTROLS`.
 
 El problema no es que falte un validador — es que hoy no existe ninguna forma de que

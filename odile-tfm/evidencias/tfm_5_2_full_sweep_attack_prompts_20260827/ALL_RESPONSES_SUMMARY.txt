@@ -1,6 +1,0 @@
-ATTACK PROMPTS - ALL RESPONSES
-==============================
-
-=== atk_* ===
-
-

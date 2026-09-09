@@ -17,7 +17,7 @@ Devuelve un `PromptDecision` (mismo modelo que usará el resto del pipeline de s
 proyecto), no un booleano ad-hoc, para que esta capa sea reutilizable por otros vectores.
 
 Detección de ofuscación a nivel de carácter (Fase 2.9.8): el motor de mutación
-(`henri-tfm/01-ataque/payloads/tecnicas_ofuscacion.py`) demostró que las reglas de lenguaje de
+(`lab/payloads/tecnicas_ofuscacion.py`) demostró que las reglas de lenguaje de
 arriba se evaden por completo insertando caracteres Unicode invisibles o sustituyendo letras por
 homoglifos cirílicos dentro de las mismas palabras clave — el texto sigue diciendo lo mismo para
 un LLM, pero deja de coincidir con ningún regex de palabra literal. `_detect_invisible_chars` y

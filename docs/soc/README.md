@@ -4,7 +4,7 @@
 > Vocabulario en [`CONTEXT.md`](../../CONTEXT.md) §"Observabilidad del proxy (SOC)".
 > Persistencia en [`ADR 0007`](../adr/0007-dos-almacenes-para-la-traza-de-un-turno.md).
 > Contexto de producto en [`PRODUCT.md`](../../PRODUCT.md).
-> Cubre `TODOs.md §12`, que estaba sin empezar.
+> Alcance vigente y límites: [documentación de entrega](../alcance-y-limitaciones.md).
 
 ## Qué es
 
@@ -23,7 +23,7 @@ Estas exclusiones son decisiones, no omisiones:
   (`test_un_fallo_al_volcar_no_propaga_la_excepcion`).
 - **No clasifica.** La clasificación es del proxy; el SOC captura la que ya se hizo.
 - **No juzga.** Sin matriz de confusión, sin tasas de acierto, sin falsos positivos
-  calculados. Esa evaluación sigue en el Analyze Pass offline (`make analyze` → Run
+  calculados. Esa evaluación sigue en el Analyze Pass offline (`make evaluate` y `make report` → Run
   Report). El SOC enseña actividad; el Run Report emite Verdicts.
 - **La única excepción es humana.** Marcar una Alerta como revisada o descartada es un
   juicio, pero lo emite una persona y queda trazado. El sistema no cierra nada solo.
@@ -193,5 +193,5 @@ Sin purga automática; borrado por corrida. `soc.db` queda fuera de git.
   confusión es una consulta de distancia. No se hace: mezclaría observación con evaluación.
 - **Cruce con el Verdict del Analyze Pass**, que dejaría ver los casos donde el proxy dejó
   pasar el prompt pero el ataque fracasó por alignment del modelo.
-- **Firmas Sigma e IoCs conversacionales** (`TODOs.md §12`): el SOC aporta el sustrato.
+- **Firmas Sigma e IoCs conversacionales** (trabajo futuro): el SOC aporta el sustrato.
 - **Asignación de alertas a personas y fases cronometradas** del playbook.

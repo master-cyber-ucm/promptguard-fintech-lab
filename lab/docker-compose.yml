@@ -26,7 +26,7 @@ services:
       AUDIT_DIR: /app/audit/sessions
       SOC_DOCS_DIR: /app/docs
       SOC_DB_PATH: /app/audit/soc.db
-      PAYLOADS_DIR: /app/henri-tfm/01-ataque/payloads
+      PAYLOADS_DIR: /app/payloads
       # Dentro del contenedor backend, Ollama vive en el servicio Docker, no en localhost.
       JUDGE_BASE_URL: ${JUDGE_BASE_URL:-http://ollama:11434}
     volumes:
@@ -35,10 +35,10 @@ services:
       - ./backend/tests:/app/tests
       - ./audit:/app/audit
       - ./scripts:/app/scripts
+      - ./Makefile:/app/Makefile:ro
       # Ficheros reales usados por los fixtures de inyección indirecta.
-      - ../henri-tfm:/app/henri-tfm:ro
-      # Base de conocimiento del SOC: los 60 documentos de ataque y 12 de defensa que
-      # el panel enlaza desde cada evento. Solo lectura — el SOC nunca los modifica.
+      - ./payloads:/app/payloads:ro
+      # Base de conocimiento del SOC, enlazada desde los eventos; solo lectura.
       - ../docs:/app/docs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -49,7 +49,7 @@ services:
     # crear como root:root 755 — PermissionError. No cambia quién es el usuario del
     # contenedor (root sigue siendo root); solo relaja el modo de los ficheros/
     # directorios NUEVOS que ese proceso cree a partir de ahora. Ver
-    # docs/reports/plan-fusion-redteam-validacion.md § hallazgo de permisos.
+    # docs/historial-desarrollo.md para la validación histórica del montaje.
     command: sh -c "umask 0000 && exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
     restart: unless-stopped
 

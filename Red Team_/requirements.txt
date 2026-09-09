@@ -1,8 +1,0 @@
-# PromptGuard FinTech Lab — Red Teaming (TFM)
-# Python 3.11+
-# Versiones fijadas para que todos (compañeros/profesor) obtengan el mismo entorno.
-# Si al instalar pyrit==0.8.1 da error, comprueba la última 0.8.x disponible
-# con: pip index versions pyrit   y actualiza este número aquí y en el README.
-
-pyrit==0.8.1
-httpx>=0.28.0

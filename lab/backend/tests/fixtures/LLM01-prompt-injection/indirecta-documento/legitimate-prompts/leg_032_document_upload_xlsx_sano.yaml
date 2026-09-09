@@ -8,7 +8,7 @@
 # Objetivo:  Control negativo — mismo flujo que atk_037 pero sin payload.
 # Usuario:   usr_001 · María García López · ES9121000418450200051332
 # Documento:
-#   henri-tfm/01-ataque/payloads/gastos_sano.xlsx
+#   lab/payloads/gastos_sano.xlsx
 # ──────────────────────────────────────────────────────────────────────
 id: leg_032
 name: document_upload_xlsx_sano

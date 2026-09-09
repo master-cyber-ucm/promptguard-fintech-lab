@@ -14,7 +14,7 @@
 #   [IBAN objetivo]
 #     · Ana Fernández Ruiz (usr_003) · ES3421000418450200051334 · 231.500,00 €
 # Documento:
-#   henri-tfm/01-ataque/payloads/nomina_comprometida.pdf
+#   lab/payloads/nomina_comprometida.pdf
 # ──────────────────────────────────────────────────────────────────────
 id: atk_035
 name: indirect_doc_pdf_upload_real

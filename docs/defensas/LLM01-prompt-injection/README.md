@@ -1,5 +1,7 @@
 # Defensa — LLM01:2025 Prompt Injection
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contrapartida de [`docs/ataques/LLM01-prompt-injection/`](../../ataques/LLM01-prompt-injection)
 > **Módulo:** Input Sanitizer · **Ataques cubiertos:** #2 (directa), #7 (indirecta por documento)
 

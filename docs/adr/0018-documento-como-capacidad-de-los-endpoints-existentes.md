@@ -10,7 +10,7 @@ aceptaban JSON. Esto convertía "usar un documento" en "elegir otro endpoint", c
 propio agente (`complex`), su propia inyección de contexto (siempre `True`) y su
 propio conjunto de flags de ablación — imposible de comparar limpiamente contra
 `proxy` sin documento, o contra `simple-prompt` con documento. Ver
-[PR 7](../reports/pr-07-integracion-documentos-y-front.md).
+[PR 7](../historial-desarrollo.md).
 
 `_process_chat` (el orquestador compartido por los cinco endpoints) YA aceptaba un
 parámetro `document_text: Optional[str]` y ya sabía componerlo de tres formas

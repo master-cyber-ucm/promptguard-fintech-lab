@@ -8,7 +8,7 @@
 # Objetivo:  Control negativo — mismo flujo que atk_069 pero sin payload.
 # Usuario:   usr_001 · María García López · ES9121000418450200051332
 # Documento:
-#   henri-tfm/01-ataque/payloads/extracto_sano.pdf
+#   lab/payloads/extracto_sano.pdf
 # ──────────────────────────────────────────────────────────────────────
 id: leg_033
 name: document_upload_pdf_transfer_sano

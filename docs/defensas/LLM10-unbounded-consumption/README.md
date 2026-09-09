@@ -1,5 +1,7 @@
 # Defensa — LLM10:2025 Unbounded Consumption
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contrapartida de [`docs/ataques/LLM10-unbounded-consumption/`](../../ataques/LLM10-unbounded-consumption)
 > **Módulos:** Rate Limiter, Budget Guard, Query Pattern Monitor, Document Size Guard (ninguno implementado)
 > **Ataques cubiertos:** #8 (denegación de servicio), #9 (denial of wallet), #10 (extracción de modelo), #11 (amplificación vía documentos adjuntos)

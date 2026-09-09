@@ -56,7 +56,8 @@ def _sha256_tree(root: Path, patterns: tuple[str, ...]) -> str | None:
 def _git(*args: str) -> str | None:
     try:
         salida = subprocess.run(
-            ["git", *args], cwd=REPO, capture_output=True, text=True, timeout=10, check=False,
+            ["git", *args], cwd=REPO, capture_output=True, text=True,
+            encoding="utf-8", errors="surrogateescape", timeout=10, check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -100,7 +101,9 @@ def git_provenance() -> dict:
         "dirty": dirty,
         "dirty_files": sucios,
         "available": bool(commit) and dirty is not None,
-        "diff_sha256": hashlib.sha256((diff or "").encode("utf-8")).hexdigest()[:16] if diff else None,
+        # Git puede incluir texto histórico con otra codificación en el diff.
+        # surrogateescape preserva esos bytes sin bloquear ni alterar su huella.
+        "diff_sha256": hashlib.sha256(diff.encode("utf-8", errors="surrogateescape")).hexdigest()[:16] if diff else None,
     }
 
 

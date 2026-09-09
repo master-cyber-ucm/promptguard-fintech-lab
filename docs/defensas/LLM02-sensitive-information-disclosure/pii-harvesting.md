@@ -1,5 +1,7 @@
 # Defensa — PII Harvesting vía Contexto
 
+> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+
 > Contra el ataque **#6** del catálogo · [ficha del ataque](../../ataques/LLM02-sensitive-information-disclosure/pii-harvesting)
 > **OWASP LLM02:2025**
 > **Módulo principal:** PII Shield · **Apoyo:** Output Auditor, Attack Pattern Detector, minimización del contexto
