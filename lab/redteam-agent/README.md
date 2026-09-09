@@ -5,8 +5,7 @@
 Módulo de aprendizaje: un agente autónomo e iterativo que ataca el pipeline de
 defensa del lab (`/chat/proxy` por defecto) generando y mutando payloads en vivo,
 en vez de reproducir las fixtures estáticas de `run_attack_suite.py`. Construido
-desde cero sobre Ollama — ver `docs/adr/0008-redteam-agent-desde-cero.md` para el
-porqué, y `CONTEXT.md` § "Agente de red-team" para el vocabulario (Campaña, Ejercicio,
+desde cero sobre Ollama. Ver `CONTEXT.md` § "Agente de red-team" para el vocabulario (Campaña, Ejercicio,
 Intento, Objetivo, Motor de evolución, Modo, Modelo atacante).
 
 ## Requisitos
@@ -70,10 +69,7 @@ Ejercicio — resultado de fusionar este agente con las fuentes externas que exp
 [`sources/README.md`](sources/README.md) para el diseño, el mapeo curado
 Técnica↔probe, y por qué HarmBench se evaluó y se descartó como Fuente (dataset de
 generación de contenido dañino, no de manipulación interactiva del agente — mapeo
-forzado sin relación con lo que miden las Técnicas). Historial completo de la
-decisión y las pruebas realizadas:
-[`docs/reports/plan-fusion-redteam.md`](../../docs/historial-desarrollo.md) y
-[`docs/reports/plan-fusion-redteam-validacion.md`](../../docs/historial-desarrollo.md).
+forzado sin relación con lo que miden las Técnicas). La decisión y sus pruebas se conservan en el historial de Git.
 
 ## Diseño
 
@@ -90,7 +86,7 @@ decisión y las pruebas realizadas:
 - `orchestrator.py` aplica un atajo barato antes de invocar al juez LLM cuando
   `ground_truth.py::parece_rechazo()` ya es inequívoco y no hay tool confirmada
   (fusión con el evaluador híbrido de `Red Team_/attack_loop.py` — ahorra llamadas a
-  Ollama sin tocar el rigor del veredicto, ver `docs/reports/plan-fusion-redteam-validacion.md`).
+  Ollama; la decisión final se contrasta con la evidencia del intento).
 - `target_client.py` / `soc_client.py` — hablan con el backend del lab y, en Modo
   caja gris, con la API de lectura del SOC. Nunca escriben Session Files
   directamente: eso lo sigue haciendo el backend (`audit_repository.append_turn`),

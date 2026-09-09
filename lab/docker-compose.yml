@@ -49,7 +49,7 @@ services:
     # crear como root:root 755 — PermissionError. No cambia quién es el usuario del
     # contenedor (root sigue siendo root); solo relaja el modo de los ficheros/
     # directorios NUEVOS que ese proceso cree a partir de ahora. Ver
-    # docs/historial-desarrollo.md para la validación histórica del montaje.
+    # el historial de Git para la validación del montaje.
     command: sh -c "umask 0000 && exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
     restart: unless-stopped
 

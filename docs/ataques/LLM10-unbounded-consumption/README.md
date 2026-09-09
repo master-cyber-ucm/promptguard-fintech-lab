@@ -100,7 +100,7 @@ límites de acciones encoladas.
 - [x] **#8 y #9 con fixtures, defensa implementada y evidencia vulnerable-vs-defendida**
   — ver `lab/backend/tests/fixtures/llm10_scenarios.yaml`,
   `docs/defensas/LLM10-unbounded-consumption/` y
-  `docs/reports/evidencia-llm10-unbounded-consumption.md`
+  la validación histórica conservada en Git
 - [ ] #10 y #11 siguen sin fixtures ni implementación — investigación únicamente (#10
   de bajo valor con el Ollama local por defecto; #11 requiere entorno aislado, ver sus
   fichas)

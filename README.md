@@ -39,8 +39,6 @@ seguir el arranque manual de la guía de operación.
 2. [Guía visual](DEMO_BY_FRONT.md): banco, Playground y SOC.
 3. [Suite completa](DEMO_FULL_SUITE.md): matriz de ablaciones, evaluación e informes.
 4. [Evidencias entregadas](docs/evidencias/README.md): resultados históricos, procedencia e integridad.
-5. [Alcance y limitaciones](docs/alcance-y-limitaciones.md): qué se implementa y qué puede concluirse.
-6. [Validación de entrega](docs/validacion-entrega.md): pruebas realizadas y sus resultados.
 
 ## Sistemas y metodología
 
@@ -89,14 +87,11 @@ lab/
 docs/
   ataques/        Taxonomía, análisis y playbooks
   defensas/       Diseño de controles
-  adr/            Decisiones de arquitectura y metodología
-  metricas/       Contrato de las métricas
   evidencias/     Anexo histórico con manifiesto de integridad
-  reports/        Análisis y evidencia experimental documentada
 ```
 
 [Operación del laboratorio](lab/README.md) · [Glosario](CONTEXT.md) ·
-[Diseño del SOC](docs/soc/README.md) · [Historial de desarrollo](docs/historial-desarrollo.md)
+[Diseño del SOC](docs/soc/README.md)
 
 ## Alcance académico
 

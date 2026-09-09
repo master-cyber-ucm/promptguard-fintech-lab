@@ -1,6 +1,6 @@
 # Defensa — Denegación de Servicio
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#8** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/denegacion-de-servicio)
 > **OWASP LLM10:2025** · **MITRE ATLAS AML.T0029**
@@ -77,6 +77,6 @@ se acerca a esos límites.
 - [x] Fixtures/escenarios de ataque — `lab/backend/tests/fixtures/llm10_scenarios.yaml`
   (`llm10_001` flood, `llm10_002` token_burn) + `lab/scripts/run_llm10_suite.py`
 - [x] Evidencia vulnerable-vs-defendida — ver
-  `docs/reports/evidencia-llm10-unbounded-consumption.md`
+  la validación histórica conservada en Git
 - [ ] Validación empírica bajo carga real de producción (esta corrida usa el lab de
   desarrollo con volumen acotado, no un entorno de carga dedicado)

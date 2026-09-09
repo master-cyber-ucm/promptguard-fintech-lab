@@ -1,6 +1,6 @@
 # Defensa — Excessive Agency (acciones no autorizadas)
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#1** del catálogo, prioridad máxima · [ficha del ataque](../../ataques/LLM06-excessive-agency/acciones-no-autorizadas)
 > **OWASP LLM06:2025**

@@ -5,7 +5,7 @@ Antes de este fix, `tool_permissions.yaml` tenía 0 referencias en `src/` — el
 solo verificaba propiedad de cuenta. El Agente de red-team reprodujo en vivo el vector
 que estos límites debían cerrar (transferencia real sin confirmación, framing de
 urgencia) — ver `HALLAZGOS-SESION-20260816.md` y
-`docs/reports/plan-excelencia-redteam-y-defensas.md` §A1.
+la validación histórica conservada en Git.
 
 usr_001 = María García López, cuenta ES9121000418450200051332, rol "customer".
 Límites de `tool_permissions.yaml` para "customer": max_amount=5000.00,

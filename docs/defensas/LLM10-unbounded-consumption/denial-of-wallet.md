@@ -1,6 +1,6 @@
 # Defensa — Denial of Wallet
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#9** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/denial-of-wallet)
 > **OWASP LLM10:2025** · **MITRE ATLAS AML.T0034**
@@ -88,7 +88,7 @@ declarada.
 - [x] Fixture/escenario de ataque — `llm10_003` (budget_burn) en
   `llm10_scenarios.yaml` + `run_llm10_suite.py`
 - [x] Evidencia vulnerable-vs-defendida — ver
-  `docs/reports/evidencia-llm10-unbounded-consumption.md`
+  la validación histórica conservada en Git
 - [ ] **I2 (coste diferenciado por proveedor) e I3 (alerta de gasto anómalo en el SOC)
   siguen sin implementar** — el guard actual cuenta tokens, no € — necesita la tabla de
   precios por proveedor para I2, y un consumidor en el panel SOC para I3.

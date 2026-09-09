@@ -24,7 +24,7 @@ scenarios:
       # ventana deslizante "respire" entre petición y petición porque cada llamada real
       # tarda 10-90s, y el límite nunca se alcanza — confirmado empíricamente).
       # RATE_LIMIT_MAX_REQUESTS se baja a 5 solo para esta demo (ver
-      # docs/reports/evidencia-llm10-unbounded-consumption.md) — el default de
+      # validación histórica de LLM10) — el default de
       # producción (30/60s) exigiría demasiadas llamadas reales concurrentes para
       # demostrarse de forma segura contra el contenedor compartido de desarrollo.
       n_requests: 15

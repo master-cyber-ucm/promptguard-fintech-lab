@@ -4,7 +4,7 @@
 
 Cada documento responde a una sola pregunta: **cómo se defiende un sistema GenIA de ese ataque concreto** — qué invariante hay que garantizar, dónde se sitúa el control, cómo se diseña, qué no cubre y cómo se valida.
 
-Estos documentos describen el diseño de los controles, incluyendo extensiones propuestas. La implementación entregada incorpora Input Sanitizer, PII Shield, Tool Gatekeeper, Output Auditor, guardia de fuga, controles documentales y controles acotados de consumo. El [alcance vigente](../alcance-y-limitaciones.md) distingue implementación y trabajo futuro; los checklists históricos no sustituyen la evidencia de ejecución.
+Estos documentos describen el diseño de los controles, incluyendo extensiones propuestas. La implementación entregada incorpora Input Sanitizer, PII Shield, Tool Gatekeeper, Output Auditor, guardia de fuga, controles documentales y controles acotados de consumo. Los checklists históricos no sustituyen la evidencia de ejecución.
 
 ## Estructura
 
@@ -51,9 +51,7 @@ defensas/
 
 Los ataques #8–#11 (LLM10) atacan la **infraestructura**, no la inteligencia del
 modelo. #8 y #9 tienen implementación real, fixtures (`llm10_scenarios.yaml`) y
-evidencia vulnerable-vs-defendida (`docs/reports/evidencia-llm10-unbounded-
-consumption.md`); #10 y #11 siguen en fase de investigación, sin código (ver
-[alcance y trabajo futuro](../alcance-y-limitaciones.md)). La configuración efectiva queda registrada por ejecución.
+validación histórica vulnerable-vs-defendida; #10 y #11 siguen en fase de investigación, sin código. La configuración efectiva queda registrada por ejecución.
 
 Ningún módulo cubre un ataque en solitario. La columna indica **quién decide**; los documentos individuales detallan los controles complementarios.
 

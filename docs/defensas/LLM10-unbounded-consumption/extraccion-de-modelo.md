@@ -1,6 +1,6 @@
 # Defensa — Extracción de Modelo
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#10** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/extraccion-de-modelo)
 > **OWASP LLM10:2025** · **MITRE ATLAS AML.T0024**

@@ -1,6 +1,6 @@
 # Defensa — Amplificación vía Documentos Adjuntos
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#11** del catálogo · [ficha del ataque](../../ataques/LLM10-unbounded-consumption/amplificacion-documentos-adjuntos)
 > **Sin *technique ID* de MITRE ATLAS** (honestidad metodológica — ver ficha del ataque) · **CWE-409** (decompression bomb)

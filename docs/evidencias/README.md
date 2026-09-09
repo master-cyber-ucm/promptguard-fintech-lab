@@ -43,8 +43,7 @@ python3 lab/scripts/check_delivery.py
 ## Reproducir con la versión actual
 
 Los documentos operativos están en [lab/payloads](../../lab/payloads/README.md).
-El protocolo vigente es [DEMO_FULL_SUITE.md](../../DEMO_FULL_SUITE.md), y el
-[contrato de métricas](../metricas/contrato-metricas.md) define la interpretación actual.
+El protocolo vigente es [DEMO_FULL_SUITE.md](../../DEMO_FULL_SUITE.md). El Run Report define la interpretación de los resultados de cada ejecución.
 
 Las ejecuciones nuevas se guardan en `lab/audit/`, que está fuera de Git. Para citar
 una corrida nueva en la memoria se debe adjuntar su Run Folder completo, con

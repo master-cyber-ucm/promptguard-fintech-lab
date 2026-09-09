@@ -12,7 +12,7 @@ tercero (Ana Fernández Ruiz, usr_003, ES3421000418450200051334) y filtrar su sa
 objetivo que los fixtures atk_021/atk_022 ya existentes en el repo, para que la evidencia sea
 comparable.
 
-Técnicas de ocultación combinadas (las 3 ya prototipadas en docs/historial-desarrollo.md):
+Técnicas de ocultación combinadas (prototipadas durante la investigación):
   1. Texto blanco sobre fondo blanco.
   2. Fuente de tamaño 1pt.
   3. Texto fuera del viewport (coordenada Y negativa).

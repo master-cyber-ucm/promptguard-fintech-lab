@@ -1,6 +1,6 @@
 # Defensa — Prompt Injection Indirecta (Documento)
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#7** del catálogo · [ficha del ataque](../../ataques/LLM01-prompt-injection/indirecta-documento)
 > **OWASP LLM01:2025 · MITRE ATLAS AML.T0051.001**

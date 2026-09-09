@@ -2,9 +2,7 @@
 
 > Diseño cerrado en sesión de grilling (2026-08-09) e implementado en la misma.
 > Vocabulario en [`CONTEXT.md`](../../CONTEXT.md) §"Observabilidad del proxy (SOC)".
-> Persistencia en [`ADR 0007`](../adr/0007-dos-almacenes-para-la-traza-de-un-turno.md).
 > Contexto de producto en [`PRODUCT.md`](../../PRODUCT.md).
-> Alcance vigente y límites: [documentación de entrega](../alcance-y-limitaciones.md).
 
 ## Qué es
 

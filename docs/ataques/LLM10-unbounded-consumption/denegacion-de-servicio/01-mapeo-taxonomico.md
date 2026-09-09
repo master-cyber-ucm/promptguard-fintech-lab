@@ -122,7 +122,7 @@ flowchart LR
   `lab/scripts/run_llm10_suite.py`
 - [x] **Defensa implementada y evidencia capturada** — Rate Limiter + cap de tokens +
   cota de sesiones, ver `docs/defensas/LLM10-unbounded-consumption/denegacion-de-
-  servicio.md` y `docs/reports/evidencia-llm10-unbounded-consumption.md`
+  servicio.md` y la validación histórica conservada en Git
 - [ ] Validación empírica bajo carga de producción real (la corrida de evidencia usa
   el lab de desarrollo con volumen acotado, no un entorno de carga dedicado)
 - [ ] Sponge examples / "overthinking" / ataque al framework de serving — identificados

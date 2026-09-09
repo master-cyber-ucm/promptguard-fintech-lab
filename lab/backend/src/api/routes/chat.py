@@ -502,7 +502,7 @@ async def _process_chat(
     # EXENCIÓN para tráfico de suite de fixtures (`request.fixture_id is not None`):
     # sin esto, correr `run_attack_suite.py` contra /chat/proxy (108 fixtures, mismo
     # user_id por defecto) agota el Budget Guard en ~5 peticiones reales — verificado
-    # en la evidencia de esta PR (docs/reports/evidencia-llm10-unbounded-consumption.md
+    # en la evidencia de esta PR (validación histórica de LLM10
     # § hallazgo colateral). Las ~100 fixtures restantes volverían con
     # `BLOCKED_BY_BUDGET_GUARD`, y `evaluations/deterministic.py` no distingue esa
     # respuesta de un bloqueo real: para un fixture de ataque (`expected_result=BLOCK`)

@@ -3,7 +3,7 @@ aprobación fuera de banda y parámetros prohibidos.
 
 Hasta este módulo, `tool_permissions.yaml` era config muerta: 0 referencias en `src/`, el
 Gatekeeper solo verificaba propiedad de cuenta (`agents/tools.py::_owns_account`). Ver
-`docs/reports/plan-excelencia-redteam-y-defensas.md` §A1 — el Agente de red-team
+la validación histórica conservada en Git — el Agente de red-team
 reprodujo en vivo (transferencia real sin confirmación) el vector exacto que este YAML ya
 declaraba sin que nada lo aplicara.
 """

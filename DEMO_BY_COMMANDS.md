@@ -105,5 +105,4 @@ Las evidencias locales permanecen en `lab/audit/`. Para detener el stack desde `
 docker compose --profile ollama down
 ```
 
-La [suite completa](DEMO_FULL_SUITE.md) describe la matriz de resultados y la
-[documentación de alcance](docs/alcance-y-limitaciones.md) limita las conclusiones.
+La [suite completa](DEMO_FULL_SUITE.md) describe la matriz de resultados y cómo interpretar sus evidencias.

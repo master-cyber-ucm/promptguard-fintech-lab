@@ -1,6 +1,6 @@
 # Defensa — Cross-Context Data Leakage
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contra el ataque **#3** del catálogo · [ficha del ataque](../../ataques/LLM02-sensitive-information-disclosure/cross-context-leakage)
 > **OWASP LLM02:2025 · MITRE ATLAS AML.T0024** · Incidente motivador **INC-2025-0089**
@@ -219,7 +219,7 @@ Prueba explícita y separada: dos sesiones concurrentes de usuarios distintos co
 - [x] Reglas de propiedad de cuenta definidas (`tool_permissions.yaml`, `require_own_account: true`)
 - [x] Tool Gatekeeper implementado (I1) — `consulta_saldo`, `transferencia_nacional`, `bloquear_tarjeta`
 - [x] I2 implementado — repartido en dos módulos reales, no en un Output Auditor único: `core/leak_guard.py` (IBANs) + `core/pii_shield.py` (resto de entidades). Ver §4.2.
-- [x] Validado contra `atk_008`, `atk_009`, `atk_025`, `atk_026`, `leg_025`, `navi_006` — evidencia en `docs/reports/evidencia-cross-context-leakage.md`
+- [x] Validado contra `atk_008`, `atk_009`, `atk_025`, `atk_026`, `leg_025`, `navi_006` — evidencia en la validación histórica conservada en Git
 - [ ] Detección de importes sensibles del contexto (§4.3) — sigue siendo diseño propuesto, sin código
 - [ ] Aislamiento estricto de sesión por `user_id` verificado — **no implementado**. `session_store.py` indexa solo por `session_id`; `leak_guard`/`pii_shield` cierran la fuga dentro de un turno, no entre sesiones. Declarado como hueco abierto en `core/leak_guard.py` (cabecera "Alcance declarado") y en §5.
 - [ ] Alerta automática al DPO — no implementado. El SOC registra la Alerta con severidad `CRITICAL` (mapeo de categoría en `api/routes/soc.py`) para revisión humana; no hay integración con un canal de notificación real.

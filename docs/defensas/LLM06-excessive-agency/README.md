@@ -1,6 +1,6 @@
 # Defensa — LLM06:2025 Excessive Agency
 
-> Diseño de control: puede incluir propuestas y estados históricos. El [alcance de la entrega](../../alcance-y-limitaciones.md) delimita lo implementado; la eficacia se comprueba con las evidencias de cada ejecución.
+> Diseño de control: puede incluir propuestas y estados históricos; la eficacia se comprueba con las evidencias de cada ejecución.
 
 > Contrapartida de [`docs/ataques/LLM06-excessive-agency/`](../../ataques/LLM06-excessive-agency)
 > **Módulo:** Tool Gatekeeper · **Ataques cubiertos:** #1 (acciones no autorizadas), #4 (confused deputy)
@@ -77,7 +77,7 @@ Diseño correcto:
 
 ## Por qué este módulo es el centro del argumento del TFM
 
-La primera ejecución de la suite mostró que un modelo moderno bloquea por sí solo la mayoría de ataques de LLM01 gracias a su alignment training. La conclusión que se extrae —documentada en [`nota-descubrimiento-alignment-implicito.md`](../../nota-descubrimiento-alignment-implicito.md)— es que **la vulnerabilidad real del escenario no está en el prompt, está en la capa de tools**: `consulta_saldo`, `transferencia_nacional` y `bloquear_tarjeta` ejecutan sin verificar nada.
+La primera ejecución de la suite mostró que un modelo moderno bloquea por sí solo la mayoría de ataques de LLM01 gracias a su alignment training. La conclusión que se extrae —documentada en el análisis conservado en el historial de Git— es que **la vulnerabilidad real del escenario no está en el prompt, está en la capa de tools**: `consulta_saldo`, `transferencia_nacional` y `bloquear_tarjeta` ejecutan sin verificar nada.
 
 De ahí que el Tool Gatekeeper sea el módulo con mejor relación entre esfuerzo y garantía de todo PromptGuard:
 

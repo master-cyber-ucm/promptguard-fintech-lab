@@ -946,7 +946,7 @@ async def main():
     # Marcador legible por máquina, ligado al run_id (PR3): el log de shell donde se
     # redirija esta salida es append-only y ajeno al código — puede acumular texto de
     # corridas o comandos previos. Sin un delimitador explícito, leer "el log" mezcla
-    # colas de ejecuciones distintas bajo el mismo fichero (ver docs/reports/pr-03-*).
+    # colas de ejecuciones distintas bajo el mismo fichero (ver la validación histórica de la evaluación).
     _flush(f"=== RUN START run_id={ts_file} ts={run_ts} ===")
     _flush(SEP2)
     _flush(f"  🎯 PromptGuard Suite Run · {run_ts}")

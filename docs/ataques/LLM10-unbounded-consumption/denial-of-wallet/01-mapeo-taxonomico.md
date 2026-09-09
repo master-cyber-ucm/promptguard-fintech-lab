@@ -101,8 +101,7 @@ flowchart LR
   ejecutable con `run_llm10_suite.py`
 - [x] **Defensa implementada y evidencia capturada** — Budget Guard (presupuesto por
   usuario, corte duro sobre el consumo real), ver `docs/defensas/LLM10-unbounded-
-  consumption/denial-of-wallet.md` y `docs/reports/evidencia-llm10-unbounded-
-  consumption.md`
+  consumption/denial-of-wallet.md` y la validación histórica conservada en Git
 - [ ] Medición de coste real por proveedor (€/1M tokens de cada proveedor soportado) —
   pendiente, requiere decidir si se corre contra un proveedor de pago real o se simula
   (el Budget Guard actual cuenta tokens, no €)

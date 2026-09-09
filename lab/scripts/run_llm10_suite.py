@@ -105,7 +105,7 @@ async def _ejecutar_token_burn(escenario: dict, client: httpx.AsyncClient, api_b
         "error": resultado.get("error"),
         "preview": respuesta[:200],
         # Umbral calibrado empíricamente contra el prompt de este escenario (ver
-        # docs/reports/evidencia-llm10-unbounded-consumption.md): sin cap, la respuesta
+        # validación histórica de LLM10): sin cap, la respuesta
         # natural de qwen2.5:3b para este prompt son ~3800 caracteres; con
         # CLARA_MAX_OUTPUT_TOKENS bajado a un valor pequeño para la demo, se trunca muy
         # por debajo. 2000 separa ambos casos con margen.

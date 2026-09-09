@@ -1,7 +1,7 @@
 """Almacén SQLite del SOC — la proyección consultable de lo que pasó en cada turno.
 
 Convive con los Session Files en Markdown, que siguen siendo la evidencia del TFM
-(ver `docs/adr/0007-dos-almacenes-para-la-traza-de-un-turno.md`). Ninguno deriva del
+(ver las decisiones de arquitectura conservadas en Git). Ninguno deriva del
 otro: los dos se escriben en el mismo instante desde la misma estructura en memoria.
 
 `sqlite3` es de la librería estándar — este módulo no añade ninguna dependencia.

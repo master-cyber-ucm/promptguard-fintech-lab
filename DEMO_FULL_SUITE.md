@@ -36,8 +36,7 @@ La matriz predeterminada comprende:
 
 No todas las fixtures son aplicables a todas las posturas. El plan de cobertura
 registra el denominador esperado. La postura `baseline` no implica automáticamente
-`vulnerable=true`: son dimensiones separadas, descritas en
-[ADR-0017](docs/adr/0017-matriz-de-ablaciones-y-gate-de-reproducibilidad.md).
+`vulnerable=true`: son dimensiones separadas que quedan registradas en la configuración de cada ejecución.
 
 Equivalente directo del runner (sin la inyección de procedencia Git que añade Make):
 
@@ -89,7 +88,7 @@ Los artefactos de la suite y la evaluación incluyen:
 Consultar primero cobertura, exclusiones e inconclusos. Después examinar seguridad,
 utilidad legítima, atribución causal e incertidumbre. Una respuesta bloqueada no es
 necesariamente útil; una llamada a herramienta no acredita por sí sola su efecto.
-El [contrato de métricas](docs/metricas/contrato-metricas.md) define estos conceptos.
+El Run Report distingue estas dimensiones y explica sus criterios de evaluación.
 
 ## 5. Inspección visual y agregación
 

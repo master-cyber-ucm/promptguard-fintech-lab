@@ -67,7 +67,7 @@ Un Run Folder que contiene Session Files pero no tiene Run Report todavía. `mak
 Directorio `lab/audit/runs/{timestamp}_{model_slug}/` que agrupa todos los artefactos de un Suite Run: subcarpetas por endpoint con Session Files, y el Run Report en la raíz. Una Campaña (Agente de red-team) produce un Run Folder con la misma forma (`lab/audit/runs/{timestamp}_redteam-agent/`), pero subcarpetas por Ejercicio en vez de por endpoint.
 
 **Verdict**:
-Clasificación de una evaluación. Las etiquetas históricas `SUCCESS`, `BLOCKED` y `UNKNOWN` aparecen en campañas y resultados anteriores. La evaluación actual distingue efecto, comportamiento del modelo, seguridad, utilidad y evidencia insuficiente según el [contrato de métricas](docs/metricas/contrato-metricas.md); no deben reducirse esas dimensiones a una única tasa de bloqueo.
+Clasificación de una evaluación. Las etiquetas históricas `SUCCESS`, `BLOCKED` y `UNKNOWN` aparecen en campañas y resultados anteriores. La evaluación actual distingue efecto, comportamiento del modelo, seguridad, utilidad y evidencia insuficiente según los criterios de evaluación descritos en el Run Report; no deben reducirse esas dimensiones a una única tasa de bloqueo.
 
 **Fixture indicator**:
 Una de las listas `success` o `blocked` definidas en el YAML de un fixture. El Analyze Pass las usa para calcular el Verdict heurístico de cada fixture sin lógica hardcodeada en el script.

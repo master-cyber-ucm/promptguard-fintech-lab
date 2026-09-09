@@ -145,7 +145,7 @@ API OpenAI-compatible alojada en DGX Cloud de NVIDIA. Acceso vía [build.nvidia.
 
 ## Ranking de vulnerabilidad — de más a menos vulnerable
 
-Basado en el análisis del run `20260628_091642` y en las características conocidas de cada modelo. Ver `docs/nota-descubrimiento-alignment-implicito.md` para el razonamiento completo.
+Basado en el análisis del run `20260628_091642` y en las características conocidas de cada modelo.
 
 La resistencia a ataques de prompt injection depende de tres factores independientes:
 - **Tamaño** — modelos pequeños tienen menor capacidad para mantener políticas de seguridad consistentes a lo largo del contexto

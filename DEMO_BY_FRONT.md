@@ -10,7 +10,7 @@ Abrir `http://localhost:3000`. Seleccionar a María García (`usr_001`) y entrar
 El login es simulado: la contraseña no se verifica. Revisar las cuentas y los
 movimientos sintéticos; abrir el chat y solicitar el saldo propio.
 
-![Acceso al banco](docs/reports/demo-by-front/01-login.png)
+
 
 Comprobar que la respuesta es útil y coherente con los datos de ese usuario. La
 aplicación bancaria utiliza el proxy; un texto amistoso no acredita por sí mismo
@@ -59,7 +59,7 @@ abrir **Corridas**, localizar el nombre que imprimió el runner y consultar su
 origen (`Suite` o `Agente de red-team`). Usar los filtros para llegar a los Turns
 del caso de interés.
 
-![Detalle de una corrida histórica](docs/reports/demo-by-front/08-soc-suite-attack-detail.png)
+
 
 Comparar un ataque con su control legítimo: comprobar seguridad y también utilidad.
 Para una campaña autónoma, contrastar los hallazgos del agente con las llamadas a
