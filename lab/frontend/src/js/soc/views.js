@@ -175,6 +175,8 @@ window.SOC = window.SOC || {};
       '</section>',
     filtros: {},
     filtrosAbiertos: false,
+    orden: 'prompt',
+    direccion: 'asc',
     pagina: 0,
     cursores: [null],
     render: function (el, params) {
@@ -218,7 +220,8 @@ window.SOC = window.SOC || {};
           });
           return;
         }
-        stream.innerHTML = d.turnos.map(function (t) { return filaTurno(t); }).join('');
+        stream.innerHTML = ordenarTurnos(d.turnos, self.orden, self.direccion)
+          .map(function (t) { return filaTurno(t); }).join('');
         cablearTurnos(stream);
         pintarPaginacion(el, self, d.turnos, d.has_more);
       });
@@ -322,6 +325,8 @@ window.SOC = window.SOC || {};
       'LLM01-prompt-injection', 'LLM02-sensitive-information-disclosure',
       'LLM06-excessive-agency', 'LLM07-system-prompt-leakage', '_extensiones'
     ];
+    var orden = V.eventos.orden || 'prompt';
+    var direccion = V.eventos.direccion || 'asc';
     return '<div class="filters">' +
       '<input id="f-texto" type="search" placeholder="Buscar en prompt o respuesta…" value="' +
         esc(f.texto || '') + '" aria-label="Buscar texto" />' +
@@ -329,6 +334,17 @@ window.SOC = window.SOC || {};
         accion('', 'Todos') + accion('BLOCK', 'Con bloqueos') + accion('SUSPICIOUS', 'Con sospechas') +
       '</div>' +
       '<div class="spacer"></div>' +
+      '<label class="sort-control">Ordenar por <select id="f-orden" aria-label="Ordenar por">' +
+        opt('prompt', 'Prompt (A–Z)', orden) +
+        opt('decision', 'Decisión', orden) +
+        opt('latencia', 'Tiempo (latencia)', orden) +
+        opt('canal', 'Canal', orden) +
+        opt('caso', 'Caso', orden) +
+      '</select></label>' +
+      '<select id="f-direccion" aria-label="Dirección de ordenación">' +
+        opt('asc', 'Ascendente', direccion) +
+        opt('desc', 'Descendente', direccion) +
+      '</select>' +
       '<button class="btn" id="btn-mas-filtros" aria-expanded="' + Boolean(V.eventos.filtrosAbiertos) + '">Más filtros</button>' +
       '<button class="btn" id="btn-pausa" aria-pressed="false">Pausar</button>' +
       (V.eventos.filtrosAbiertos
@@ -376,6 +392,16 @@ window.SOC = window.SOC || {};
         reiniciarPaginacion(vista);
         window.SOC.app.rerender();
       }, 300);
+    });
+    var orden = el.querySelector('#f-orden');
+    var direccion = el.querySelector('#f-direccion');
+    orden.addEventListener('change', function () {
+      vista.orden = orden.value;
+      window.SOC.app.rerender();
+    });
+    direccion.addEventListener('change', function () {
+      vista.direccion = direccion.value;
+      window.SOC.app.rerender();
     });
     Array.prototype.forEach.call(el.querySelectorAll('[data-accion]'), function (boton) {
       boton.addEventListener('click', function () {
@@ -429,6 +455,31 @@ window.SOC = window.SOC || {};
       '</summary>' +
       '<div class="trace" data-cargado="0"></div>' +
     '</details>';
+  }
+
+  function ordenarTurnos(turnos, campo, direccion) {
+    var factor = direccion === 'desc' ? -1 : 1;
+    return (turnos || []).map(function (turno, indice) {
+      return { turno: turno, indice: indice };
+    }).sort(function (a, b) {
+      var va = valorOrdenTurno(a.turno, campo);
+      var vb = valorOrdenTurno(b.turno, campo);
+      var comparacion;
+      if (typeof va === 'number' && typeof vb === 'number') {
+        comparacion = va - vb;
+      } else {
+        comparacion = String(va).localeCompare(String(vb), 'es', { sensitivity: 'base' });
+      }
+      return comparacion === 0 ? a.indice - b.indice : comparacion * factor;
+    }).map(function (entrada) { return entrada.turno; });
+  }
+
+  function valorOrdenTurno(t, campo) {
+    if (campo === 'decision') return decisionTurno(t.eventos);
+    if (campo === 'latencia') return Number(t.latencia_total_ms) || 0;
+    if (campo === 'canal') return etiquetaCanal(t.endpoint);
+    if (campo === 'caso') return origenTurno(t);
+    return ui.mensajeReal(t.prompt || '').replace(/\s+/g, ' ').trim();
   }
 
   function decisionTurno(eventos) {

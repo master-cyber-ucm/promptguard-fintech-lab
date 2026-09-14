@@ -266,6 +266,7 @@ section.panel { background: var(--surface); border: 1px solid var(--border); bor
 .filters input { min-width: 0; flex: 1 1 170px; }
 .filters select { max-width: 100%; min-width: 0; }
 .filters .spacer { margin-left: auto; }
+.sort-control { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12px; white-space: nowrap; }
 .filter-quick-group { display: inline-flex; gap: 4px; }
 .filter-quick { white-space: nowrap; }
 .filters-advanced {

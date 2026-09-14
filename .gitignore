@@ -5,6 +5,8 @@ lab/.env
 venv/
 env/
 
+.entrega/
+
 # Python
 __pycache__/
 *.py[cod]
