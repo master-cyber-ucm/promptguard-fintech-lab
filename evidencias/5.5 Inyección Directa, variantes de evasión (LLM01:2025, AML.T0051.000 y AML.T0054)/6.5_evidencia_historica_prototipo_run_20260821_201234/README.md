@@ -1,10 +1,10 @@
-# 6.5. Evidencia histórica del prototipo (run_20260821_201234)
+# 6.3. Evidencia histórica del prototipo (run_20260821_201234)
 
 Evidencia del apartado 6.5 de la memoria: campaña del prototipo `attack_loop.py` (10 intentos de línea base + 2 mutaciones adaptativas, 12 en total) sobre una muestra de 12 de los 61 prompts del banco, con las defensas de PromptGuard activas. Modelo defensor evaluado: Clara (chatbot VerdaBank). Modelo generador de mutaciones / juez: qwen3.5:4b (Ollama local).
 
 Esta campaña se conserva como evidencia fechada de un sistema ya superado, no como caracterización del agente vigente; es la que puso de manifiesto el defecto de fiabilidad del juez corregido en 6.3.
 
-## Tabla 6.5.a — resultados de la campaña histórica
+## Tabla 6.3.a — resultados de la campaña histórica
 
 | Métrica | Resultado |
 |---|---|
